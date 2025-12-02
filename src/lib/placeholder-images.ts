@@ -1,10 +1,2 @@
-import data from './placeholder-images.json';
-
-export type ImagePlaceholder = {
-  id: string;
-  description: string;
-  imageUrl: string;
-  imageHint: string;
-};
-
-export const PlaceHolderImages: ImagePlaceholder[] = data.placeholderImages;
+// This file is intentionally left blank.
+// All placeholder logic is now handled within the page.tsx component.
