@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-image",
+      "description": "An abstract visualization of social media connections and data streams.",
+      "imageUrl": "https://images.unsplash.com/photo-1479292889369-1a48f234247e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxkYXRhJTIwYWJzdHJhY3R8ZW58MHx8fHwxNzY0NjEyOTAzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "data abstract"
+    },
+    {
+      "id": "feature-monitoring",
+      "description": "A close-up of a dashboard showing social media analytics charts.",
+      "imageUrl": "https://images.unsplash.com/photo-1659018966825-43297e655ccf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxkYXNoYm9hcmQlMjBjaGFydHxlbnwwfHx8fDE3NjQ2NDUxMzJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "dashboard chart"
+    },
+    {
+      "id": "feature-ai-post",
+      "description": "An illustration of a robot hand writing on a digital screen.",
+      "imageUrl": "https://images.unsplash.com/photo-1742767069929-0c663150b164?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxyb2JvdCUyMHdyaXRpbmd8ZW58MHx8fHwxNzY0NzE3NDYyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "robot writing"
+    },
+    {
+      "id": "feature-scheduling",
+      "description": "A digital calendar interface with scheduled social media posts.",
+      "imageUrl": "https://images.unsplash.com/photo-1598708521413-feaa4e69c01b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8ZGlnaXRhbCUyMGNhbGVuZGFyfGVufDB8fHx8MTc2NDY2MzAyN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "digital calendar"
+    }
+  ]
 }
