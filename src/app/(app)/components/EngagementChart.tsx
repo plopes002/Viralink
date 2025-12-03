@@ -1,8 +1,7 @@
-
+// app/(app)/components/EngagementChart.tsx
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -11,6 +10,7 @@ const LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"] as const;
 type NetworkKey = "consolidado" | "instagram" | "facebook" | "whatsapp";
 
 const SERIES: Record<NetworkKey, number[]> = {
+  // valores fictícios de índice de engajamento (0–100)
   consolidado: [38, 52, 47, 70, 63, 82, 55],
   instagram:   [45, 60, 58, 78, 72, 90, 65],
   facebook:    [28, 40, 35, 55, 48, 60, 43],
@@ -18,7 +18,7 @@ const SERIES: Record<NetworkKey, number[]> = {
 };
 
 const LABEL_BY_KEY: Record<NetworkKey, string> = {
-  consolidado: "Engajamento consolidado",
+  consolidado: "Consolidado",
   instagram:   "Instagram",
   facebook:    "Facebook",
   whatsapp:    "WhatsApp",
@@ -26,26 +26,59 @@ const LABEL_BY_KEY: Record<NetworkKey, string> = {
 
 export function EngagementChart() {
   const [selected, setSelected] = useState<NetworkKey>("consolidado");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
   const data = SERIES[selected];
   const max = Math.max(...data) || 1;
 
+  const total = data.reduce((acc, v) => acc + v, 0);
+  const avg = total / data.length;
+
+  const currentLabel =
+    hoverIndex !== null ? LABELS[hoverIndex] : "Média da semana";
+
+  const currentValue =
+    hoverIndex !== null ? data[hoverIndex] : Math.round(avg);
+
+  let diffText = "Passe o mouse nos pontos para ver o detalhe do dia.";
+  let diffColor = "#9CA3AF";
+
+  if (hoverIndex !== null && hoverIndex > 0) {
+    const prev = data[hoverIndex - 1];
+    const curr = data[hoverIndex];
+    const diff = curr - prev;
+    const pct = prev > 0 ? (diff / prev) * 100 : 0;
+
+    if (diff > 0) {
+      diffText = `+${diff} pts vs dia anterior (${pct.toFixed(1)}%)`;
+      diffColor = "#22C55E";
+    } else if (diff < 0) {
+      diffText = `${diff} pts vs dia anterior (${pct.toFixed(1)}%)`;
+      diffColor = "#EF4444";
+    } else {
+      diffText = "Sem variação em relação ao dia anterior.";
+      diffColor = "#9CA3AF";
+    }
+  }
+
+  if (hoverIndex === 0) {
+    diffText = "Primeiro dia da série. Sem comparação anterior.";
+    diffColor = "#9CA3AF";
+  }
+
   return (
-    <motion.div
+    <div
       className="rounded-2xl p-4 md:p-5"
       style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
     >
       {/* Título + filtros */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
         <div className="flex flex-col">
           <h2 className="text-sm font-semibold text-white">
-            {selected === "consolidado"
-              ? "Engajamento consolidado"
-              : `Engajamento – ${LABEL_BY_KEY[selected]}`}
+            Engajamento diário – {LABEL_BY_KEY[selected]}
           </h2>
           <span className="text-[11px] text-[#9CA3AF]">
-            Taxa de engajamento diária nas últimas interações.
+            Índice de engajamento (0–100) ao longo da semana.
           </span>
         </div>
 
@@ -65,7 +98,10 @@ export function EngagementChart() {
             return (
               <button
                 key={key}
-                onClick={() => setSelected(key)}
+                onClick={() => {
+                  setSelected(key);
+                  setHoverIndex(null);
+                }}
                 className={`px-3 py-1.5 rounded-full border text-xs transition ${
                   isActive
                     ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
@@ -80,10 +116,10 @@ export function EngagementChart() {
       </div>
 
       {/* Gráfico */}
-      <div className="h-40 rounded-2xl bg-gradient-to-b from-[#1F1033] to-[#050012] border border-[#261341]/60 px-3 pt-3 pb-4">
+      <div className="rounded-2xl bg-gradient-to-b from-[#1F1033] to-[#050012] border border-[#261341]/60 px-3 pt-3 pb-4">
         <svg
           viewBox="0 0 300 120"
-          className="w-full h-full overflow-visible"
+          className="w-full h-28 md:h-32 overflow-visible"
           preserveAspectRatio="none"
         >
           <defs>
@@ -95,39 +131,45 @@ export function EngagementChart() {
           </defs>
 
           {/* Linha */}
-          <motion.polyline
-            key={selected}
+          <polyline
             fill="none"
             stroke="url(#lineGradient)"
-            strokeWidth="4"
+            strokeWidth="3.5"
             strokeLinecap="round"
             strokeLinejoin="round"
             points={data
               .map(
                 (v, i) =>
-                  `${(i / (data.length - 1)) * 300},${120 - (v / max) * 100}`,
+                  `${(i / (data.length - 1 || 1)) * 300},${
+                    120 - (v / max) * 100
+                  }`,
               )
               .join(" ")}
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
           />
 
-          {/* Pontos */}
-          {data.map((v, i) => (
-            <motion.circle
-              key={`${selected}-${i}`}
-              cx={(i / (data.length - 1)) * 300}
-              cy={120 - (v / max) * 100}
-              r="4"
-              fill="#050012"
-              stroke="#F9FAFB"
-              strokeWidth="1.5"
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 + i * 0.05, duration: 0.3 }}
-            />
-          ))}
+          {/* Pontos clicáveis/hover */}
+          {data.map((v, i) => {
+            const cx = (i / (data.length - 1 || 1)) * 300;
+            const cy = 120 - (v / max) * 100;
+            const active = hoverIndex === i;
+
+            return (
+              <g key={i}>
+                {/* anel */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={active ? 6 : 4.5}
+                  fill="#050012"
+                  stroke="#F9FAFB"
+                  strokeWidth={active ? 2 : 1.5}
+                  onMouseEnter={() => setHoverIndex(i)}
+                  onMouseLeave={() => setHoverIndex(null)}
+                  style={{ cursor: "pointer" }}
+                />
+              </g>
+            );
+          })}
         </svg>
 
         {/* Eixo X */}
@@ -137,6 +179,20 @@ export function EngagementChart() {
           ))}
         </div>
       </div>
-    </motion.div>
+
+      {/* Resumo numérico */}
+      <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+        <div className="text-[11px] text-[#CBD5E1]">
+          <span className="text-[#9CA3AF] mr-1">Foco atual:</span>
+          <span className="font-semibold text-white">{currentLabel}</span>
+          <span className="mx-1">•</span>
+          <span className="text-[#9CA3AF]">Índice:</span>{" "}
+          <span className="font-semibold text-white">{currentValue}</span>
+        </div>
+        <div className="text-[11px]" style={{ color: diffColor }}>
+          {diffText}
+        </div>
+      </div>
+    </div>
   );
 }
