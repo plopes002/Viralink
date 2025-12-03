@@ -81,6 +81,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 function Topbar() {
+  const BORDER = "#261341";
+
+  const navItems = [
+    { href: "/dashboard", label: "Visão geral" },
+    { href: "/posts", label: "Posts & Agenda" },
+    { href: "/automations", label: "Automações" },
+    { href: "/social-accounts", label: "Contas" },
+    { href: "/competitors", label: "Concorrentes" },
+    { href: "/analytics", label: "Analytics" },
+    { href: "/settings", label: "Configurações" },
+  ];
+
   return (
     <header
       className="w-full border-b"
@@ -100,14 +112,35 @@ function Topbar() {
 
         <div className="flex items-center gap-4">
           <div className="hidden md:flex flex-col items-end text-[11px] text-[#CBD5E1]">
-            <span>Taxa de resposta hoje: <span className="text-[#22C55E] font-semibold">92%</span></span>
-            <span>Mensagens pendentes: <span className="text-[#F97316] font-semibold">7</span></span>
+            <span>
+              Taxa de resposta hoje:{' '}
+              <span className="text-[#22C55E] font-semibold">92%</span>
+            </span>
+            <span>
+              Mensagens pendentes:{' '}
+              <span className="text-[#F97316] font-semibold">7</span>
+            </span>
           </div>
           <button className="h-9 w-9 rounded-full bg-gradient-to-tr from-[#7C3AED] to-[#C026D3] flex items-center justify-center text-xs font-bold text-white">
             AD
           </button>
         </div>
       </div>
+
+      {/* NAV MOBILE – aparece só em telas pequenas */}
+      <nav className="md:hidden border-t border-[#261341]">
+        <div className="max-w-6xl mx-auto px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar text-[11px]">
+          {navItems.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className="whitespace-nowrap px-3 py-1.5 rounded-full border border-[#312356] text-[#CBD5E1] hover:bg-white/5 hover:text-white transition"
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </nav>
     </header>
   );
 }
