@@ -2,6 +2,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { EngagementChart } from "../components/EngagementChart";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -38,34 +39,7 @@ export default function DashboardPage() {
 
       {/* Linhas com gráfico fake + próximos posts */}
       <div className="grid lg:grid-cols-[1.4fr,0.9fr] gap-4">
-        <motion.div
-          className="rounded-2xl p-4 md:p-5"
-          style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white">
-              Engajamento consolidado
-            </h2>
-            <span className="text-[11px] text-[#9CA3AF]">Instagram • Facebook • WhatsApp</span>
-          </div>
-          <div className="h-40 rounded-xl bg-gradient-to-b from-[#1F1033] to-[#050012] border border-[#261341]/60 relative overflow-hidden">
-            {/* gráfico fake */}
-            <div className="absolute inset-x-4 bottom-4 h-24 flex items-end gap-2">
-              {[40, 55, 32, 70, 60, 80, 52].map((h, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-full bg-gradient-to-t from-[#7C3AED] via-[#C026D3] to-[#0EA5E9]"
-                  style={{ height: `${h}%`, opacity: 0.9 }}
-                />
-              ))}
-            </div>
-            <span className="absolute top-3 left-4 text-[11px] text-[#CBD5E1]">
-              Taxa de engajamento diária
-            </span>
-          </div>
-        </motion.div>
+        <EngagementChart />
 
         <motion.div
           className="rounded-2xl p-4 md:p-5 space-y-3"
