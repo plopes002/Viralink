@@ -65,12 +65,12 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        vbg: "#050017",
+        vcard: "#0B001F",
+        vborder: "#261341",
         vpurple: '#7C3AED',
         vmagenta: '#C026D3',
         vcyan: '#0EA5E9',
-        vbg: '#0F172A',
-        vcard: '#1E293B',
-        vborder: '#334155',
         vsuccess: '#22C55E'
       },
       borderRadius: {
