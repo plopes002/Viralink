@@ -1,7 +1,9 @@
 // app/(app)/layout.tsx
+"use client";
+
 import "../globals.css";
 import Link from "next/link";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import {
   FiHome,
   FiEdit3,
@@ -10,6 +12,8 @@ import {
   FiBarChart2,
   FiSettings,
   FiShare2,
+  FiMenu,
+  FiX,
 } from "react-icons/fi";
 
 const BG = "#050017";
@@ -29,7 +33,7 @@ const navItems = [
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: BG }}>
-      {/* SIDEBAR */}
+      {/* SIDEBAR DESKTOP */}
       <aside
         className="hidden md:flex md:flex-col w-64 border-r"
         style={{ backgroundColor: SIDEBAR, borderColor: BORDER }}
@@ -64,8 +68,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="px-4 py-4 text-[11px] text-[#9CA3AF] border-t" style={{ borderColor: BORDER }}>
-          <p className="mb-1">Plano atual: <span className="text-[#7C3AED] font-semibold">Pro</span></p>
-          <p>Uso de IA este mês: <span className="text-[#0EA5E9] font-semibold">62 gerações</span></p>
+          <p className="mb-1">
+            Plano atual: <span className="text-[#7C3AED] font-semibold">Pro</span>
+          </p>
+          <p>
+            Uso de IA este mês:{" "}
+            <span className="text-[#0EA5E9] font-semibold">62 gerações</span>
+          </p>
         </div>
       </aside>
 
@@ -81,21 +90,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 function Topbar() {
-  const BORDER = "#261341";
-
-  const navItems = [
-    { href: "/dashboard", label: "Visão geral" },
-    { href: "/posts", label: "Posts & Agenda" },
-    { href: "/automations", label: "Automações" },
-    { href: "/social-accounts", label: "Contas" },
-    { href: "/competitors", label: "Concorrentes" },
-    { href: "/analytics", label: "Analytics" },
-    { href: "/settings", label: "Configurações" },
-  ];
+  const [openMobileNav, setOpenMobileNav] = useState(false);
 
   return (
     <header
-      className="w-full border-b"
+      className="w-full border-b relative z-40"
       style={{
         borderColor: BORDER,
         background:
@@ -110,37 +109,55 @@ function Topbar() {
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Infos rápidas só no desktop */}
           <div className="hidden md:flex flex-col items-end text-[11px] text-[#CBD5E1]">
             <span>
-              Taxa de resposta hoje:{' '}
+              Taxa de resposta hoje:{" "}
               <span className="text-[#22C55E] font-semibold">92%</span>
             </span>
             <span>
-              Mensagens pendentes:{' '}
+              Mensagens pendentes:{" "}
               <span className="text-[#F97316] font-semibold">7</span>
             </span>
           </div>
+
+          {/* Botão menu mobile */}
+          <button
+            className="md:hidden h-8 w-8 rounded-full border border-[#312356] flex items-center justify-center text-[#E5E7EB] bg-black/20 backdrop-blur-sm"
+            onClick={() => setOpenMobileNav((v) => !v)}
+            aria-label="Abrir menu"
+          >
+            {openMobileNav ? <FiX size={16} /> : <FiMenu size={16} />}
+          </button>
+
+          {/* Avatar */}
           <button className="h-9 w-9 rounded-full bg-gradient-to-tr from-[#7C3AED] to-[#C026D3] flex items-center justify-center text-xs font-bold text-white">
             AD
           </button>
         </div>
       </div>
 
-      {/* NAV MOBILE – aparece só em telas pequenas */}
-      <nav className="md:hidden border-t border-[#261341]">
-        <div className="max-w-6xl mx-auto px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar text-[11px]">
-          {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap px-3 py-1.5 rounded-full border border-[#312356] text-[#CBD5E1] hover:bg-white/5 hover:text-white transition"
-            >
-              {item.label}
-            </a>
-          ))}
+      {/* MENU MOBILE – overlay suave */}
+      {openMobileNav && (
+        <div className="md:hidden absolute inset-x-0 top-full pb-3 px-3">
+          <div className="rounded-2xl border border-[#312356] bg-[#050017]/95 backdrop-blur-xl shadow-2xl">
+            <nav className="py-2 text-sm">
+              {navItems.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-3 px-4 py-2 text-[#CBD5E1] hover:bg-white/5 hover:text-white transition"
+                  onClick={() => setOpenMobileNav(false)}
+                >
+                  <Icon className="text-base" />
+                  <span>{label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
         </div>
-      </nav>
+      )}
     </header>
   );
 }

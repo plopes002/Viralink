@@ -31,7 +31,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Cards principais */}
-      <div className="grid md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Interações hoje" value="3.482" diff="+18%" tone="up" />
         <StatCard label="Mensagens respondidas" value="94%" diff="+6%" tone="up" />
         <StatCard label="Posts agendados" value="27" diff="+9" tone="up" />
