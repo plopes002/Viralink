@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FiEdit3,
   FiPlus,
@@ -23,7 +24,7 @@ type PostRow = {
   status: Status;
   data: string;
   hora: string;
-  engajamento: string; // ex: "Engajamento: 8.2k" ou "Previsto: Alto"
+  engajamento: string;
 };
 
 const MOCK_POSTS: PostRow[] = [
@@ -84,6 +85,8 @@ const MOCK_POSTS: PostRow[] = [
 ];
 
 export default function PostsPage() {
+  const router = useRouter();
+
   const [statusFilter, setStatusFilter] = useState<Status | "Todos">("Todos");
   const [redeFilter, setRedeFilter] = useState<
     "Todas" | "Instagram" | "Facebook" | "WhatsApp"
@@ -97,11 +100,11 @@ export default function PostsPage() {
   });
 
   const handleCreateWithAI = () => {
-    alert("Futuramente: abrir fluxo de criação de post com IA ✨");
+    router.push("/posts/ai");
   };
 
   const handleCreateManual = () => {
-    alert("Futuramente: abrir editor de post manual.");
+    router.push("/posts/manual");
   };
 
   return (
@@ -183,7 +186,7 @@ export default function PostsPage() {
         </div>
       </div>
 
-      {/* Lista em cards – MESMO layout para desktop e mobile */}
+      {/* Lista em cards */}
       <div
         className="rounded-2xl p-3 md:p-4 space-y-3"
         style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
