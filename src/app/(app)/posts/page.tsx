@@ -1,9 +1,15 @@
-
 // app/(app)/posts/page.tsx
 "use client";
 
 import { useState } from "react";
-import { FiEdit3, FiPlus, FiZap, FiCalendar, FiInstagram, FiFacebook, FiMessageCircle } from "react-icons/fi";
+import {
+  FiEdit3,
+  FiPlus,
+  FiZap,
+  FiInstagram,
+  FiFacebook,
+  FiMessageCircle,
+} from "react-icons/fi";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -17,7 +23,7 @@ type PostRow = {
   status: Status;
   data: string;
   hora: string;
-  engajamento: string; // ex: "Alta", "Média", "Baixa"
+  engajamento: string; // ex: "Engajamento: 8.2k" ou "Previsto: Alto"
 };
 
 const MOCK_POSTS: PostRow[] = [
@@ -79,22 +85,22 @@ const MOCK_POSTS: PostRow[] = [
 
 export default function PostsPage() {
   const [statusFilter, setStatusFilter] = useState<Status | "Todos">("Todos");
-  const [redeFilter, setRedeFilter] = useState<"Todas" | "Instagram" | "Facebook" | "WhatsApp">("Todas");
+  const [redeFilter, setRedeFilter] = useState<
+    "Todas" | "Instagram" | "Facebook" | "WhatsApp"
+  >("Todas");
 
   const filtered = MOCK_POSTS.filter((post) => {
-    const statusOk = statusFilter === "Todos" ? true : post.status === statusFilter;
+    const statusOk =
+      statusFilter === "Todos" ? true : post.status === statusFilter;
     const redeOk = redeFilter === "Todas" ? true : post.rede === redeFilter;
     return statusOk && redeOk;
   });
 
   const handleCreateWithAI = () => {
-    // aqui futuramente abre modal / navega pra criar post com IA
-    console.log("Criar post com IA");
     alert("Futuramente: abrir fluxo de criação de post com IA ✨");
   };
 
   const handleCreateManual = () => {
-    console.log("Criar post manual");
     alert("Futuramente: abrir editor de post manual.");
   };
 
@@ -107,7 +113,8 @@ export default function PostsPage() {
             Posts & Agenda
           </h1>
           <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-xl">
-            Gerencie seus posts, veja o que está agendado e crie novos conteúdos com IA em poucos cliques.
+            Gerencie seus posts, veja o que está agendado e crie novos conteúdos
+            com IA em poucos cliques.
           </p>
         </div>
 
@@ -134,26 +141,29 @@ export default function PostsPage() {
       </header>
 
       {/* Filtros */}
-      <div className="rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
+      <div
+        className="rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
         style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
       >
         <div className="flex flex-wrap gap-2 text-[11px] md:text-xs">
-          {(["Todos", "Publicado", "Agendado", "Rascunho"] as const).map((status) => {
-            const isActive = statusFilter === status;
-            return (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 rounded-full border transition ${
-                  isActive
-                    ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                    : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-                }`}
-              >
-                {status}
-              </button>
-            );
-          })}
+          {(["Todos", "Publicado", "Agendado", "Rascunho"] as const).map(
+            (status) => {
+              const isActive = statusFilter === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-full border transition ${
+                    isActive
+                      ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                      : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+                  }`}
+                >
+                  {status}
+                </button>
+              );
+            },
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-[11px] md:text-xs">
@@ -173,36 +183,26 @@ export default function PostsPage() {
         </div>
       </div>
 
-      {/* Lista / tabela de posts */}
+      {/* Lista em cards – MESMO layout para desktop e mobile */}
       <div
-        className="rounded-2xl p-3 md:p-4"
+        className="rounded-2xl p-3 md:p-4 space-y-3"
         style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
       >
-        <div className="hidden md:grid grid-cols-[2.2fr,1fr,1.1fr,1.2fr,1.1fr] px-3 pb-2 text-[11px] text-[#9CA3AF]">
-          <span>Título</span>
-          <span>Rede</span>
-          <span>Status</span>
-          <span>Data / Horário</span>
-          <span>Engajamento</span>
-        </div>
+        {filtered.length === 0 && (
+          <div className="py-6 text-center text-[12px] text-[#9CA3AF]">
+            Nenhum post encontrado com os filtros atuais.
+          </div>
+        )}
 
-        <div className="divide-y divide-[#261341]/60">
-          {filtered.length === 0 && (
-            <div className="py-6 text-center text-[12px] text-[#9CA3AF]">
-              Nenhum post encontrado com os filtros atuais.
-            </div>
-          )}
-
-          {filtered.map((post) => (
-            <PostRowItem key={post.id} post={post} />
-          ))}
-        </div>
+        {filtered.map((post) => (
+          <PostCard key={post.id} post={post} />
+        ))}
       </div>
     </section>
   );
 }
 
-function PostRowItem({ post }: { post: PostRow }) {
+function PostCard({ post }: { post: PostRow }) {
   const statusColor =
     post.status === "Publicado"
       ? "#22C55E"
@@ -210,12 +210,21 @@ function PostRowItem({ post }: { post: PostRow }) {
       ? "#0EA5E9"
       : "#FACC15";
 
+  const redeIcon =
+    post.rede === "Instagram" ? (
+      <FiInstagram size={13} />
+    ) : post.rede === "Facebook" ? (
+      <FiFacebook size={13} />
+    ) : (
+      <FiMessageCircle size={13} />
+    );
+
   const StatusBadge = (
     <span
       className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium"
       style={{
-        backgroundColor: "rgba(15,23,42,0.8)",
-        border: "1px solid rgba(148,163,184,0.3)",
+        backgroundColor: "rgba(15,23,42,0.9)",
+        border: "1px solid rgba(148,163,184,0.35)",
         color: statusColor,
       }}
     >
@@ -227,63 +236,33 @@ function PostRowItem({ post }: { post: PostRow }) {
     </span>
   );
 
-  const redeIcon =
-    post.rede === "Instagram" ? (
-      <FiInstagram size={13} />
-    ) : post.rede === "Facebook" ? (
-      <FiFacebook size={13} />
-    ) : (
-      <FiMessageCircle size={13} />
-    );
-
-  // Layout desktop (grid) + mobile (cards)
   return (
-    <div className="py-3 md:py-2">
-      {/* DESKTOP */}
-      <div className="hidden md:grid grid-cols-[2.2fr,1fr,1.1fr,1.2fr,1.1fr] items-center px-3 text-xs text-[#E5E7EB]">
+    <div className="rounded-2xl border border-[#261341] bg-[#050017] px-3 md:px-4 py-3 text-[11px] md:text-xs text-[#E5E7EB]">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2">
           <button className="h-7 w-7 flex items-center justify-center rounded-full bg-[#120426] border border-[#2B1743] text-[#C4B5FD]">
             <FiEdit3 size={13} />
           </button>
-          <span className="truncate">{post.titulo}</span>
+          <p className="font-medium leading-snug text-[12px] md:text-[13px]">
+            {post.titulo}
+          </p>
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-[#CBD5E1]">
+        {StatusBadge}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-[#9CA3AF]">
+        <span className="inline-flex items-center gap-1">
           {redeIcon}
           <span>{post.rede}</span>
-        </div>
-        <div>{StatusBadge}</div>
-        <div className="text-[11px] text-[#CBD5E1]">
-          {post.data} {post.hora !== "-" && `• ${post.hora}`}
-        </div>
-        <div className="text-[11px] text-[#CBD5E1]">{post.engajamento}</div>
+        </span>
+        <span>•</span>
+        <span>
+          {post.data}
+          {post.hora !== "-" && ` • ${post.hora}`}
+        </span>
       </div>
 
-      {/* MOBILE */}
-      <div className="md:hidden rounded-xl border border-[#261341] bg-[#050017] px-3 py-2.5 text-[11px] text-[#E5E7EB]">
-        <div className="flex items-start justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2">
-            <button className="h-6 w-6 flex items-center justify-center rounded-full bg-[#120426] border border-[#2B1743] text-[#C4B5FD]">
-              <FiEdit3 size={12} />
-            </button>
-            <p className="font-medium leading-snug">{post.titulo}</p>
-          </div>
-          {StatusBadge}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-[#9CA3AF]">
-          <span className="inline-flex items-center gap-1">
-            {redeIcon}
-            <span>{post.rede}</span>
-          </span>
-          <span>•</span>
-          <span>
-            {post.data}
-            {post.hora !== "-" && ` • ${post.hora}`}
-          </span>
-        </div>
-
-        <p className="mt-1 text-[#CBD5E1]">{post.engajamento}</p>
-      </div>
+      <p className="mt-1 text-[#CBD5E1]">{post.engajamento}</p>
     </div>
   );
 }
