@@ -58,5 +58,30 @@ service cloud.firestore {
       // Only admins can add/edit/remove social accounts
       allow write: if isWorkspaceAdmin(request.resource.data.workspaceId);
     }
+
+    match /notifications/{notificationId} {
+      allow create: if false;
+      allow get: if isWorkspaceMember(resource.data.workspaceId);
+      allow list: if request.query.workspaceId != null && isWorkspaceMember(request.query.workspaceId);
+
+      allow update: if isWorkspaceMember(resource.data.workspaceId)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readBy'])
+        && request.resource.data.readBy is list
+        && request.resource.data.readBy.size() >= resource.data.readBy.size()
+        && request.resource.data.readBy.hasAll(resource.data.readBy)
+        && request.resource.data.readBy.size() <= resource.data.readBy.size() + 1
+        && (
+          request.resource.data.readBy.size() == resource.data.readBy.size()
+          || (
+            request.resource.data.readBy.size() == resource.data.readBy.size() + 1
+            && !resource.data.readBy.hasAny([request.auth.uid])
+            && request.resource.data.readBy.hasAll(
+              resource.data.readBy + [request.auth.uid]
+            )
+          )
+        );
+
+      allow delete: if false;
+    }
   }
 }
