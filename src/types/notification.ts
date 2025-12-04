@@ -2,7 +2,8 @@
 export type NotificationType =
   | "post_published"
   | "post_publish_failed"
-  | "metrics_updated";
+  | "metrics_updated"
+  | "competitor_alert"; // 👈 NOVO
 
 export interface Notification {
   id: string;
@@ -10,7 +11,8 @@ export interface Notification {
   type: NotificationType;
   postId?: string;
   channels?: string[];
+  competitorId?: string; // 👈 opcional, para eventos de concorrentes
   message: string;
   createdAt: Date;
-  readBy?: string[]; // uids que já leram
+  readBy?: string[];
 }

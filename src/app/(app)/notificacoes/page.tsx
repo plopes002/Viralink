@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FiCheckCircle, FiAlertCircle, FiBarChart2 } from "react-icons/fi";
+import { FiCheckCircle, FiAlertCircle, FiBarChart2, FiTrendingUp } from "react-icons/fi";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { Notification, NotificationType } from "@/types/notification";
 import { useUser } from "@/firebase/provider";
@@ -49,10 +49,16 @@ function NotificationIcon({ n }: { n: Notification }) {
         </div>
       );
     case "metrics_updated":
-    default:
       return (
         <div className={`${base} bg-sky-500/10 border-sky-500/50 text-sky-300`}>
           <FiBarChart2 size={14} />
+        </div>
+      );
+    case "competitor_alert":
+    default:
+      return (
+        <div className={`${base} bg-fuchsia-500/10 border-fuchsia-500/50 text-fuchsia-300`}>
+          <FiTrendingUp size={14} />
         </div>
       );
   }
@@ -128,6 +134,7 @@ export default function NotificationsPage() {
             { key: "post_published", label: "Publicações OK" },
             { key: "post_publish_failed", label: "Falhas na publicação" },
             { key: "metrics_updated", label: "Métricas atualizadas" },
+            { key: "competitor_alert", label: "Concorrentes" },
           ] as { key: FilterType; label: string }[]).map((opt) => (
             <button
               key={opt.key}
