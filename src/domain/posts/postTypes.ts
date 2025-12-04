@@ -43,6 +43,10 @@ export interface ChannelConfig {
   publishedAt: FirebaseFirestore.Timestamp | null;
   externalPostId: string | null;
   lastError: string | null;
+  
+  // controle de tentativa
+  retryCount?: number;                    // quantas tentativas de publicar
+  lastAttemptAt?: FirebaseFirestore.Timestamp | null;
 }
 
 export interface Metrics {
@@ -73,6 +77,10 @@ export interface PostDocument {
   channels: ChannelConfig[];
 
   metrics: Metrics | null;
+  
+  // campo auxiliar pro cron encontrar posts agendados
+  nextRunAt: FirebaseFirestore.Timestamp | null;
+  metricsLastUpdatedAt?: FirebaseFirestore.Timestamp | null;
 
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
