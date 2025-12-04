@@ -9,12 +9,15 @@ import {
   FiRefreshCcw,
   FiImage,
   FiVideo,
+  FiSparkles,
 } from "react-icons/fi";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
 
 type Rede = "Instagram" | "Facebook" | "WhatsApp";
+type MediaKind = "none" | "image" | "video";
+type MediaSource = "upload" | "ai";
 
 const TONS_PREDEFINIDOS = [
   "Profissional, mas próximo",
@@ -28,39 +31,42 @@ const TONS_PREDEFINIDOS = [
 export default function CreatePostAIPage() {
   const router = useRouter();
 
-  // Redes
+  // Redes (multi-seleção)
   const [redesSelecionadas, setRedesSelecionadas] = useState<Rede[]>([
     "Instagram",
   ]);
 
-  // Campos de texto
+  // Texto / parâmetros
   const [tema, setTema] = useState("");
   const [objetivo, setObjetivo] = useState("");
   const [publico, setPublico] = useState("");
   const [cta, setCta] = useState("Envie uma mensagem ou clique no link da bio.");
 
-  // Tom de voz (lista + personalizado)
+  // Tom de voz
   const [tomSelecionado, setTomSelecionado] = useState<string>(
     TONS_PREDEFINIDOS[0],
   );
   const [tomPersonalizado, setTomPersonalizado] = useState("");
 
-  // Comprimento
   const [comprimento, setComprimento] = useState<"curto" | "medio" | "longo">(
     "medio",
   );
 
-  // Mídia
-  const [tipoMidia, setTipoMidia] = useState<"nenhuma" | "imagem" | "video">(
-    "nenhuma",
-  );
-  const [midiaArquivoNome, setMidiaArquivoNome] = useState<string | null>(null);
+  // MÍDIA
+  const [mediaKind, setMediaKind] = useState<MediaKind>("none");
+  const [mediaSource, setMediaSource] = useState<MediaSource>("upload");
+  const [mediaFileName, setMediaFileName] = useState<string | null>(null);
 
-  // Resultado IA
+  // Prompt para imagem IA
+  const [mediaPrompt, setMediaPrompt] = useState("");
+  const [imageGenerated, setImageGenerated] = useState(false);
+  const [loadingImage, setLoadingImage] = useState(false);
+
+  // Resultado IA de texto
   const [tituloGerado, setTituloGerado] = useState<string | null>(null);
   const [textoGerado, setTextoGerado] = useState<string | null>(null);
   const [hashtagsGeradas, setHashtagsGeradas] = useState<string[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingTexto, setLoadingTexto] = useState(false);
 
   function toggleRede(rede: Rede) {
     setRedesSelecionadas((atual) =>
@@ -75,7 +81,7 @@ export default function CreatePostAIPage() {
       ? tomPersonalizado || "Tom personalizado definido pelo usuário"
       : tomSelecionado;
 
-  function handleGerarComIA() {
+  function handleGerarTextoIA() {
     if (!tema.trim()) {
       alert("Informe pelo menos o tema da postagem para gerar com IA.");
       return;
@@ -85,9 +91,9 @@ export default function CreatePostAIPage() {
       return;
     }
 
-    setLoading(true);
+    setLoadingTexto(true);
 
-    // 🔮 Aqui você vai chamar sua função de IA / Cloud Function / API externa
+    // 🔮 AQUI entra sua chamada de IA de TEXTO (Cloud Function / API externa)
     setTimeout(() => {
       const redesStr = redesSelecionadas.join(", ");
 
@@ -111,25 +117,47 @@ export default function CreatePostAIPage() {
       setTituloGerado(fakeTitulo);
       setTextoGerado(fakeTexto);
       setHashtagsGeradas(fakeHashtags);
-      setLoading(false);
+      setLoadingTexto(false);
     }, 600);
+  }
+
+  function handleGerarImagemIA() {
+    if (mediaKind !== "image") {
+      alert("Selecione o tipo de mídia como imagem para gerar com IA.");
+      return;
+    }
+    if (!mediaPrompt.trim()) {
+      alert("Descreva o que você quer na imagem.");
+      return;
+    }
+
+    setLoadingImage(true);
+
+    // 🎨 AQUI entra sua chamada de IA de IMAGEM (ex.: DALL·E via Cloud Function)
+    setTimeout(() => {
+      setImageGenerated(true);
+      setMediaFileName("imagem-gerada-pela-IA.png");
+      setLoadingImage(false);
+    }, 800);
   }
 
   function handleLimpar() {
     setTituloGerado(null);
     setTextoGerado(null);
     setHashtagsGeradas(null);
+    setImageGenerated(false);
+    setMediaFileName(null);
   }
 
   function handleVoltar() {
     router.push("/posts");
   }
 
-  function handleChangeMidia(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChangeUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    setMidiaArquivoNome(file ? file.name : null);
-
-    // 👉 Em produção: subir para Firebase Storage e guardar a URL no Firestore
+    setMediaFileName(file ? file.name : null);
+    setImageGenerated(false);
+    // Produção: subir pro Firebase Storage e guardar URL no Firestore
   }
 
   return (
@@ -148,21 +176,19 @@ export default function CreatePostAIPage() {
             Criar post com IA
           </h1>
           <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-2xl">
-            Selecione as redes, defina tema, objetivo e tom de voz. O VIRALINK
-            gera título, legenda e hashtags para você usar em uma ou várias
-            redes ao mesmo tempo.
+            Selecione as redes, peça para a IA criar o texto e, se quiser, gere
+            também a imagem da postagem automaticamente.
           </p>
         </div>
       </header>
 
-      {/* Form + preview */}
       <div className="grid lg:grid-cols-[1.1fr,0.9fr] gap-4">
-        {/* Formulário */}
+        {/* FORM */}
         <div
           className="rounded-2xl p-4 md:p-5 space-y-4"
           style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
         >
-          {/* Redes (multi-seleção) */}
+          {/* Redes */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] text-[#CBD5E1]">
               Em quais redes esse post será publicado?
@@ -189,8 +215,8 @@ export default function CreatePostAIPage() {
               )}
             </div>
             <p className="text-[10px] text-[#6B7280]">
-              • Você poderá salvar um único texto e reutilizar em todas as
-              redes selecionadas.
+              • Um único conteúdo será reutilizado em todas as redes
+              selecionadas.
             </p>
           </div>
 
@@ -220,7 +246,7 @@ export default function CreatePostAIPage() {
             />
           </div>
 
-          {/* Tom de voz – lista + personalizado */}
+          {/* Tom de voz */}
           <div className="flex flex-col gap-2">
             <label className="text-[11px] text-[#CBD5E1]">Tom de voz</label>
             <div className="flex flex-wrap gap-2 text-[11px]">
@@ -261,7 +287,7 @@ export default function CreatePostAIPage() {
             )}
           </div>
 
-          {/* Público-alvo */}
+          {/* Público */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] text-[#CBD5E1]">
               Público-alvo (opcional)
@@ -314,17 +340,23 @@ export default function CreatePostAIPage() {
             </div>
           </div>
 
-          {/* Mídia (imagem/vídeo) */}
+          {/* MÍDIA: upload ou IA */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] text-[#CBD5E1]">
               Mídia do post (opcional)
             </label>
+
+            {/* Escolha tipo (none / image / video) */}
             <div className="flex flex-wrap gap-2 text-[11px] mb-1">
               <button
                 type="button"
-                onClick={() => setTipoMidia("nenhuma")}
+                onClick={() => {
+                  setMediaKind("none");
+                  setMediaFileName(null);
+                  setImageGenerated(false);
+                }}
                 className={`px-3 py-1.5 rounded-full border transition ${
-                  tipoMidia === "nenhuma"
+                  mediaKind === "none"
                     ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
                     : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
                 }`}
@@ -333,9 +365,9 @@ export default function CreatePostAIPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTipoMidia("imagem")}
+                onClick={() => setMediaKind("image")}
                 className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
-                  tipoMidia === "imagem"
+                  mediaKind === "image"
                     ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
                     : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
                 }`}
@@ -345,9 +377,13 @@ export default function CreatePostAIPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTipoMidia("video")}
+                onClick={() => {
+                  setMediaKind("video");
+                  setMediaSource("upload");
+                  setImageGenerated(false);
+                }}
                 className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
-                  tipoMidia === "video"
+                  mediaKind === "video"
                     ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
                     : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
                 }`}
@@ -357,29 +393,91 @@ export default function CreatePostAIPage() {
               </button>
             </div>
 
-            {tipoMidia !== "nenhuma" && (
-              <div className="flex items-center gap-2 text-[11px]">
-                <input
-                  type="file"
-                  accept={tipoMidia === "imagem" ? "image/*" : "video/*"}
-                  onChange={handleChangeMidia}
-                  className="text-[11px] text-[#CBD5E1]"
-                />
+            {/* Fonte da mídia */}
+            {mediaKind === "image" && (
+              <div className="flex flex-wrap gap-2 text-[11px] mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMediaSource("upload");
+                    setImageGenerated(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
+                    mediaSource === "upload"
+                      ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                      : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+                  }`}
+                >
+                  Upload de imagem
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMediaSource("ai");
+                    setMediaFileName(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
+                    mediaSource === "ai"
+                      ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                      : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+                  }`}
+                >
+                  <FiSparkles size={12} />
+                  Gerar imagem com IA
+                </button>
               </div>
             )}
-            {midiaArquivoNome && (
-              <p className="text-[10px] text-[#9CA3AF]">
-                Arquivo selecionado: {midiaArquivoNome}
+
+            {/* Upload */}
+            {mediaKind !== "none" && mediaSource === "upload" && (
+              <input
+                type="file"
+                accept={mediaKind === "image" ? "image/*" : "video/*"}
+                onChange={handleChangeUpload}
+                className="text-[11px] text-[#CBD5E1]"
+              />
+            )}
+
+            {/* Prompt de imagem IA */}
+            {mediaKind === "image" && mediaSource === "ai" && (
+              <div className="flex flex-col gap-1 mt-1">
+                <textarea
+                  value={mediaPrompt}
+                  onChange={(e) => setMediaPrompt(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva a imagem que deseja (ex.: carrossel com fundo roxo neon, ícones de redes sociais e clima futurista)."
+                  className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
+                />
+                <button
+                  type="button"
+                  onClick={handleGerarImagemIA}
+                  disabled={loadingImage}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 mt-1 rounded-full text-[11px] font-semibold text-white disabled:opacity-60"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, #7C3AED 0%, #C026D3 50%, #0EA5E9 100%)",
+                  }}
+                >
+                  <FiSparkles size={12} />
+                  {loadingImage ? "Gerando imagem..." : "Gerar imagem com IA"}
+                </button>
+              </div>
+            )}
+
+            {mediaFileName && (
+              <p className="text-[10px] text-[#9CA3AF] mt-1">
+                Arquivo selecionado: {mediaFileName}
+                {imageGenerated && " (gerado pela IA)"}
               </p>
             )}
           </div>
 
-          {/* Ações */}
+          {/* AÇÕES TEXTO */}
           <div className="flex flex-wrap gap-2 pt-2">
             <button
               type="button"
-              onClick={handleGerarComIA}
-              disabled={loading}
+              onClick={handleGerarTextoIA}
+              disabled={loadingTexto}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs md:text-sm font-semibold text-white shadow-lg disabled:opacity-60"
               style={{
                 background:
@@ -387,7 +485,7 @@ export default function CreatePostAIPage() {
               }}
             >
               <FiZap size={14} />
-              {loading ? "Gerando..." : "Gerar com IA"}
+              {loadingTexto ? "Gerando texto..." : "Gerar texto com IA"}
             </button>
             <button
               type="button"
@@ -400,13 +498,14 @@ export default function CreatePostAIPage() {
           </div>
 
           <p className="text-[10px] text-[#6B7280] pt-1">
-            • Em produção, você vai enviar esses dados para uma Cloud Function /
-            API de IA e salvar o rascunho no Firestore (um único post ligado às
-            redes selecionadas).
+            • Produção: enviar esses dados para suas Cloud Functions (texto +
+            imagem). O retorno salva um rascunho na coleção{" "}
+            <span className="text-[#C4B5FD] font-mono">posts</span> com URLs da
+            mídia gerada ou enviada.
           </p>
         </div>
 
-        {/* Preview */}
+        {/* PREVIEW */}
         <div
           className="rounded-2xl p-4 md:p-5 space-y-3"
           style={{
@@ -437,11 +536,19 @@ export default function CreatePostAIPage() {
               </div>
             </div>
 
-            {tipoMidia !== "nenhuma" && (
-              <div className="mt-2 h-28 rounded-xl bg-gradient-to-tr from-[#1F1033] to-[#020617] border border-[#261341] flex items-center justify-center text-[10px] text-[#9CA3AF]">
-                {midiaArquivoNome
-                  ? `Preview de ${tipoMidia}: ${midiaArquivoNome}`
-                  : `Área reservada para ${tipoMidia} desse post`}
+            {mediaKind !== "none" && (
+              <div className="mt-2 h-28 rounded-xl bg-gradient-to-tr from-[#1F1033] to-[#020617] border border-[#261341] flex items-center justify-center text-[10px] text-[#9CA3AF] px-4 text-center">
+                {mediaFileName ? (
+                  imageGenerated ? (
+                    <>Imagem gerada pela IA: {mediaFileName}</>
+                  ) : (
+                    <>Preview de {mediaKind}: {mediaFileName}</>
+                  )
+                ) : mediaKind === "image" && mediaSource === "ai" ? (
+                  <>A imagem gerada pela IA aparecerá aqui após a geração.</>
+                ) : (
+                  <>Área reservada para a mídia deste post.</>
+                )}
               </div>
             )}
 
@@ -469,10 +576,10 @@ export default function CreatePostAIPage() {
           </button>
 
           <p className="text-[10px] text-[#6B7280]">
-            • Quando integrar com o backend, esse botão vai criar um documento
-            na coleção <span className="text-[#C4B5FD] font-mono">posts</span>,
-            com links das mídias no Storage e uma lista de redes onde será
-            publicado.
+            • Quando integrar com o backend, esse botão vai criar o rascunho na
+            coleção <span className="text-[#C4B5FD] font-mono">posts</span>,
+            incluindo as redes selecionadas, links de mídia (Storage) e os
+            textos gerados.
           </p>
         </div>
       </div>
