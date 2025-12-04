@@ -12,6 +12,7 @@ import {
 import { useNotifications } from "../../../hooks/useNotifications";
 import type { Notification } from "../../../types/notification";
 import { useUser } from "@/firebase/provider";
+import { CompetitorAnalyticsSection } from "./components/CompetitorAnalyticsSection";
 
 // TODO: trocar por seus hooks reais de user/workspace
 function useCurrentUserAndWorkspace() {
@@ -156,6 +157,36 @@ export default function CompetitorsPage() {
     },
     null,
   );
+  
+  const followers7d = [
+    { label: "Seg", value: 35 },
+    { label: "Ter", value: 42 },
+    { label: "Qua", value: 28 },
+    { label: "Qui", value: 56 },
+    { label: "Sex", value: 61 },
+    { label: "Sáb", value: 74 },
+    { label: "Dom", value: 40 },
+  ];
+  
+  const clicks7d = [
+    { label: "Seg", value: 18 },
+    { label: "Ter", value: 22 },
+    { label: "Qua", value: 16 },
+    { label: "Qui", value: 30 },
+    { label: "Sex", value: 34 },
+    { label: "Sáb", value: 41 },
+    { label: "Dom", value: 19 },
+  ];
+  
+  const engagement7d = [
+    { label: "Seg", value: 6.2 },
+    { label: "Ter", value: 7.1 },
+    { label: "Qua", value: 5.8 },
+    { label: "Qui", value: 8.4 },
+    { label: "Sex", value: 7.9 },
+    { label: "Sáb", value: 9.3 },
+    { label: "Dom", value: 6.7 },
+  ];
 
   return (
     <section className="mt-4 space-y-6">
@@ -365,41 +396,11 @@ export default function CompetitorsPage() {
                   </a>
                 </div>
 
-                {/* mini gráfico fake de crescimento */}
-                <div className="mt-2 rounded-2xl border border-[#1F1134] bg-gradient-to-b from-[#150326] to-[#050017] px-3 py-3">
-                  <p className="text-[11px] text-[#E5E7EB] mb-1">
-                    Crescimento de seguidores (últimos 7 dias)
-                  </p>
-                  <div className="relative h-28 mt-1">
-                    <div
-                      className="absolute inset-x-0 bottom-4 h-16 rounded-full blur-2xl opacity-80"
-                      style={{
-                        background:
-                          "linear-gradient(90deg,#7C3AED 0%,#EC4899 50%,#0EA5E9 100%)",
-                      }}
-                    />
-                    <div className="absolute inset-0 flex items-end justify-between px-2">
-                      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                        <div
-                          key={d}
-                          className="w-[10%] min-w-[6px] rounded-full bg-[#020016]/80 border border-[#5B21B6]/60"
-                          style={{
-                            height: `${40 + (d * 6) % 40}px`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div className="absolute bottom-0 inset-x-0 flex justify-between px-3 text-[9px] text-[#6B7280]">
-                      <span>Seg</span>
-                      <span>Ter</span>
-                      <span>Qua</span>
-                      <span>Qui</span>
-                      <span>Sex</span>
-                      <span>Sáb</span>
-                      <span>Dom</span>
-                    </div>
-                  </div>
-                </div>
+                <CompetitorAnalyticsSection
+                  followers7d={followers7d}
+                  clicks7d={clicks7d}
+                  engagement7d={engagement7d}
+                />
 
                 {/* cards de resumo */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
