@@ -15,6 +15,8 @@ import {
   FiMenu,
   FiX,
 } from "react-icons/fi";
+import { NotificationsBell } from "./components/NotificationsBell";
+import { useUser } from "@/firebase/provider";
 
 const BG = "#050017";
 const SIDEBAR = "#050012";
@@ -91,6 +93,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
 function Topbar() {
   const [openMobileNav, setOpenMobileNav] = useState(false);
+  const { user } = useUser();
+  const currentWorkspaceId = "agency_123"; // TODO: Replace with dynamic workspace ID from context
 
   return (
     <header
@@ -121,6 +125,8 @@ function Topbar() {
               <span className="text-[#F97316] font-semibold">7</span>
             </span>
           </div>
+
+          <NotificationsBell workspaceId={currentWorkspaceId} uid={user?.uid ?? null} />
 
           {/* Botão menu mobile */}
           <button
