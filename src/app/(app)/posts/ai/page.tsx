@@ -9,7 +9,7 @@ import {
   FiRefreshCcw,
   FiImage,
   FiVideo,
-  FiSparkles,
+  FiStar,
 } from "react-icons/fi";
 
 const CARD = "#0B001F";
@@ -422,7 +422,7 @@ export default function CreatePostAIPage() {
                       : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
                   }`}
                 >
-                  <FiSparkles size={12} />
+                  <FiStar size={12} />
                   Gerar imagem com IA
                 </button>
               </div>
@@ -458,7 +458,7 @@ export default function CreatePostAIPage() {
                       "linear-gradient(90deg, #7C3AED 0%, #C026D3 50%, #0EA5E9 100%)",
                   }}
                 >
-                  <FiSparkles size={12} />
+                  <FiStar size={12} />
                   {loadingImage ? "Gerando imagem..." : "Gerar imagem com IA"}
                 </button>
               </div>
