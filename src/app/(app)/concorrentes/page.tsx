@@ -9,10 +9,13 @@ import {
   FiAlertCircle,
   FiPlus,
 } from "react-icons/fi";
-import { useNotifications } from "../../../hooks/useNotifications";
-import type { Notification } from "../../../types/notification";
+import { useNotifications } from "@/hooks/useNotifications";
+import type { Notification } from "@/types/notification";
 import { useUser } from "@/firebase/provider";
 import { CompetitorAnalyticsSection } from "./components/CompetitorAnalyticsSection";
+import { useCompetitorMetrics } from "@/hooks/useCompetitorMetrics";
+import { useAccountMetrics } from "@/hooks/useAccountMetrics";
+import { CompetitorVsBrandSection } from "./components/CompetitorVsBrandSection";
 
 // TODO: trocar por seus hooks reais de user/workspace
 function useCurrentUserAndWorkspace() {
@@ -158,35 +161,23 @@ export default function CompetitorsPage() {
     null,
   );
   
-  const followers7d = [
-    { label: "Seg", value: 35 },
-    { label: "Ter", value: 42 },
-    { label: "Qua", value: 28 },
-    { label: "Qui", value: 56 },
-    { label: "Sex", value: 61 },
-    { label: "Sáb", value: 74 },
-    { label: "Dom", value: 40 },
-  ];
-  
-  const clicks7d = [
-    { label: "Seg", value: 18 },
-    { label: "Ter", value: 22 },
-    { label: "Qua", value: 16 },
-    { label: "Qui", value: 30 },
-    { label: "Sex", value: 34 },
-    { label: "Sáb", value: 41 },
-    { label: "Dom", value: 19 },
-  ];
-  
-  const engagement7d = [
-    { label: "Seg", value: 6.2 },
-    { label: "Ter", value: 7.1 },
-    { label: "Qua", value: 5.8 },
-    { label: "Qui", value: 8.4 },
-    { label: "Sex", value: 7.9 },
-    { label: "Sáb", value: 9.3 },
-    { label: "Dom", value: 6.7 },
-  ];
+  // TODO: pegar accountId real da conta principal (rede social do cliente)
+  const currentAccountId = "main_account_123"; // trocar depois
+
+  // métricas da conta principal (minha marca)
+  const {
+    followers7d: myFollowers7d,
+    clicks7d: myClicks7d,
+    engagement7d: myEngagement7d,
+  } = useAccountMetrics(currentAccountId);
+
+  // métricas do concorrente selecionado
+  const {
+    followers7d: competitorFollowers7d,
+    clicks7d: competitorClicks7d,
+    engagement7d: competitorEngagement7d,
+  } = useCompetitorMetrics(selected?.id ?? null);
+
 
   return (
     <section className="mt-4 space-y-6">
@@ -397,10 +388,22 @@ export default function CompetitorsPage() {
                 </div>
 
                 <CompetitorAnalyticsSection
-                  followers7d={followers7d}
-                  clicks7d={clicks7d}
-                  engagement7d={engagement7d}
+                  followers7d={competitorFollowers7d}
+                  clicks7d={competitorClicks7d}
+                  engagement7d={competitorEngagement7d}
                 />
+                
+                {selected && (
+                  <CompetitorVsBrandSection
+                    brandName="Sua Marca (Exemplo)" // depois você pega do contexto
+                    brandFollowers7d={myFollowers7d}
+                    brandEngagement7d={myEngagement7d}
+                    competitorName={selected.name}
+                    competitorFollowers7d={competitorFollowers7d}
+                    competitorEngagement7d={competitorEngagement7d}
+                  />
+                )}
+
 
                 {/* cards de resumo */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
