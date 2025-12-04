@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  getFirestore,
   collection,
   query,
   where,
@@ -13,8 +12,6 @@ import {
 } from "firebase/firestore";
 import type { DayPoint, MetricSnapshot } from "./useCompetitorMetrics";
 import { useFirestore } from "@/firebase/provider";
-
-const db = getFirestore();
 
 function getWeekdayLabel(date: Date): string {
   const d = date.getDay();

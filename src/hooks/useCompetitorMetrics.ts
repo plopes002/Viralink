@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  getFirestore,
   collection,
   query,
   where,
