@@ -1,0 +1,314 @@
+{
+  "entities": {
+    "Post": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Post",
+      "type": "object",
+      "description": "Represents a social media post, encompassing content, scheduling, and channel-specific configurations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Post entity."
+        },
+        "workspaceId": {
+          "type": "string",
+          "description": "Reference to Workspace. (Relationship: Workspace 1:N Post). The agency/client owning the post."
+        },
+        "createdByUid": {
+          "type": "string",
+          "description": "User ID of the user who created the post."
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the content: manual or AI-generated.",
+          "format": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the post: draft, scheduled, publishing, published, failed.",
+          "format": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the post.",
+          "format": "string"
+        },
+        "caption": {
+          "type": "string",
+          "description": "Final caption of the post.",
+          "format": "string"
+        },
+        "hashtags": {
+          "type": "array",
+          "description": "Array of hashtags associated with the post.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "callToAction": {
+          "type": "string",
+          "description": "Call to action text for the post.",
+          "format": "string"
+        },
+        "aiConfig": {
+          "type": "string",
+          "description": "Configuration details for AI-generated content (if applicable).",
+          "format": "string"
+        },
+        "media": {
+          "type": "string",
+          "description": "Information about the media associated with the post.",
+          "format": "string"
+        },
+        "channels": {
+          "type": "array",
+          "description": "Array of channels where the post will be published.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metrics": {
+          "type": "string",
+          "description": "Metrics for the post (impressions, likes, comments, etc.).",
+          "format": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the post was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the post was last updated.",
+          "format": "date-time"
+        },
+        "deletedAt": {
+          "type": "string",
+          "description": "Timestamp of when the post was deleted (if applicable).",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "createdByUid",
+        "source",
+        "status",
+        "caption",
+        "hashtags",
+        "channels",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Workspace": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Workspace",
+      "type": "object",
+      "description": "Represents a workspace (agency/client) in the system, enabling multi-tenant support.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Workspace entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the workspace.",
+          "format": "string"
+        },
+        "plan": {
+          "type": "string",
+          "description": "Subscription plan of the workspace (basic, pro, expert).",
+          "format": "string"
+        },
+        "ownerUid": {
+          "type": "string",
+          "description": "User ID of the workspace owner."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the workspace was created.",
+          "format": "date-time"
+        },
+        "billingCustomerId": {
+          "type": "string",
+          "description": "Reference to billing information stored in the payment provider (e.g., Stripe).",
+          "format": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "plan",
+        "ownerUid",
+        "createdAt"
+      ]
+    },
+    "WorkspaceUser": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WorkspaceUser",
+      "type": "object",
+      "description": "Represents a user's membership in a workspace, defining their role and access level.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the WorkspaceUser entity."
+        },
+        "workspaceId": {
+          "type": "string",
+          "description": "Reference to Workspace. (Relationship: Workspace 1:N WorkspaceUser). ID of the workspace the user is a member of."
+        },
+        "uid": {
+          "type": "string",
+          "description": "User ID of the member."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user in the workspace (owner, admin, member).",
+          "format": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the user joined the workspace.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "uid",
+        "role",
+        "createdAt"
+      ]
+    },
+    "SocialAccount": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SocialAccount",
+      "type": "object",
+      "description": "Represents a social media account connected to the system, storing display information but NOT sensitive tokens.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SocialAccount entity."
+        },
+        "workspaceId": {
+          "type": "string",
+          "description": "Reference to Workspace. (Relationship: Workspace 1:N SocialAccount). ID of the workspace the social account belongs to."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Social media provider (Instagram, Facebook, WhatsApp).",
+          "format": "string"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the social account.",
+          "format": "string"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username of the social account.",
+          "format": "string"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL of the social account's avatar (profile picture).",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the social account was connected.",
+          "format": "date-time"
+        },
+        "connected": {
+          "type": "boolean",
+          "description": "Indicates whether the social account is currently connected."
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "provider",
+        "displayName",
+        "username",
+        "createdAt",
+        "connected"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/workspaces/{workspaceId}",
+        "definition": {
+          "entityName": "Workspace",
+          "schema": {
+            "$ref": "#/backend/entities/Workspace"
+          },
+          "description": "Represents a workspace (agency/client) in the system.  Authorization is based on the 'ownerUid' field.",
+          "params": [
+            {
+              "name": "workspaceId",
+              "description": "Unique identifier for the workspace."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/workspaceUsers/{membershipId}",
+        "definition": {
+          "entityName": "WorkspaceUser",
+          "schema": {
+            "$ref": "#/backend/entities/WorkspaceUser"
+          },
+          "description": "Represents a user's membership in a workspace, defining their role and access level.",
+          "params": [
+            {
+              "name": "membershipId",
+              "description": "Unique identifier for the workspace membership."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/posts/{postId}",
+        "definition": {
+          "entityName": "Post",
+          "schema": {
+            "$ref": "#/backend/entities/Post"
+          },
+          "description": "Represents a social media post. Includes denormalized 'workspaceId' for authorization independence.",
+          "params": [
+            {
+              "name": "postId",
+              "description": "Unique identifier for the post."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/socialAccounts/{accountId}",
+        "definition": {
+          "entityName": "SocialAccount",
+          "schema": {
+            "$ref": "#/backend/entities/SocialAccount"
+          },
+          "description": "Represents a social media account connected to the system. Includes denormalized 'workspaceId' for authorization independence.",
+          "params": [
+            {
+              "name": "accountId",
+              "description": "Unique identifier for the social account."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed to support ViralinkAI's multi-tenant SaaS platform, focusing on secure access control, scalability, and data integrity. It leverages denormalization and structural segregation to simplify security rules and ensure authorization independence.\n\n**Authorization Independence:**\n\n*   The `posts` and `socialAccounts` collections include the `workspaceId` field. This denormalization allows security rules to validate workspace access without needing to perform `get()` operations on parent `workspaces` documents.\n*   `workspaceUsers` serves as a membership map to define user roles within workspaces. This supports collaborative access control without relying on complex hierarchical lookups.\n\n**Structural Segregation:**\n\n*   Each collection is designed to store data with a homogeneous security posture. For example, all documents within the `posts` collection share the same access control requirements (workspace-based access).\n*   Sensitive data, such as social media tokens, are NOT stored directly in the `socialAccounts` collection. This ensures that client-side code cannot access these tokens.\n\n**Access Modeling:**\n\n*   The `workspaces/{workspaceId}` collection uses a path-based approach for workspace data, allowing clear ownership and access control based on the `ownerUid` field.\n*   The `workspaceUsers` collection implements a membership map, defining user roles within each workspace. This enables collaborative access control with well-defined roles (owner, admin, member).\n\n**QAPs (Rules are not Filters):**\n\n*   The inclusion of `workspaceId` in the `posts` and `socialAccounts` documents, combined with security rules that enforce `workspaceId` validation, ensures that list operations are secure and efficient.\n*   The structure supports secure list operations because the rules can filter based on the denormalized `workspaceId` without needing to fetch additional documents or perform complex calculations.\n*   The authorization rules will be database-centric (DBAC), using the `workspaceUsers` collection as the source of truth for user authorization.\n\n**Invariants:**\n\n*   Timestamps (`createdAt`, `updatedAt`, `deletedAt`) are included in entities to track data modification history and support data integrity.\n*   The use of explicit state modeling (`status` field in `posts`) provides a clear and predictable way to track the lifecycle of posts."
+  }
+}
