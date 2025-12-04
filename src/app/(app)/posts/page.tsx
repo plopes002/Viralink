@@ -95,7 +95,7 @@ export default function PostsPage() {
   const filtered = MOCK_POSTS.filter((post) => {
     const statusOk =
       statusFilter === "Todos" ? true : post.status === statusFilter;
-    const redeOk = redeFilter === "Todas" ? true : post.rede === redeFilter;
+    const redeOk = redeFilter === "Todos" ? true : post.rede === redeFilter;
     return statusOk && redeOk;
   });
 

@@ -3,33 +3,81 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FiArrowLeft, FiCalendar, FiClock, FiSave } from "react-icons/fi";
+import {
+  FiArrowLeft,
+  FiCalendar,
+  FiClock,
+  FiSave,
+  FiImage,
+  FiVideo,
+} from "react-icons/fi";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
 
+type Rede = "Instagram" | "Facebook" | "WhatsApp";
+
 export default function CreatePostManualPage() {
   const router = useRouter();
 
-  const [rede, setRede] = useState<"Instagram" | "Facebook" | "WhatsApp">(
+  const [redesSelecionadas, setRedesSelecionadas] = useState<Rede[]>([
     "Instagram",
-  );
+  ]);
   const [titulo, setTitulo] = useState("");
   const [conteudo, setConteudo] = useState("");
   const [publicarAgora, setPublicarAgora] = useState(true);
   const [data, setData] = useState("");
   const [hora, setHora] = useState("");
 
+  const [tipoMidia, setTipoMidia] = useState<"nenhuma" | "imagem" | "video">(
+    "imagem",
+  );
+  const [midiaArquivoNome, setMidiaArquivoNome] = useState<string | null>(null);
+
+  function toggleRede(rede: Rede) {
+    setRedesSelecionadas((atual) =>
+      atual.includes(rede)
+        ? atual.filter((r) => r !== rede)
+        : [...atual, rede],
+    );
+  }
+
   function handleVoltar() {
     router.push("/posts");
   }
 
   function handleSalvar(tipo: "rascunho" | "agendar" | "publicar") {
-    // 🔥 aqui você vai mandar pro Firestore
-    console.log("Salvar post manual:", { rede, titulo, conteudo, data, hora, tipo });
+    if (redesSelecionadas.length === 0) {
+      alert("Selecione pelo menos uma rede social.");
+      return;
+    }
+    if (!conteudo.trim()) {
+      alert("Digite o texto / legenda da postagem.");
+      return;
+    }
+
+    console.log("Salvar post manual:", {
+      redesSelecionadas,
+      titulo,
+      conteudo,
+      data,
+      hora,
+      tipoMidia,
+      midiaArquivoNome,
+      tipo,
+    });
+
     alert(
-      `Simulação: salvar como ${tipo.toUpperCase()}.\n\nNa produção isso vira um documento no Firestore com status adequado.`,
+      `Simulação: salvar como ${tipo.toUpperCase()} para as redes: ${redesSelecionadas.join(
+        ", ",
+      )}.\n\nNa produção, isso vira um ou vários documentos no Firestore, ligados a cada rede selecionada, com a URL da mídia no Firebase Storage.`,
     );
+  }
+
+  function handleChangeMidia(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setMidiaArquivoNome(file ? file.name : null);
+    // Produção: upload para Firebase Storage
   }
 
   return (
@@ -48,8 +96,8 @@ export default function CreatePostManualPage() {
             Novo post manual
           </h1>
           <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-2xl">
-            Crie um post do zero, escolha a rede, escreva a legenda e defina se
-            quer publicar agora ou agendar para uma data específica.
+            Crie um post do zero, selecione uma ou mais redes, anexe imagem ou
+            vídeo e escolha se quer publicar agora ou agendar.
           </p>
         </div>
       </header>
@@ -59,19 +107,36 @@ export default function CreatePostManualPage() {
         className="rounded-2xl p-4 md:p-5 space-y-4"
         style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
       >
+        {/* Redes */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-[#CBD5E1]">Rede social</label>
-          <select
-            value={rede}
-            onChange={(e) => setRede(e.target.value as typeof rede)}
-            className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-          >
-            <option value="Instagram">Instagram</option>
-            <option value="Facebook">Facebook</option>
-            <option value="WhatsApp">WhatsApp</option>
-          </select>
+          <label className="text-[11px] text-[#CBD5E1]">
+            Em quais redes esse post será publicado?
+          </label>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            {(["Instagram", "Facebook", "WhatsApp"] as Rede[]).map((rede) => {
+              const ativo = redesSelecionadas.includes(rede);
+              return (
+                <button
+                  key={rede}
+                  type="button"
+                  onClick={() => toggleRede(rede)}
+                  className={`px-3 py-1.5 rounded-full border transition ${
+                    ativo
+                      ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                      : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+                  }`}
+                >
+                  {rede}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-[#6B7280]">
+            • Um único conteúdo poderá ser usado em todas as redes selecionadas.
+          </p>
         </div>
 
+        {/* Título interno */}
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-[#CBD5E1]">
             Título interno (opcional)
@@ -83,10 +148,12 @@ export default function CreatePostManualPage() {
             className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
           />
           <p className="text-[10px] text-[#6B7280]">
-            • Esse título é apenas para organização interna dentro do VIRALINK.
+            • Apenas para sua organização dentro do VIRALINK. Não aparece nas
+            redes.
           </p>
         </div>
 
+        {/* Texto / legenda */}
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-[#CBD5E1]">
             Texto / legenda da postagem *
@@ -95,11 +162,70 @@ export default function CreatePostManualPage() {
             value={conteudo}
             onChange={(e) => setConteudo(e.target.value)}
             rows={6}
-            placeholder="Escreva aqui a legenda completa que será publicada na rede escolhida."
+            placeholder="Escreva aqui a legenda completa que será publicada nas redes selecionadas."
             className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
           />
         </div>
 
+        {/* Mídia */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-[#CBD5E1]">
+            Mídia (imagem ou vídeo)
+          </label>
+          <div className="flex flex-wrap gap-2 text-[11px] mb-1">
+            <button
+              type="button"
+              onClick={() => setTipoMidia("imagem")}
+              className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
+                tipoMidia === "imagem"
+                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+              }`}
+            >
+              <FiImage size={12} />
+              Imagem
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipoMidia("video")}
+              className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
+                tipoMidia === "video"
+                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+              }`}
+            >
+              <FiVideo size={12} />
+              Vídeo
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipoMidia("nenhuma")}
+              className={`px-3 py-1.5 rounded-full border transition ${
+                tipoMidia === "nenhuma"
+                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
+                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
+              }`}
+            >
+              Sem mídia
+            </button>
+          </div>
+
+          {tipoMidia !== "nenhuma" && (
+            <input
+              type="file"
+              accept={tipoMidia === "imagem" ? "image/*" : "video/*"}
+              onChange={handleChangeMidia}
+              className="text-[11px] text-[#CBD5E1]"
+            />
+          )}
+          {midiaArquivoNome && (
+            <p className="text-[10px] text-[#9CA3AF]">
+              Arquivo selecionado: {midiaArquivoNome}
+            </p>
+          )}
+        </div>
+
+        {/* Publicação / agendamento */}
         <div className="flex flex-col gap-2">
           <span className="text-[11px] text-[#CBD5E1]">Publicação</span>
           <div className="flex flex-wrap gap-2 text-[11px]">
@@ -151,6 +277,7 @@ export default function CreatePostManualPage() {
           )}
         </div>
 
+        {/* Ações */}
         <div className="flex flex-wrap gap-2 pt-2">
           <button
             type="button"
@@ -176,10 +303,9 @@ export default function CreatePostManualPage() {
         </div>
 
         <p className="text-[10px] text-[#6B7280]">
-          • Em produção, esse formulário cria/atualiza um documento na coleção{" "}
-          <span className="text-[#C4B5FD] font-mono">posts</span> do Firestore,
-          com os campos de horário de agendamento, status e dados da rede
-          selecionada.
+          • Em produção, você pode criar um documento por post e uma lista de
+          redes, ou um documento por rede (ex.: um para Instagram, outro para
+          Facebook), todos apontando para a mesma mídia no Firebase Storage.
         </p>
       </div>
     </section>
