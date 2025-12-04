@@ -1,5 +1,127 @@
 {
   "entities": {
+    "Competitor": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Competitor",
+      "type": "object",
+      "description": "Represents a competitor being monitored in a workspace.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "createdByUid": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "handle": {
+          "type": "string"
+        },
+        "network": {
+          "type": "string",
+          "enum": ["instagram", "facebook", "tiktok", "youtube"]
+        },
+        "profileUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "planIncluded": {
+          "type": "boolean"
+        },
+        "extraCharge": {
+          "type": "boolean"
+        },
+        "followers": {
+          "type": "number"
+        },
+        "following": {
+          "type": "number"
+        },
+        "postsTotal": {
+          "type": "number"
+        },
+        "avgEngagementRate": {
+          "type": "number"
+        },
+        "avgLikesPerPost": {
+          "type": "number"
+        },
+        "avgCommentsPerPost": {
+          "type": "number"
+        },
+        "postsLast7d": {
+          "type": "number"
+        },
+        "followersDelta7d": {
+          "type": "number"
+        },
+        "engagementRate7d": {
+          "type": "number"
+        },
+        "lastInsightsSyncAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAlertAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "createdByUid",
+        "name",
+        "handle",
+        "network",
+        "profileUrl",
+        "isActive",
+        "planIncluded",
+        "followers",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CompetitorSnapshot": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompetitorSnapshot",
+      "type": "object",
+      "description": "A snapshot of a competitor's metrics at a specific point in time.",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "followers": {
+          "type": "number"
+        },
+        "postsTotal": {
+          "type": "number"
+        },
+        "engagementRate": {
+          "type": "number"
+        },
+        "postsLast24h": {
+          "type": "number"
+        }
+      },
+      "required": ["createdAt", "followers"]
+    },
     "Post": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Post",
@@ -16,12 +138,21 @@
         },
         "source": {
           "type": "string",
-          "enum": ["manual", "ai"],
+          "enum": [
+            "manual",
+            "ai"
+          ],
           "description": "Source of the content."
         },
         "status": {
           "type": "string",
-          "enum": ["draft", "scheduled", "publishing", "published", "failed"],
+          "enum": [
+            "draft",
+            "scheduled",
+            "publishing",
+            "published",
+            "failed"
+          ],
           "description": "Status of the post."
         },
         "title": {
@@ -47,23 +178,56 @@
           "type": "object",
           "description": "Configuration details for AI-generated content (if applicable).",
           "properties": {
-            "textPrompt": { "type": "string" },
-            "imagePrompt": { "type": "string" },
-            "model": { "type": "string" },
-            "temperature": { "type": "number" }
+            "textPrompt": {
+              "type": "string"
+            },
+            "imagePrompt": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "temperature": {
+              "type": "number"
+            }
           }
         },
         "media": {
           "type": "object",
           "description": "Information about the media associated with the post.",
           "properties": {
-            "type": { "type": "string", "enum": ["image", "video", "null"] },
-            "source": { "type": "string", "enum": ["upload", "ai", "external", "null"] },
-            "storagePath": { "type": "string" },
-            "generated": { "type": "boolean" },
-            "width": { "type": "number" },
-            "height": { "type": "number" },
-            "aspectRatio": { "type": "string" }
+            "type": {
+              "type": "string",
+              "enum": [
+                "image",
+                "video",
+                "null"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "upload",
+                "ai",
+                "external",
+                "null"
+              ]
+            },
+            "storagePath": {
+              "type": "string"
+            },
+            "generated": {
+              "type": "boolean"
+            },
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            },
+            "aspectRatio": {
+              "type": "string"
+            }
           }
         },
         "channels": {
@@ -72,28 +236,73 @@
           "items": {
             "type": "object",
             "properties": {
-              "provider": { "type": "string", "enum": ["instagram", "facebook", "whatsapp"] },
-              "accountId": { "type": "string" },
-              "mode": { "type": "string" },
-              "status": { "type": "string", "enum": ["draft", "scheduled", "publishing", "published", "failed"] },
-              "scheduledAt": { "type": "string", "format": "date-time" },
-              "publishedAt": { "type": "string", "format": "date-time" },
-              "externalPostId": { "type": "string" },
-              "lastError": { "type": "string" },
-              "retryCount": { "type": "number" },
-              "lastAttemptAt": { "type": "string", "format": "date-time" }
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "instagram",
+                  "facebook",
+                  "whatsapp"
+                ]
+              },
+              "accountId": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "scheduled",
+                  "publishing",
+                  "published",
+                  "failed"
+                ]
+              },
+              "scheduledAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "publishedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "externalPostId": {
+                "type": "string"
+              },
+              "lastError": {
+                "type": "string"
+              },
+              "retryCount": {
+                "type": "number"
+              },
+              "lastAttemptAt": {
+                "type": "string",
+                "format": "date-time"
+              }
             }
           }
         },
         "metrics": {
           "type": "object",
           "description": "Metrics for the post (impressions, likes, comments, etc.).",
-           "properties": {
-            "impressions": { "type": "number" },
-            "likes": { "type": "number" },
-            "comments": { "type": "number" },
-            "shares": { "type": "number" },
-            "clicks": { "type": "number" }
+          "properties": {
+            "impressions": {
+              "type": "number"
+            },
+            "likes": {
+              "type": "number"
+            },
+            "comments": {
+              "type": "number"
+            },
+            "shares": {
+              "type": "number"
+            },
+            "clicks": {
+              "type": "number"
+            }
           }
         },
         "nextRunAt": {
@@ -145,7 +354,11 @@
         },
         "plan": {
           "type": "string",
-          "enum": ["basic", "pro", "expert"],
+          "enum": [
+            "basic",
+            "pro",
+            "expert"
+          ],
           "description": "Subscription plan of the workspace."
         },
         "ownerUid": {
@@ -185,7 +398,11 @@
         },
         "role": {
           "type": "string",
-          "enum": ["owner", "admin", "member"],
+          "enum": [
+            "owner",
+            "admin",
+            "member"
+          ],
           "description": "Role of the user in the workspace."
         },
         "createdAt": {
@@ -213,7 +430,11 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["instagram", "facebook", "whatsapp"],
+          "enum": [
+            "instagram",
+            "facebook",
+            "whatsapp"
+          ],
           "description": "Social media provider."
         },
         "displayName": {
@@ -260,17 +481,28 @@
         },
         "type": {
           "type": "string",
-          "enum": ["post_published", "post_publish_failed", "metrics_updated"],
+          "enum": [
+            "post_published",
+            "post_publish_failed",
+            "metrics_updated",
+            "competitor_alert"
+          ],
           "description": "The type of the notification."
         },
         "postId": {
           "type": "string",
           "description": "The ID of the related post, if applicable."
         },
+        "competitorId": {
+          "type": "string",
+          "description": "The ID of the related competitor, if applicable."
+        },
         "channels": {
           "type": "array",
           "description": "The social media channels related to this notification.",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "message": {
           "type": "string",
@@ -284,10 +516,17 @@
         "readBy": {
           "type": "array",
           "description": "Array of user UIDs who have read the notification.",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       },
-      "required": [ "workspaceId", "type", "message", "createdAt" ]
+      "required": [
+        "workspaceId",
+        "type",
+        "message",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -297,24 +536,46 @@
     ]
   },
   "firestore": {
+    "/competitors/{competitorId}": {
+      "schema": {
+        "$ref": "#/entities/Competitor"
+      },
+      "description": "Stores information about monitored competitors."
+    },
+    "/competitors/{competitorId}/metricsSnapshots/{snapshotId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorSnapshot"
+      },
+      "description": "Stores historical metrics snapshots for a competitor."
+    },
     "/workspaces/{workspaceId}": {
-      "schema": { "$ref": "#/entities/Workspace" },
+      "schema": {
+        "$ref": "#/entities/Workspace"
+      },
       "description": "Stores workspace information. Access is restricted to members of the workspace."
     },
     "/workspaceUsers/{membershipId}": {
-       "schema": { "$ref": "#/entities/WorkspaceUser" },
-       "description": "Maps users to workspaces and defines their roles."
+      "schema": {
+        "$ref": "#/entities/WorkspaceUser"
+      },
+      "description": "Maps users to workspaces and defines their roles."
     },
     "/posts/{postId}": {
-      "schema": { "$ref": "#/entities/Post" },
+      "schema": {
+        "$ref": "#/entities/Post"
+      },
       "description": "Contains all social media posts. Security rules enforce workspace-level access."
     },
     "/socialAccounts/{accountId}": {
-      "schema": { "$ref": "#/entities/SocialAccount" },
+      "schema": {
+        "$ref": "#/entities/SocialAccount"
+      },
       "description": "Stores connected social media account information (non-sensitive)."
     },
     "/notifications/{notificationId}": {
-      "schema": { "$ref": "#/entities/Notification" },
+      "schema": {
+        "$ref": "#/entities/Notification"
+      },
       "description": "Stores system notifications for workspaces."
     }
   }
