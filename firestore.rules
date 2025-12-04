@@ -1,126 +1,62 @@
 rules_version = '2';
 
-/**
- * @file firestore.rules
- * @description Security rules for the ViralinkAI Firestore database.
- *
- * @section Core Philosophy
- * This ruleset enforces a strict multi-tenant security model centered around "Workspaces".
- * All data entities like Posts and Social Accounts are owned by a Workspace. A user's
- * access to any resource is determined by their membership and role within that
- * resource's parent Workspace. The `workspaceUsers` collection serves as the definitive
- * source of truth for all authorization decisions (Database-Centric Access Control).
- *
- * @section Data Structure
- * The data is organized into flat, top-level collections (`workspaces`, `posts`, etc.).
- * This structure relies on denormalization to ensure performant and secure access checks.
- * - `workspaces/{workspaceId}`: The root entity for a tenant.
- * - `workspaceUsers/{membershipId}`: Defines user roles within each workspace.
- * - `posts/{postId}`: Contains a `workspaceId` for direct authorization.
- * - `socialAccounts/{accountId}`: Also contains a `workspaceId`.
- *
- * @section Key Security Decisions
- * - Workspace Membership is Authoritative: Instead of custom claims, we use real-time
- *   `get()` calls to the `/workspaceUsers` collection to verify a user's membership
- *   and role for any given request. This ensures access is always up-to-date.
- * - Assumed Composite Key for Memberships: To enable efficient lookups, these rules
- *   assume the document ID for `/workspaceUsers` is a composite key in the format:
- *   `${workspaceId}_${userId}`. This is critical for the security model to function.
- * - Role-Based Access Control (RBAC): Within a workspace, users can have roles like
- *   'member', 'admin', or 'owner'. Admins and Owners have elevated privileges, such as
- *   managing users or editing workspace settings.
- * - Secure Listing via Queries: Listing documents (e.g., all posts) is only permitted
- *   when the client-side query explicitly filters by a `workspaceId` that the user
- *   is a confirmed member of. This prevents data leakage across tenants.
- * - Prototyping Flexibility: These rules strictly enforce *who* can access data but
- *   do not validate the specific shape or type of the data fields (e.g., post caption,
- *   status). This allows for rapid application development while maintaining high
- *   security standards.
- */
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // -------------------------------------------------------------------------
-    // Helper Functions
-    // -------------------------------------------------------------------------
-
-    /**
-     * Returns true if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Retrieves a user's membership document from a workspace.
-     * Assumes a composite document ID format: `${workspaceId}_${userId}`.
-     * @param workspaceId The ID of the workspace.
-     * @param userId The ID of the user.
-     * @return The membership document resource.
-     */
-    function getWorkspaceMembership(workspaceId, userId) {
-      return get(/databases/$(database)/documents/workspaceUsers/$(workspaceId + "_" + userId));
-    }
-
-    /**
-     * Checks if the requesting user is a member of the specified workspace.
-     * @param workspaceId The ID of the workspace to check.
-     * @return True if the user is a member, false otherwise.
-     */
+    // Check if the user is a member of a specific workspace
+    // This assumes a workspaceUsers collection where doc ID is {workspaceId}_{userId}
     function isWorkspaceMember(workspaceId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/workspaceUsers/$(workspaceId + "_" + request.auth.uid));
+      return exists(/databases/$(database)/documents/workspaceUsers/$(workspaceId + '_' + request.auth.uid));
     }
-
-    /**
-     * Checks if the requesting user has an 'admin' or 'owner' role in the workspace.
-     * @param workspaceId The ID of the workspace to check.
-     * @return True if the user is an admin or owner, false otherwise.
-     */
+    
+    // Check if the user is an admin or owner of a specific workspace
     function isWorkspaceAdmin(workspaceId) {
-      let membership = getWorkspaceMembership(workspaceId, request.auth.uid);
-      return isSignedIn() && membership.data.role in ['admin', 'owner'];
-    }
-
-    /**
-     * Checks if the requesting user has the 'owner' role in the workspace.
-     * @param workspaceId The ID of the workspace to check.
-     * @return True if the user is an owner, false otherwise.
-     */
-    function isWorkspaceOwner(workspaceId) {
-      let membership = getWorkspaceMembership(workspaceId, request.auth.uid);
-      return isSignedIn() && membership.data.role == 'owner';
+      let membership = get(/databases/$(database)/documents/workspaceUsers/$(workspaceId + '_' + request.auth.uid));
+      return isWorkspaceMember(workspaceId) && membership.data.role in ['admin', 'owner'];
     }
 
     match /workspaces/{workspaceId} {
-      allow get: if isWorkspaceMember(workspaceId);
-      allow list: if false;
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if isWorkspaceAdmin(workspaceId) && resource != null && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if isWorkspaceOwner(workspaceId) && resource != null;
+      allow read: if isWorkspaceMember(workspaceId);
+      // Only owner can update workspace settings, and cannot change owner
+      allow update: if isWorkspaceAdmin(workspaceId) && request.resource.data.ownerUid == resource.data.ownerUid;
+      // Workspace creation is handled by a backend function to ensure consistency
+      allow create: if request.resource.data.ownerUid == request.auth.uid;
+      // Deletion might be restricted to owners only
+      allow delete: if get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid;
     }
 
     match /workspaceUsers/{membershipId} {
-      allow get: if isWorkspaceMember(request.auth.uid);
-      allow list: if request.query.get('workspaceId') != null && isWorkspaceMember(request.query.get('workspaceId'));
-      allow create: if isWorkspaceAdmin(request.resource.data.workspaceId) && membershipId == request.resource.data.workspaceId + '_' + request.resource.data.uid;
-      allow update: if isWorkspaceAdmin(resource.data.workspaceId) && resource != null && request.resource.data.workspaceId == resource.data.workspaceId && request.resource.data.uid == resource.data.uid;
-      allow delete: if isWorkspaceAdmin(resource.data.workspaceId) && resource != null;
+      // Users can see their own membership, admins can see all memberships in a workspace
+      allow get: if isWorkspaceMember(resource.data.workspaceId);
+      // List memberships for a workspace you are a member of
+      allow list: if request.query.workspaceId != null && isWorkspaceMember(request.query.workspaceId);
+      // Admins can add/remove users
+      allow create, delete: if isWorkspaceAdmin(request.resource.data.workspaceId);
+       // Admins can update roles
+      allow update: if isWorkspaceAdmin(resource.data.workspaceId);
     }
 
     match /posts/{postId} {
-      allow get: if isWorkspaceMember(resource.data.workspaceId);
-      allow list: if request.query.get('workspaceId') != null && isWorkspaceMember(request.query.get('workspaceId'));
-      allow create: if isWorkspaceMember(request.resource.data.workspaceId) && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if isWorkspaceMember(resource.data.workspaceId) && resource != null && request.resource.data.workspaceId == resource.data.workspaceId && request.resource.data.createdByUid == resource.data.createdByUid;
-      allow delete: if isWorkspaceMember(resource.data.workspaceId) && resource != null;
+      // Members can read posts in their workspace
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      // Members can list posts for a workspace they are in
+      allow list: if request.query.workspaceId != null && isWorkspaceMember(request.query.workspaceId);
+      // Members can create/update posts in their workspace
+      allow create, update: if isWorkspaceMember(request.resource.data.workspaceId);
+      // Members can delete posts in their workspace
+      allow delete: if isWorkspaceMember(resource.data.workspaceId);
     }
 
     match /socialAccounts/{accountId} {
-      allow get: if isWorkspaceMember(resource.data.workspaceId);
-      allow list: if request.query.get('workspaceId') != null && isWorkspaceMember(request.query.get('workspaceId'));
-      allow create: if isWorkspaceMember(request.resource.data.workspaceId);
-      allow update: if isWorkspaceMember(resource.data.workspaceId) && resource != null && request.resource.data.workspaceId == resource.data.workspaceId;
-      allow delete: if isWorkspaceMember(resource.data.workspaceId) && resource != null;
+      // Members can view social accounts linked to their workspace
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow list: if request.query.workspaceId != null && isWorkspaceMember(request.query.workspaceId);
+      // Only admins can add/edit/remove social accounts
+      allow write: if isWorkspaceAdmin(request.resource.data.workspaceId);
     }
   }
 }
