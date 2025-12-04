@@ -28,7 +28,7 @@ const navItems = [
   { href: "/posts", label: "Posts & Agenda", icon: FiEdit3 },
   { href: "/automations", label: "Automações", icon: FiZap },
   { href: "/social-accounts", label: "Contas conectadas", icon: FiShare2 },
-  { href: "/competitors", label: "Concorrentes", icon: FiUsers },
+  { href: "/concorrentes", label: "Concorrentes", icon: FiUsers },
   { href: "/analytics", label: "Analytics", icon: FiBarChart2 },
   { href: "/settings", label: "Configurações", icon: FiSettings },
 ];
