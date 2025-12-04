@@ -83,5 +83,20 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    match /accountMetrics/{metricId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /competitorMetrics/{metricId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /competitors/{competitorId}/metricsSnapshots/{snapshotId} {
+        allow read: if isWorkspaceMember(get(/databases/$(database)/documents/competitors/$(competitorId)).data.workspaceId);
+        allow write: if false;
+    }
   }
 }
