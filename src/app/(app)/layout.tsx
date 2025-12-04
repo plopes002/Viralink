@@ -17,6 +17,7 @@ import {
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import { useUser } from "@/firebase/provider";
+import { FirebaseClientProvider } from "@/firebase/client-provider";
 
 const BG = "#050017";
 const SIDEBAR = "#050012";
@@ -32,7 +33,7 @@ const navItems = [
   { href: "/settings", label: "Configurações", icon: FiSettings },
 ];
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+function AppLayoutContent({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: BG }}>
       {/* SIDEBAR DESKTOP */}
@@ -166,4 +167,13 @@ function Topbar() {
       )}
     </header>
   );
+}
+
+
+export default function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <FirebaseClientProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </FirebaseClientProvider>
+  )
 }
