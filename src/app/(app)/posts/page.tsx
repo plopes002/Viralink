@@ -4,7 +4,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { FiPlus, FiZap } from "react-icons/fi";
-import { useScheduledPosts } from "@/hooks/useScheduledPosts";
+import { useScheduledPosts, type ScheduledPost } from "@/hooks/useScheduledPosts";
 import { useUser } from "@/firebase/provider";
 import { PostAgendaCard } from "./PostAgendaCard";
 import { EditScheduledPostModal } from "./EditScheduledPostModal";
@@ -14,26 +14,37 @@ import {
   collection,
   doc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useDraftPosts, type DraftPost } from "@/hooks/useDraftPosts";
+import { DraftPostCard } from "./DraftPostCard";
 
 type TabFilter = "todos" | "publicado" | "agendado" | "rascunho";
 
 export default function PostsAgendaPage() {
   const router = useRouter();
-  const { currentWorkspace } = useWorkspace(); 
+  const { currentWorkspace } = useWorkspace();
+  const { user: currentUser } = useUser();
   const workspaceId = currentWorkspace?.id ?? null;
+  const ownerId = currentUser?.uid ?? null;
 
   const { firestore: db } = useFirebase();
+
   const [activeTab, setActiveTab] = useState<TabFilter>("todos");
   const [networkFilter, setNetworkFilter] = useState<string>("all");
-  const { posts, loading } = useScheduledPosts({ workspaceId });
+
+  const { posts, loading: loadingScheduled } = useScheduledPosts({
+    workspaceId,
+  });
+  const { drafts, loading: loadingDrafts } = useDraftPosts({ workspaceId });
 
   const [editingPost, setEditingPost] =
-    useState<(typeof posts)[number] | null>(null);
+    useState<(ScheduledPost & { boardStatus: string }) | null>(null);
+  const [editingDraft, setEditingDraft] = useState<DraftPost | null>(null);
 
-  const filtered = useMemo(() => {
+  const filteredScheduled = useMemo(() => {
     return posts.filter((post) => {
       if (
         activeTab !== "todos" &&
@@ -51,6 +62,21 @@ export default function PostsAgendaPage() {
     });
   }, [posts, activeTab, networkFilter]);
 
+  const filteredDrafts = useMemo(() => {
+    if (activeTab !== "rascunho" && activeTab !== "todos") {
+      return [];
+    }
+
+    return drafts.filter((draft) => {
+      if (networkFilter !== "all") {
+        return draft.networks.includes(networkFilter);
+      }
+      return true;
+    });
+  }, [drafts, activeTab, networkFilter]);
+
+  const loading = loadingScheduled || loadingDrafts;
+
   const handleCreateWithAI = () => {
     router.push("/posts/ai");
   };
@@ -59,6 +85,7 @@ export default function PostsAgendaPage() {
     router.push("/posts/manual");
   };
 
+  // Duplicar scheduled
   const handleDuplicate = async (post: (typeof posts)[number]) => {
     if (!db || !workspaceId) return;
 
@@ -82,6 +109,7 @@ export default function PostsAgendaPage() {
     }
   };
 
+  // Cancelar scheduled
   const handleCancel = async (post: (typeof posts)[number]) => {
     if (!db) return;
     try {
@@ -95,6 +123,42 @@ export default function PostsAgendaPage() {
     }
   };
 
+  // Agendar rascunho rapidamente (+1h)
+  const handleQuickScheduleDraft = async (draft: (typeof drafts)[number]) => {
+    if (!db || !workspaceId || !ownerId) return;
+
+    try {
+      const ref = collection(db, "scheduledPosts");
+      await addDoc(ref, {
+        workspaceId,
+        ownerId,
+        networks: draft.networks,
+        content: draft.content,
+        timeZone: currentWorkspace?.timeZone ?? "America/Sao_Paulo",
+        runAt: new Date(Date.now() + 60 * 60 * 1000),
+        status: "pending",
+        lastError: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // opcional: apagar o rascunho após agendar
+      await deleteDoc(doc(db, "draftPosts", draft.id));
+    } catch (err) {
+      console.error("[PostsAgenda] erro ao agendar rascunho:", err);
+    }
+  };
+
+  // Excluir rascunho
+  const handleDeleteDraft = async (draft: (typeof drafts)[number]) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, "draftPosts", draft.id));
+    } catch (err) {
+      console.error("[PostsAgenda] erro ao excluir rascunho:", err);
+    }
+  };
+
   return (
     <section className="mt-4 space-y-6">
       {/* Cabeçalho */}
@@ -104,8 +168,8 @@ export default function PostsAgendaPage() {
             Posts & Agenda
           </h1>
           <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-xl">
-            Gerencie seus posts, veja o que está agendado e crie novos conteúdos
-            com IA em poucos cliques.
+            Gerencie seus posts, veja o que está agendado, crie novos conteúdos
+            com IA em poucos cliques e organize seus rascunhos.
           </p>
         </div>
 
@@ -176,19 +240,33 @@ export default function PostsAgendaPage() {
       <div className="mt-2 space-y-2">
         {loading && (
           <div className="text-center py-8 text-xs text-[#9CA3AF]">
-            Carregando posts agendados...
-          </div>
-        )}
-
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-8 text-xs text-[#9CA3AF]">
-            Nenhum post encontrado para esse filtro. Que tal criar um novo
-            agendamento?
+            Carregando posts, agendamentos e rascunhos...
           </div>
         )}
 
         {!loading &&
-          filtered.map((post) => (
+          filteredScheduled.length === 0 &&
+          filteredDrafts.length === 0 && (
+            <div className="text-center py-8 text-xs text-[#9CA3AF]">
+              Nenhum item encontrado para esse filtro. Que tal criar um novo post?
+            </div>
+          )}
+
+        {/* rascunhos */}
+        {!loading &&
+          filteredDrafts.map((draft) => (
+            <DraftPostCard
+              key={draft.id}
+              draft={draft}
+              onEdit={setEditingDraft}
+              onQuickSchedule={handleQuickScheduleDraft}
+              onDelete={handleDeleteDraft}
+            />
+          ))}
+
+        {/* scheduled (publicado / agendado / erro) */}
+        {!loading &&
+          filteredScheduled.map((post) => (
             <PostAgendaCard
               key={post.id}
               post={post}
@@ -204,6 +282,8 @@ export default function PostsAgendaPage() {
         isOpen={!!editingPost}
         onClose={() => setEditingPost(null)}
       />
+
+      {/* TODO: Add EditDraftPostModal similar to the scheduled one */}
     </section>
   );
 }

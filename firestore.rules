@@ -58,6 +58,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /draftPosts/{draftId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+    }
+
     match /socialAccounts/{accountId} {
       // Members can view social accounts linked to their workspace
       allow read: if isWorkspaceMember(resource.data.workspaceId);

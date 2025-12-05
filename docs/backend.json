@@ -391,6 +391,41 @@
       },
       "required": ["workspaceId", "ownerId", "networks", "content", "timeZone", "runAt", "status", "createdAt", "updatedAt"]
     },
+    "DraftPost": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DraftPost",
+      "type": "object",
+      "description": "Represents a draft of a social media post before it is scheduled.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "networks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "mediaType": { "type": "string", "enum": ["image", "video", "none"] },
+            "mediaUrl": { "type": "string", "format": "uri" }
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["workspaceId", "ownerId", "networks", "content", "createdAt", "updatedAt"]
+    },
     "Workspace": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Workspace",
@@ -620,6 +655,12 @@
         "$ref": "#/entities/ScheduledPost"
       },
       "description": "Contains posts scheduled for future publication."
+    },
+    "/draftPosts/{draftId}": {
+      "schema": {
+        "$ref": "#/entities/DraftPost"
+      },
+      "description": "Contains draft posts that are not yet scheduled."
     },
     "/socialAccounts/{accountId}": {
       "schema": {
