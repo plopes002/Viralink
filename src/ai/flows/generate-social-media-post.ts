@@ -31,32 +31,25 @@ export async function generateSocialMediaPost(input: GenerateSocialMediaPostInpu
 
 const generateSocialMediaPostPrompt = ai.definePrompt({
   name: 'generateSocialMediaPostPrompt',
-  input: {schema: GenerateSocialMediaPostInputSchema},
-  output: {schema: GenerateSocialMediaPostOutputSchema},
   prompt: `Você é um especialista em copywriting para redes sociais, criando posts para uma plataforma de gestão e automação chamada VIRALINK.
 
 Objetivo principal do post:
-- {{@getObjectiveById(objectiveId).label}}
-- Foco: {{@getObjectiveById(objectiveId).focoPrincipal}}
+- {{objectiveLabel}}
+- Foco: {{objectiveFocus}}
 
 Tema do post: "{{theme}}"
-Tom de voz selecionado: {{@getToneTemplateById(toneId).label}}
-Descrição do tom: {{@getToneTemplateById(toneId).descricao}}
-Redes alvo: {{#each networks}}{{{this}}}{{/each}}
+Tom de voz selecionado: {{toneLabel}}
+Redes alvo: {{networks}}
 
 Siga estas orientações de ESTILO do tom de voz:
-{{#each (@getToneTemplateById(toneId).instrucoesEstilo)}}
-- {{{this}}}
-{{/each}}
+{{toneStyleBullets}}
 
 Siga estas orientações de ESTILO do objetivo do post:
-{{#each (@getObjectiveById(objectiveId).instrucoesEstilo)}}
-- {{{this}}}
-{{/each}}
+{{objectiveStyleBullets}}
 
 Orientação para CTA:
-- Tom de voz: {{@getToneTemplateById(toneId).instrucoesCTA}}
-- Objetivo: {{@getObjectiveById(objectiveId).instrucoesCTA}}
+- Tom de voz: {{toneCTA}}
+- Objetivo: {{objectiveCTA}}
 
 Requisitos gerais:
 - Escreva em português do Brasil.
@@ -64,19 +57,28 @@ Requisitos gerais:
 - Desenvolva o texto em 2 a 4 parágrafos curtos.
 - Use linguagem simples, direta e envolvente, adequada para leitura em celular.
 - Use no máximo 4 emojis, distribuídos naturalmente (não coloque emoji em TODAS as frases).
-- Use quebras de linha para facilitar a leitura.
 - NÃO use hashtags.
 - NÃO diga que foi "gerado por IA" e nem explique o que está fazendo.
 - Apenas retorne o texto final pronto para publicação, sem títulos extras, sem aspas em volta.
 
 Retorne APENAS o texto do post no campo 'postContent'.
 `,
-  template: {
-    helpers: {
-      getToneTemplateById,
-      getObjectiveById,
-    },
-  }
+  input: {
+    schema: z.object({
+      theme: z.string(),
+      toneLabel: z.string(),
+      objectiveLabel: z.string(),
+      objectiveFocus: z.string(),
+      networks: z.string(),
+      toneStyleBullets: z.string(),
+      objectiveStyleBullets: z.string(),
+      toneCTA: z.string(),
+      objectiveCTA: z.string(),
+    }),
+  },
+  output: {
+    schema: GenerateSocialMediaPostOutputSchema
+  },
 });
 
 const generateSocialMediaPostFlow = ai.defineFlow(
@@ -85,8 +87,31 @@ const generateSocialMediaPostFlow = ai.defineFlow(
     inputSchema: GenerateSocialMediaPostInputSchema,
     outputSchema: GenerateSocialMediaPostOutputSchema,
   },
-  async input => {
-    const {output} = await generateSocialMediaPostPrompt(input);
+  async (input) => {
+    const tone = getToneTemplateById(input.toneId);
+    const objective = getObjectiveById(input.objectiveId);
+
+    const networks = input.networks ?? ["instagram"];
+
+    const toneStyleBullets = tone.instrucoesEstilo
+      .map((i) => `- ${i}`)
+      .join("\n");
+    const objectiveStyleBullets = objective.instrucoesEstilo
+      .map((i) => `- ${i}`)
+      .join("\n");
+
+    const {output} = await generateSocialMediaPostPrompt({
+      theme: input.theme,
+      toneLabel: tone.label,
+      objectiveLabel: objective.label,
+      objectiveFocus: objective.focoPrincipal,
+      networks: networks.join(", "),
+      toneStyleBullets,
+      objectiveStyleBullets,
+      toneCTA: tone.instrucoesCTA,
+      objectiveCTA: objective.instrucoesCTA,
+    });
+
     return output!;
   }
 );
