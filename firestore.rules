@@ -54,7 +54,8 @@ service cloud.firestore {
     match /scheduledPosts/{postId} {
       allow create: if isSignedIn();
       allow read: if isSignedIn();
-      allow update, delete: if false;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      allow delete: if false;
     }
 
     match /socialAccounts/{accountId} {

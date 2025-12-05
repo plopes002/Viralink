@@ -3,26 +3,35 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import {
-  FiPlus,
-  FiZap,
-} from "react-icons/fi";
+import { FiPlus, FiZap } from "react-icons/fi";
 import { useScheduledPosts } from "@/hooks/useScheduledPosts";
 import { useUser } from "@/firebase/provider";
 import { PostAgendaCard } from "./PostAgendaCard";
+import { EditScheduledPostModal } from "./EditScheduledPostModal";
+import { useFirebase } from "@/firebase/provider";
+import {
+  addDoc,
+  collection,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 type TabFilter = "todos" | "publicado" | "agendado" | "rascunho";
 
 export default function PostsAgendaPage() {
   const router = useRouter();
-  // TODO: Replace with dynamic workspace ID from context
-  const { user } = useUser();
-  const workspaceId = user ? "agency_123" : null;
+  const { currentWorkspace } = useWorkspace(); 
+  const workspaceId = currentWorkspace?.id ?? null;
 
+  const { firestore: db } = useFirebase();
   const [activeTab, setActiveTab] = useState<TabFilter>("todos");
   const [networkFilter, setNetworkFilter] = useState<string>("all");
-
   const { posts, loading } = useScheduledPosts({ workspaceId });
+
+  const [editingPost, setEditingPost] =
+    useState<(typeof posts)[number] | null>(null);
 
   const filtered = useMemo(() => {
     return posts.filter((post) => {
@@ -48,6 +57,42 @@ export default function PostsAgendaPage() {
 
   const handleCreateManual = () => {
     router.push("/posts/manual");
+  };
+
+  const handleDuplicate = async (post: (typeof posts)[number]) => {
+    if (!db || !workspaceId) return;
+
+    try {
+      const ref = collection(db, "scheduledPosts");
+      await addDoc(ref, {
+        workspaceId,
+        ownerId: post.ownerId,
+        networks: post.networks,
+        content: post.content,
+        timeZone: post.timeZone,
+        // por padrão, duplica para HOJE + 1 hora
+        runAt: new Date(Date.now() + 60 * 60 * 1000),
+        status: "pending",
+        lastError: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("[PostsAgenda] erro ao duplicar post:", err);
+    }
+  };
+
+  const handleCancel = async (post: (typeof posts)[number]) => {
+    if (!db) return;
+    try {
+      const ref = doc(db, "scheduledPosts", post.id);
+      await updateDoc(ref, {
+        status: "cancelled", // You may need to add 'cancelled' to your ScheduledStatus type
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("[PostsAgenda] erro ao cancelar agendamento:", err);
+    }
   };
 
   return (
@@ -85,8 +130,8 @@ export default function PostsAgendaPage() {
           </button>
         </div>
       </header>
-       {/* Filtros principais */}
-       <div className="flex flex-wrap items-center gap-2 justify-between">
+      {/* Filtros principais */}
+      <div className="flex flex-wrap items-center gap-2 justify-between">
         <div className="flex flex-wrap gap-2 text-xs">
           {[
             { id: "todos", label: "Todos" },
@@ -126,7 +171,7 @@ export default function PostsAgendaPage() {
           </select>
         </div>
       </div>
-      
+
       {/* Lista */}
       <div className="mt-2 space-y-2">
         {loading && (
@@ -144,9 +189,21 @@ export default function PostsAgendaPage() {
 
         {!loading &&
           filtered.map((post) => (
-            <PostAgendaCard key={post.id} post={post} />
+            <PostAgendaCard
+              key={post.id}
+              post={post}
+              onEdit={setEditingPost}
+              onDuplicate={handleDuplicate}
+              onCancel={handleCancel}
+            />
           ))}
       </div>
+
+      <EditScheduledPostModal
+        post={editingPost}
+        isOpen={!!editingPost}
+        onClose={() => setEditingPost(null)}
+      />
     </section>
   );
 }
