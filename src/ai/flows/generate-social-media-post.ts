@@ -64,7 +64,6 @@ Requisitos gerais:
 - Desenvolva o texto em 2 a 4 parágrafos curtos.
 - Use linguagem simples, direta e envolvente, adequada para leitura em celular.
 - Use no máximo 4 emojis, distribuídos naturalmente (não coloque emoji em TODAS as frases).
-- Use o CTA final coerente com o objetivo do post e com o tom de voz.
 - Use quebras de linha para facilitar a leitura.
 - NÃO use hashtags.
 - NÃO diga que foi "gerado por IA" e nem explique o que está fazendo.
@@ -90,3 +89,4 @@ const generateSocialMediaPostFlow = ai.defineFlow(
     const {output} = await generateSocialMediaPostPrompt(input);
     return output!;
   }
+);
