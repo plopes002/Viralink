@@ -1,82 +1,32 @@
 // app/(app)/posts/page.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FiPlus, FiZap } from "react-icons/fi";
-import { useScheduledPosts, type ScheduledPost } from "@/hooks/useScheduledPosts";
-import { useUser } from "@/firebase/provider";
-import { PostAgendaCard } from "./PostAgendaCard";
-import { EditScheduledPostModal } from "./EditScheduledPostModal";
-import { useFirebase } from "@/firebase/provider";
-import {
-  addDoc,
-  collection,
-  doc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-} from "firebase/firestore";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useDraftPosts, type DraftPost } from "@/hooks/useDraftPosts";
-import { DraftPostCard } from "./DraftPostCard";
-import { EditDraftPostModal } from "./EditDraftPostModal";
+import { usePosts } from "@/hooks/usePosts";
+import type { PostStatus } from "@/types/post";
+import { FiPlus, FiZap } from "react-icons/fi";
 
-type TabFilter = "todos" | "publicado" | "agendado" | "rascunho";
+const STATUS_TABS: { id: PostStatus | "all"; label: string }[] = [
+  { id: "all", label: "Todos" },
+  { id: "published", label: "Publicado" },
+  { id: "scheduled", label: "Agendado" },
+  { id: "draft", label: "Rascunho" },
+];
 
-export default function PostsAgendaPage() {
+export default function PostsPage() {
   const router = useRouter();
   const { currentWorkspace } = useWorkspace();
-  const { user: currentUser } = useUser();
-  const workspaceId = currentWorkspace?.id ?? null;
-  const ownerId = currentUser?.uid ?? null;
+  const workspaceId = currentWorkspace?.id;
 
-  const { firestore: db } = useFirebase();
+  const [statusFilter, setStatusFilter] =
+    useState<PostStatus | "all">("all");
 
-  const [activeTab, setActiveTab] = useState<TabFilter>("todos");
-  const [networkFilter, setNetworkFilter] = useState<string>("all");
-
-  const { posts, loading: loadingScheduled } = useScheduledPosts({
+  const { posts, loading } = usePosts({
     workspaceId,
+    status: statusFilter,
   });
-  const { drafts, loading: loadingDrafts } = useDraftPosts({ workspaceId });
-
-  const [editingPost, setEditingPost] =
-    useState<(ScheduledPost & { boardStatus: string }) | null>(null);
-  const [editingDraft, setEditingDraft] = useState<DraftPost | null>(null);
-
-  const filteredScheduled = useMemo(() => {
-    return posts.filter((post) => {
-      if (
-        activeTab !== "todos" &&
-        post.boardStatus !== activeTab &&
-        !(activeTab === "rascunho" && post.boardStatus === "erro")
-      ) {
-        return false;
-      }
-
-      if (networkFilter !== "all") {
-        return post.networks.includes(networkFilter);
-      }
-
-      return true;
-    });
-  }, [posts, activeTab, networkFilter]);
-
-  const filteredDrafts = useMemo(() => {
-    if (activeTab !== "rascunho" && activeTab !== "todos") {
-      return [];
-    }
-
-    return drafts.filter((draft) => {
-      if (networkFilter !== "all") {
-        return draft.networks.includes(networkFilter);
-      }
-      return true;
-    });
-  }, [drafts, activeTab, networkFilter]);
-
-  const loading = loadingScheduled || loadingDrafts;
 
   const handleCreateWithAI = () => {
     router.push("/posts/ai");
@@ -86,91 +36,15 @@ export default function PostsAgendaPage() {
     router.push("/posts/manual");
   };
 
-  // Duplicar scheduled
-  const handleDuplicate = async (post: (typeof posts)[number]) => {
-    if (!db || !workspaceId) return;
-
-    try {
-      const ref = collection(db, "scheduledPosts");
-      await addDoc(ref, {
-        workspaceId,
-        ownerId: post.ownerId,
-        networks: post.networks,
-        content: post.content,
-        timeZone: post.timeZone,
-        // por padrão, duplica para HOJE + 1 hora
-        runAt: new Date(Date.now() + 60 * 60 * 1000),
-        status: "pending",
-        lastError: null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error("[PostsAgenda] erro ao duplicar post:", err);
-    }
-  };
-
-  // Cancelar scheduled
-  const handleCancel = async (post: (typeof posts)[number]) => {
-    if (!db) return;
-    try {
-      const ref = doc(db, "scheduledPosts", post.id);
-      await updateDoc(ref, {
-        status: "cancelled", // You may need to add 'cancelled' to your ScheduledStatus type
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error("[PostsAgenda] erro ao cancelar agendamento:", err);
-    }
-  };
-
-  // Agendar rascunho rapidamente (+1h)
-  const handleQuickScheduleDraft = async (draft: (typeof drafts)[number]) => {
-    if (!db || !workspaceId || !ownerId) return;
-
-    try {
-      const ref = collection(db, "scheduledPosts");
-      await addDoc(ref, {
-        workspaceId,
-        ownerId,
-        networks: draft.networks,
-        content: draft.content,
-        timeZone: currentWorkspace?.timeZone ?? "America/Sao_Paulo",
-        runAt: new Date(Date.now() + 60 * 60 * 1000),
-        status: "pending",
-        lastError: null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      // opcional: apagar o rascunho após agendar
-      await deleteDoc(doc(db, "draftPosts", draft.id));
-    } catch (err) {
-      console.error("[PostsAgenda] erro ao agendar rascunho:", err);
-    }
-  };
-
-  // Excluir rascunho
-  const handleDeleteDraft = async (draft: (typeof drafts)[number]) => {
-    if (!db) return;
-    try {
-      await deleteDoc(doc(db, "draftPosts", draft.id));
-    } catch (err) {
-      console.error("[PostsAgenda] erro ao excluir rascunho:", err);
-    }
-  };
-
   return (
-    <section className="mt-4 space-y-6">
-      {/* Cabeçalho */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+    <section className="mt-4 flex flex-col gap-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold text-white">
             Posts & Agenda
           </h1>
           <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-xl">
-            Gerencie seus posts, veja o que está agendado, crie novos conteúdos
-            com IA em poucos cliques e organize seus rascunhos.
+            Gerencie todos os posts criados, agendados e já publicados.
           </p>
         </div>
 
@@ -195,100 +69,87 @@ export default function PostsAgendaPage() {
           </button>
         </div>
       </header>
-      {/* Filtros principais */}
-      <div className="flex flex-wrap items-center gap-2 justify-between">
-        <div className="flex flex-wrap gap-2 text-xs">
-          {[
-            { id: "todos", label: "Todos" },
-            { id: "publicado", label: "Publicado" },
-            { id: "agendado", label: "Agendado" },
-            { id: "rascunho", label: "Rascunho / com erro" },
-          ].map((tab) => {
-            const isActive = activeTab === (tab.id as TabFilter);
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabFilter)}
-                className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
-                  isActive
-                    ? "border-[#7C3AED] bg-[#7C3AED]/20 text-white"
-                    : "border-[#261341] text-[#E5E7EB]/80 hover:bg-white/5"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
 
-        {/* Filtro por rede */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-[#9CA3AF]">Filtrar por rede:</span>
-          <select
-            value={networkFilter}
-            onChange={(e) => setNetworkFilter(e.target.value)}
-            className="bg-[#050017] border border-[#261341] rounded-full px-3 py-1 text-[11px] text-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-          >
-            <option value="all">Todas</option>
-            <option value="instagram">Instagram</option>
-            <option value="facebook">Facebook</option>
-            <option value="whatsapp">WhatsApp</option>
-          </select>
-        </div>
+      {/* Tabs de status */}
+      <div className="flex gap-2 text-[11px]">
+        {STATUS_TABS.map((tab) => {
+          const active = statusFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-3 py-1.5 rounded-full border transition ${
+                active
+                  ? "border-[#7C3AED] bg-[#7C3AED]/20 text-white"
+                  : "border-[#272046] text-[#E5E7EB]/80 hover:bg-[#111827]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Lista */}
-      <div className="mt-2 space-y-2">
+      <div className="flex flex-col gap-2">
         {loading && (
           <div className="text-center py-8 text-xs text-[#9CA3AF]">
-            Carregando posts, agendamentos e rascunhos...
+            Carregando posts...
+          </div>
+        )}
+
+        {!loading && posts.length === 0 && (
+          <div className="text-center py-8 text-xs text-[#9CA3AF]">
+            Nenhum post encontrado para esse filtro.
           </div>
         )}
 
         {!loading &&
-          filteredScheduled.length === 0 &&
-          filteredDrafts.length === 0 && (
-            <div className="text-center py-8 text-xs text-[#9CA3AF]">
-              Nenhum item encontrado para esse filtro. Que tal criar um novo post?
-            </div>
-          )}
-
-        {/* rascunhos */}
-        {!loading &&
-          filteredDrafts.map((draft) => (
-            <DraftPostCard
-              key={draft.id}
-              draft={draft}
-              onEdit={setEditingDraft}
-              onQuickSchedule={handleQuickScheduleDraft}
-              onDelete={handleDeleteDraft}
-            />
-          ))}
-
-        {/* scheduled (publicado / agendado / erro) */}
-        {!loading &&
-          filteredScheduled.map((post) => (
-            <PostAgendaCard
+          posts.map((post) => (
+            <div
               key={post.id}
-              post={post}
-              onEdit={setEditingPost}
-              onDuplicate={handleDuplicate}
-              onCancel={handleCancel}
-            />
+              className="rounded-2xl border border-[#272046] bg-[#050016] px-4 py-3 flex flex-col gap-1"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-[12px] text-white font-medium">
+                    {post.title || post.text.substring(0, 50) || "Post sem título"}
+                  </span>
+                  <span className="text-[10px] text-[#9CA3AF]">
+                    {post.networks.join(" • ")} •{" "}
+                    {post.status === "draft"
+                      ? "Rascunho"
+                      : post.status === "scheduled"
+                      ? `Agendado para ${post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString() : 'data indefinida'}`
+                      : "Publicado"}
+                  </span>
+                </div>
+
+                {/* Badge de status */}
+                <span
+                  className={`text-[10px] px-3 py-1 rounded-full ${
+                    post.status === "published"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : post.status === "scheduled"
+                      ? "bg-sky-500/15 text-sky-400"
+                      : "bg-zinc-500/15 text-zinc-300"
+                  }`}
+                >
+                  {post.status === "published"
+                    ? "Publicado"
+                    : post.status === "scheduled"
+                    ? "Agendado"
+                    : "Rascunho"}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-[#D1D5DB] line-clamp-3">
+                {post.text}
+              </p>
+            </div>
           ))}
       </div>
-
-      <EditScheduledPostModal
-        post={editingPost}
-        isOpen={!!editingPost}
-        onClose={() => setEditingPost(null)}
-      />
-
-      <EditDraftPostModal
-        draft={editingDraft}
-        isOpen={!!editingDraft}
-        onClose={() => setEditingDraft(null)}
-      />
-    </section>
+    </div>
   );
 }
