@@ -14,7 +14,9 @@ import {
 } from "react-icons/fi";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useDraftPostActions, MediaType } from "@/hooks/useDraftPostActions";
-import { useUser } from "@/firebase/provider";
+import { useUser, useFirebase } from "@/firebase/provider";
+import { generateImage } from "@/ai/flows/generate-image-flow";
+import { uploadBase64ImageToStorage } from "@/lib/upload-helper";
 
 
 const CARD = "#0B001F";
@@ -33,6 +35,8 @@ export default function CreatePostAIPage() {
   const router = useRouter();
   const { currentWorkspace } = useWorkspace();
   const { user: currentUser } = useUser();
+  const { firestore, storage } = useFirebase();
+
   const { createDraft } = useDraftPostActions();
 
   const workspaceId = currentWorkspace?.id;
@@ -130,25 +134,52 @@ export default function CreatePostAIPage() {
     }, 600);
   }
 
-  function handleGerarImagemIA() {
-    if (mediaKind !== "image") {
-      alert("Selecione o tipo de mídia como imagem para gerar com IA.");
+  async function handleGerarImagemIA() {
+    if (mediaKind !== 'image' || mediaSource !== 'ai') {
+      alert('Selecione "Imagem" e "Gerar com IA" para usar esta função.');
       return;
     }
     if (!mediaPrompt.trim()) {
-      alert("Descreva o que você quer na imagem.");
+      alert('Descreva a imagem que você quer gerar.');
       return;
     }
-
+    if (!storage || !ownerId) {
+      alert('Serviço de armazenamento ou usuário não disponível. Tente novamente.');
+      return;
+    }
+  
     setLoadingImage(true);
-
-    setTimeout(() => {
+    setMediaUrl(null);
+    setImageGenerated(false);
+  
+    try {
+      const result = await generateImage({ prompt: mediaPrompt });
+      const { imageBase64 } = result;
+  
+      if (!imageBase64) {
+        throw new Error('A IA não retornou uma imagem.');
+      }
+  
+      const fullBase64 = `data:image/png;base64,${imageBase64}`;
+      setMediaUrl(fullBase64); // Show preview immediately
       setImageGenerated(true);
-      const generatedUrl = `https://placehold.co/600x400?text=AI_IMG_FOR_${mediaPrompt.replace(/\s+/g, '_')}`
-      setMediaUrl(generatedUrl);
+  
+      const downloadURL = await uploadBase64ImageToStorage(
+        storage,
+        fullBase64,
+        `draft-images/${ownerId}`
+      );
+      
+      setMediaUrl(downloadURL); // Update with final storage URL
       setMediaFileName("imagem-gerada-pela-IA.png");
+      
+    } catch (error) {
+      console.error('Erro ao gerar ou fazer upload da imagem:', error);
+      alert('Ocorreu um erro ao gerar a imagem. Verifique o console para mais detalhes.');
+      setMediaUrl(null);
+    } finally {
       setLoadingImage(false);
-    }, 800);
+    }
   }
 
   function handleLimpar() {
@@ -169,7 +200,11 @@ export default function CreatePostAIPage() {
     setMediaFileName(file ? file.name : null);
     setImageGenerated(false);
     if (file) {
-      setMediaUrl(`https://placehold.co/600x400?text=${file.name}`);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMediaUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     } else {
       setMediaUrl(null);
     }
