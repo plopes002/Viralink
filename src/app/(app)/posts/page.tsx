@@ -20,6 +20,7 @@ import {
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useDraftPosts, type DraftPost } from "@/hooks/useDraftPosts";
 import { DraftPostCard } from "./DraftPostCard";
+import { EditDraftPostModal } from "./EditDraftPostModal";
 
 type TabFilter = "todos" | "publicado" | "agendado" | "rascunho";
 
@@ -283,7 +284,11 @@ export default function PostsAgendaPage() {
         onClose={() => setEditingPost(null)}
       />
 
-      {/* TODO: Add EditDraftPostModal similar to the scheduled one */}
+      <EditDraftPostModal
+        draft={editingDraft}
+        isOpen={!!editingDraft}
+        onClose={() => setEditingDraft(null)}
+      />
     </section>
   );
 }
