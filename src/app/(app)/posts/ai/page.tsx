@@ -26,6 +26,7 @@ import {
   ObjectiveId,
   POST_OBJECTIVES,
 } from "@/config/postObjectives";
+import { POST_PRESETS, type PostPreset } from "@/config/postPresets";
 
 
 const CARD = "#0B001F";
@@ -50,15 +51,13 @@ export default function CreatePostAIPage() {
 
   // Texto / parâmetros
   const [tema, setTema] = useState("");
-  const [objetivo, setObjetivo] = useState("");
-  const [publico, setPublico] = useState("");
-  const [cta, setCta] = useState("Envie uma mensagem ou clique no link da bio.");
-
-  // Tom de voz
+  
+  // Tom de voz e Objetivo
   const [toneId, setToneId] = useState<ToneId>("engracado");
   const [objectiveId, setObjectiveId] = useState<ObjectiveId>("engajamento");
-  const [tomPersonalizado, setTomPersonalizado] = useState("");
 
+  const [cta, setCta] = useState("Envie uma mensagem ou clique no link da bio.");
+  const [tomPersonalizado, setTomPersonalizado] = useState("");
   const [comprimento, setComprimento] = useState<"curto" | "medio" | "longo">(
     "medio",
   );
@@ -80,6 +79,10 @@ export default function CreatePostAIPage() {
   const [hashtagsGeradas, setHashtagsGeradas] = useState<string[] | null>(null);
   const [loadingTexto, setLoadingTexto] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
+  
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
+    null,
+  );
 
 
   function toggleRede(rede: string) {
@@ -89,6 +92,12 @@ export default function CreatePostAIPage() {
         : [...atual, rede],
     );
   }
+  
+  const applyPreset = (preset: PostPreset) => {
+    setToneId(preset.toneId);
+    setObjectiveId(preset.objectiveId);
+    setSelectedPresetId(preset.id);
+  };
 
   async function handleGerarTextoIA() {
     if (!tema.trim()) {
@@ -328,6 +337,42 @@ export default function CreatePostAIPage() {
             />
           </div>
           
+          {/* Presets rápidos */}
+          <div className="space-y-1">
+            <p className="text-[11px] text-[#E5E7EB]">
+              Presets rápidos de estratégia
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {POST_PRESETS.map((preset) => {
+                const isActive = preset.id === selectedPresetId;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className={`px-3 py-1.5 rounded-full border text-[11px] text-left transition ${
+                      isActive
+                        ? "border-[#7C3AED] bg-[#7C3AED]/20 text-white"
+                        : preset.destaque
+                        ? "border-[#F97316] text-[#F97316] bg-[#0B1120]"
+                        : "border-[#272046] text-[#E5E7EB]/80 bg-[#020012] hover:bg-[#111827]"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedPresetId && (
+              <p className="text-[10px] text-[#9CA3AF] mt-1">
+                {
+                  POST_PRESETS.find((p) => p.id === selectedPresetId)
+                    ?.descricao
+                }
+              </p>
+            )}
+          </div>
+          
           {/* Tom de voz + Objetivo */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
             <div>
@@ -336,7 +381,10 @@ export default function CreatePostAIPage() {
               </label>
               <select
                 value={toneId}
-                onChange={(e) => setToneId(e.target.value as ToneId)}
+                onChange={(e) => {
+                  setToneId(e.target.value as ToneId);
+                  setSelectedPresetId(null);
+                }}
                 className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#7C3AED]"
               >
                 {toneOptions.map((tone) => (
@@ -356,9 +404,10 @@ export default function CreatePostAIPage() {
               </label>
               <select
                 value={objectiveId}
-                onChange={(e) =>
-                  setObjectiveId(e.target.value as ObjectiveId)
-                }
+                onChange={(e) => {
+                  setObjectiveId(e.target.value as ObjectiveId);
+                  setSelectedPresetId(null);
+                }}
                 className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#7C3AED]"
               >
                 {objectiveOptions.map((obj) => (
