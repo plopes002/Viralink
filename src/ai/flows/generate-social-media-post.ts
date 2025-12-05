@@ -9,10 +9,11 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { ToneId, getToneTemplateById } from '@/config/toneTemplates';
 
 const GenerateSocialMediaPostInputSchema = z.object({
   theme: z.string().describe('The theme or topic for the social media post.'),
-  tone: z.string().describe('The desired tone of voice for the post.'),
+  toneId: z.custom<ToneId>().describe('The desired tone of voice for the post.'),
   networks: z.array(z.string()).describe('The target social networks for the post.'),
 });
 export type GenerateSocialMediaPostInput = z.infer<typeof GenerateSocialMediaPostInputSchema>;
@@ -30,26 +31,42 @@ const generateSocialMediaPostPrompt = ai.definePrompt({
   name: 'generateSocialMediaPostPrompt',
   input: {schema: GenerateSocialMediaPostInputSchema},
   output: {schema: GenerateSocialMediaPostOutputSchema},
-  prompt: `Você é um especialista em copywriting para redes sociais.
+  prompt: `Você é um especialista em copywriting para redes sociais, criando posts para uma plataforma de gestão e automação chamada VIRALINK.
 
-Gere um texto COMPLETO para um post, em português do Brasil, com estas condições:
+Objetivo:
+Gerar um texto COMPLETO para um post em português do Brasil.
 
 Tema do post: "{{theme}}"
-Tom de voz: {{tone}}
+Tom de voz selecionado: {{@getToneTemplateById(toneId).label}}
+Descrição do tom: {{@getToneTemplateById(toneId).descricao}}
 Redes alvo: {{#each networks}}{{{this}}}{{/each}}
 
-Requisitos:
-- Comece com uma frase de impacto ou pergunta que prenda atenção.
-- Desenvolva o texto em 2 a 4 parágrafos curtos.
-- Use linguagem simples, direta e envolvente.
-- Inclua no máximo 4 emojis distribuídos de forma natural (nunca no começo de todas as frases).
-- Inclua um CTA (call to action) claro no final, incentivando comentário, compartilhamento ou clique em link.
-- Use quebras de linha para facilitar a leitura em celulares.
-- NÃO use hashtags (isso será tratado depois na plataforma).
-- NÃO fale que foi "gerado por IA", nem explique o que está fazendo; apenas entregue o texto final pronto para publicação.
+Siga estas orientações de estilo:
+{{#each (@getToneTemplateById(toneId).instrucoesEstilo)}}
+- {{{this}}}
+{{/each}}
 
-Retorne APENAS o texto do post no campo 'postContent', sem títulos extras, sem aspas ao redor do texto.
+Orientação de CTA:
+- {{@getToneTemplateById(toneId).instrucoesCTA}}
+
+Requisitos gerais:
+- Comece com uma frase de impacto OU uma pergunta que prenda atenção.
+- Desenvolva o texto em 2 a 4 parágrafos curtos.
+- Use linguagem simples, direta e envolvente, adequada para leitura em celular.
+- Use no máximo 4 emojis, distribuídos naturalmente (não coloque emoji em TODAS as frases).
+- Inclua um CTA (call to action) claro no final, coerente com o tom e com a orientação acima.
+- Use quebras de linha para facilitar a leitura.
+- NÃO use hashtags.
+- NÃO diga que foi "gerado por IA" e nem explique o que está fazendo.
+- Apenas retorne o texto final pronto para publicação, sem títulos extras, sem aspas em volta.
+
+Retorne APENAS o texto do post no campo 'postContent'.
 `,
+  template: {
+    helpers: {
+      getToneTemplateById,
+    },
+  }
 });
 
 const generateSocialMediaPostFlow = ai.defineFlow(

@@ -18,19 +18,15 @@ import { useUser, useFirebase } from "@/firebase/provider";
 import { generateImage } from "@/ai/flows/generate-image-flow";
 import { uploadBase64ImageToStorage } from "@/lib/upload-helper";
 import { generateSocialMediaPost } from "@/ai/flows/generate-social-media-post";
+import {
+  ToneId,
+  TONE_TEMPLATES,
+} from "@/config/toneTemplates";
 
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
 
-const TONS_PREDEFINIDOS = [
-  "Profissional, mas próximo",
-  "Descontraído e divertido",
-  "Direto ao ponto",
-  "Educativo e didático",
-  "Inspirador / motivacional",
-  "Urgente (escassez / oferta relâmpago)",
-];
 
 export default function CreatePostAIPage() {
   const router = useRouter();
@@ -55,9 +51,7 @@ export default function CreatePostAIPage() {
   const [cta, setCta] = useState("Envie uma mensagem ou clique no link da bio.");
 
   // Tom de voz
-  const [tomSelecionado, setTomSelecionado] = useState<string>(
-    TONS_PREDEFINIDOS[0],
-  );
+  const [toneId, setToneId] = useState<ToneId>("engracado");
   const [tomPersonalizado, setTomPersonalizado] = useState("");
 
   const [comprimento, setComprimento] = useState<"curto" | "medio" | "longo">(
@@ -91,11 +85,6 @@ export default function CreatePostAIPage() {
     );
   }
 
-  const tomFinal =
-    tomSelecionado === "Outro (personalizar)"
-      ? tomPersonalizado || "Tom personalizado definido pelo usuário"
-      : tomSelecionado;
-
   async function handleGerarTextoIA() {
     if (!tema.trim()) {
       alert("Informe pelo menos o tema da postagem para gerar com IA.");
@@ -112,7 +101,7 @@ export default function CreatePostAIPage() {
     try {
       const result = await generateSocialMediaPost({
         theme: tema,
-        tone: tomFinal,
+        toneId: toneId,
         networks: redesSelecionadas,
       });
 
@@ -122,8 +111,6 @@ export default function CreatePostAIPage() {
       }
       
       setTextoGerado(result.postContent);
-      setTituloGerado(null); // O novo flow não gera mais título separado
-      setHashtagsGeradas(null); // O novo flow não gera mais hashtags
 
     } catch (err) {
       console.error("[handleGerarTextoIA] Erro:", err);
@@ -239,6 +226,8 @@ export default function CreatePostAIPage() {
     }
   }
 
+  const toneOptions = Object.values(TONE_TEMPLATES);
+
   return (
     <section className="mt-4 space-y-6">
       {/* Header */}
@@ -297,10 +286,6 @@ export default function CreatePostAIPage() {
                 },
               )}
             </div>
-            <p className="text-[10px] text-[#6B7280]">
-              • Um único conteúdo será reutilizado em todas as redes
-              selecionadas.
-            </p>
           </div>
 
           {/* Tema */}
@@ -316,110 +301,26 @@ export default function CreatePostAIPage() {
             />
           </div>
 
-          {/* Objetivo */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[#CBD5E1]">
-              Objetivo da postagem
-            </label>
-            <input
-              value={objetivo}
-              onChange={(e) => setObjetivo(e.target.value)}
-              placeholder="Ex.: Gerar leads para teste gratuito, reforçar autoridade, etc."
-              className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-            />
-          </div>
-
           {/* Tom de voz */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[11px] text-[#CBD5E1]">Tom de voz</label>
-            <div className="flex flex-wrap gap-2 text-[11px]">
-              {TONS_PREDEFINIDOS.map((ton) => (
-                <button
-                  key={ton}
-                  type="button"
-                  onClick={() => setTomSelecionado(ton)}
-                  className={`px-3 py-1.5 rounded-full border transition ${
-                    tomSelecionado === ton
-                      ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                      : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-                  }`}
-                >
-                  {ton}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setTomSelecionado("Outro (personalizar)")}
-                className={`px-3 py-1.5 rounded-full border transition ${
-                  tomSelecionado === "Outro (personalizar)"
-                    ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                    : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-                }`}
+          <div className="grid grid-cols-1 gap-3 text-[11px]">
+            <div>
+              <label className="text-[#CBD5E1] block mb-1">
+                Tom de voz
+              </label>
+              <select
+                value={toneId}
+                onChange={(e) => setToneId(e.target.value as ToneId)}
+                className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#7C3AED]"
               >
-                Outro (personalizar)
-              </button>
-            </div>
-
-            {tomSelecionado === "Outro (personalizar)" && (
-              <input
-                value={tomPersonalizado}
-                onChange={(e) => setTomPersonalizado(e.target.value)}
-                placeholder="Descreva o tom de voz desejado (ex.: sarcástico, técnico, super informal...)"
-                className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-              />
-            )}
-          </div>
-
-          {/* Público */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[#CBD5E1]">
-              Público-alvo (opcional)
-            </label>
-            <input
-              value={publico}
-              onChange={(e) => setPublico(e.target.value)}
-              placeholder="Ex.: Donos de pequenas clínicas, infoprodutores, etc."
-              className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-            />
-          </div>
-
-          {/* CTA */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[#CBD5E1]">
-              Chamada para ação (CTA)
-            </label>
-            <textarea
-              value={cta}
-              onChange={(e) => setCta(e.target.value)}
-              rows={2}
-              className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-            />
-          </div>
-
-          {/* Comprimento */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] text-[#CBD5E1]">Comprimento</span>
-            <div className="flex flex-wrap gap-2 text-[11px]">
-              {[
-                { key: "curto", label: "Curto" },
-                { key: "medio", label: "Médio" },
-                { key: "longo", label: "Longo" },
-              ].map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() =>
-                    setComprimento(opt.key as typeof comprimento)
-                  }
-                  className={`px-3 py-1.5 rounded-full border transition ${
-                    comprimento === opt.key
-                      ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                      : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-                  }`}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
+                {toneOptions.map((tone) => (
+                  <option key={tone.id} value={tone.id}>
+                    {tone.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-[#9CA3AF]">
+                {TONE_TEMPLATES[toneId].descricao}
+              </p>
             </div>
           </div>
 
