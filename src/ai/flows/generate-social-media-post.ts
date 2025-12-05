@@ -10,10 +10,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { ToneId, getToneTemplateById } from '@/config/toneTemplates';
+import { ObjectiveId, getObjectiveById } from '@/config/postObjectives';
 
 const GenerateSocialMediaPostInputSchema = z.object({
   theme: z.string().describe('The theme or topic for the social media post.'),
   toneId: z.custom<ToneId>().describe('The desired tone of voice for the post.'),
+  objectiveId: z.custom<ObjectiveId>().describe('The main business objective of the post.'),
   networks: z.array(z.string()).describe('The target social networks for the post.'),
 });
 export type GenerateSocialMediaPostInput = z.infer<typeof GenerateSocialMediaPostInputSchema>;
@@ -33,28 +35,36 @@ const generateSocialMediaPostPrompt = ai.definePrompt({
   output: {schema: GenerateSocialMediaPostOutputSchema},
   prompt: `Você é um especialista em copywriting para redes sociais, criando posts para uma plataforma de gestão e automação chamada VIRALINK.
 
-Objetivo:
-Gerar um texto COMPLETO para um post em português do Brasil.
+Objetivo principal do post:
+- {{@getObjectiveById(objectiveId).label}}
+- Foco: {{@getObjectiveById(objectiveId).focoPrincipal}}
 
 Tema do post: "{{theme}}"
 Tom de voz selecionado: {{@getToneTemplateById(toneId).label}}
 Descrição do tom: {{@getToneTemplateById(toneId).descricao}}
 Redes alvo: {{#each networks}}{{{this}}}{{/each}}
 
-Siga estas orientações de estilo:
+Siga estas orientações de ESTILO do tom de voz:
 {{#each (@getToneTemplateById(toneId).instrucoesEstilo)}}
 - {{{this}}}
 {{/each}}
 
-Orientação de CTA:
-- {{@getToneTemplateById(toneId).instrucoesCTA}}
+Siga estas orientações de ESTILO do objetivo do post:
+{{#each (@getObjectiveById(objectiveId).instrucoesEstilo)}}
+- {{{this}}}
+{{/each}}
+
+Orientação para CTA:
+- Tom de voz: {{@getToneTemplateById(toneId).instrucoesCTA}}
+- Objetivo: {{@getObjectiveById(objectiveId).instrucoesCTA}}
 
 Requisitos gerais:
+- Escreva em português do Brasil.
 - Comece com uma frase de impacto OU uma pergunta que prenda atenção.
 - Desenvolva o texto em 2 a 4 parágrafos curtos.
 - Use linguagem simples, direta e envolvente, adequada para leitura em celular.
 - Use no máximo 4 emojis, distribuídos naturalmente (não coloque emoji em TODAS as frases).
-- Inclua um CTA (call to action) claro no final, coerente com o tom e com a orientação acima.
+- Use o CTA final coerente com o objetivo do post e com o tom de voz.
 - Use quebras de linha para facilitar a leitura.
 - NÃO use hashtags.
 - NÃO diga que foi "gerado por IA" e nem explique o que está fazendo.
@@ -65,6 +75,7 @@ Retorne APENAS o texto do post no campo 'postContent'.
   template: {
     helpers: {
       getToneTemplateById,
+      getObjectiveById,
     },
   }
 });
@@ -79,4 +90,3 @@ const generateSocialMediaPostFlow = ai.defineFlow(
     const {output} = await generateSocialMediaPostPrompt(input);
     return output!;
   }
-);

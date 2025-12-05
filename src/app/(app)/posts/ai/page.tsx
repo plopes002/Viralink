@@ -22,6 +22,10 @@ import {
   ToneId,
   TONE_TEMPLATES,
 } from "@/config/toneTemplates";
+import {
+  ObjectiveId,
+  POST_OBJECTIVES,
+} from "@/config/postObjectives";
 
 
 const CARD = "#0B001F";
@@ -52,6 +56,7 @@ export default function CreatePostAIPage() {
 
   // Tom de voz
   const [toneId, setToneId] = useState<ToneId>("engracado");
+  const [objectiveId, setObjectiveId] = useState<ObjectiveId>("engajamento");
   const [tomPersonalizado, setTomPersonalizado] = useState("");
 
   const [comprimento, setComprimento] = useState<"curto" | "medio" | "longo">(
@@ -102,6 +107,7 @@ export default function CreatePostAIPage() {
       const result = await generateSocialMediaPost({
         theme: tema,
         toneId: toneId,
+        objectiveId: objectiveId,
         networks: redesSelecionadas,
       });
 
@@ -139,7 +145,27 @@ export default function CreatePostAIPage() {
     setImageGenerated(false);
   
     try {
-      const result = await generateImage({ prompt: mediaPrompt });
+      const result = await generateImage({ 
+        prompt: `
+          Crie uma imagem para um post de rede social com o visual do VIRALINK.
+
+          Tema: ${tema}
+          Tom de voz: ${TONE_TEMPLATES[toneId].label}
+          Objetivo do post: ${POST_OBJECTIVES[objectiveId].label}
+          Foco do objetivo: ${POST_OBJECTIVES[objectiveId].focoPrincipal}
+          Redes: ${redesSelecionadas.join(", ")}
+
+          Estilo visual:
+          - Fundo escuro com acentos em roxo neon e azul (estilo dashboard de analytics).
+          - Elementos que remetam a redes sociais (curtidas, comentários, gráficos de crescimento).
+          - Layout limpo, com área visual que sugira espaço para texto.
+          - Sensação de tecnologia, crescimento e performance.
+
+          A imagem deve combinar com o tom de voz e o objetivo do post, reforçando a ideia principal.
+          
+          Prompt do usuário: "${mediaPrompt}"
+        `.trim()
+      });
       const { imageBase64 } = result;
   
       if (!imageBase64) {
@@ -227,6 +253,7 @@ export default function CreatePostAIPage() {
   }
 
   const toneOptions = Object.values(TONE_TEMPLATES);
+  const objectiveOptions = Object.values(POST_OBJECTIVES);
 
   return (
     <section className="mt-4 space-y-6">
@@ -300,11 +327,11 @@ export default function CreatePostAIPage() {
               className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
             />
           </div>
-
-          {/* Tom de voz */}
-          <div className="grid grid-cols-1 gap-3 text-[11px]">
+          
+          {/* Tom de voz + Objetivo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
             <div>
-              <label className="text-[#CBD5E1] block mb-1">
+              <label className="text-[#E5E7EB] block mb-1">
                 Tom de voz
               </label>
               <select
@@ -322,7 +349,30 @@ export default function CreatePostAIPage() {
                 {TONE_TEMPLATES[toneId].descricao}
               </p>
             </div>
+
+            <div>
+              <label className="text-[#E5E7EB] block mb-1">
+                Objetivo do post
+              </label>
+              <select
+                value={objectiveId}
+                onChange={(e) =>
+                  setObjectiveId(e.target.value as ObjectiveId)
+                }
+                className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#7C3AED]"
+              >
+                {objectiveOptions.map((obj) => (
+                  <option key={obj.id} value={obj.id}>
+                    {obj.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-[#9CA3AF]">
+                {POST_OBJECTIVES[objectiveId].descricao}
+              </p>
+            </div>
           </div>
+
 
           {/* MÍDIA: upload ou IA */}
           <div className="flex flex-col gap-1">
