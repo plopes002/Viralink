@@ -17,6 +17,7 @@ import { useDraftPostActions, MediaType } from "@/hooks/useDraftPostActions";
 import { useUser, useFirebase } from "@/firebase/provider";
 import { generateImage } from "@/ai/flows/generate-image-flow";
 import { uploadBase64ImageToStorage } from "@/lib/upload-helper";
+import { generateSocialMediaPost } from "@/ai/flows/generate-social-media-post";
 
 
 const CARD = "#0B001F";
@@ -95,7 +96,7 @@ export default function CreatePostAIPage() {
       ? tomPersonalizado || "Tom personalizado definido pelo usuário"
       : tomSelecionado;
 
-  function handleGerarTextoIA() {
+  async function handleGerarTextoIA() {
     if (!tema.trim()) {
       alert("Informe pelo menos o tema da postagem para gerar com IA.");
       return;
@@ -106,32 +107,30 @@ export default function CreatePostAIPage() {
     }
 
     setLoadingTexto(true);
+    setTextoGerado(null);
 
-    setTimeout(() => {
-      const redesStr = redesSelecionadas.join(", ");
+    try {
+      const result = await generateSocialMediaPost({
+        theme: tema,
+        tone: tomFinal,
+        networks: redesSelecionadas,
+      });
 
-      const fakeTitulo = `🚀 ${tema} — destaque para ${redesStr}`;
-      const fakeTexto =
-        `Post criado para ${redesStr}. ` +
-        `Objetivo: ${objetivo || "gerar engajamento e conversões"}. ` +
-        `Tom de voz: ${tomFinal}. ` +
-        (publico
-          ? `Focado em: ${publico}. `
-          : "Focado no seu público ideal. ") +
-        `CTA: ${cta}`;
+      if (!result || !result.postContent) {
+        alert("A IA não conseguiu gerar o texto. Tente refinar seu tema.");
+        return;
+      }
+      
+      setTextoGerado(result.postContent);
+      setTituloGerado(null); // O novo flow não gera mais título separado
+      setHashtagsGeradas(null); // O novo flow não gera mais hashtags
 
-      const fakeHashtags = [
-        "#viralink",
-        "#socialmedia",
-        "#marketingdigital",
-        "#engajamento",
-      ];
-
-      setTituloGerado(fakeTitulo);
-      setTextoGerado(fakeTexto);
-      setHashtagsGeradas(fakeHashtags);
+    } catch (err) {
+      console.error("[handleGerarTextoIA] Erro:", err);
+      alert("Ocorreu um erro ao gerar o texto com IA. Verifique o console.");
+    } finally {
       setLoadingTexto(false);
-    }, 600);
+    }
   }
 
   async function handleGerarImagemIA() {
@@ -626,18 +625,12 @@ export default function CreatePostAIPage() {
             )}
 
             <div className="mt-2 space-y-1">
-              <p className="text-[12px] text-white font-semibold">
-                {tituloGerado || "O título gerado aparecerá aqui."}
+              <p className="text-[12px] text-white whitespace-pre-wrap">
+                {loadingTexto
+                  ? "Gerando o texto com a magia do Gemini..."
+                  : textoGerado || "Após gerar com IA, o texto completo da legenda será exibido aqui para revisão."
+                }
               </p>
-              <p className="text-[11px] text-[#CBD5E1]">
-                {textoGerado ||
-                  "Após gerar com IA, o texto completo da legenda será exibido aqui para revisão."}
-              </p>
-              {hashtagsGeradas && hashtagsGeradas.length > 0 && (
-                <p className="text-[11px] text-[#C4B5FD]">
-                  {hashtagsGeradas.join(" ")}
-                </p>
-              )}
             </div>
           </div>
 
