@@ -342,6 +342,55 @@
         "updatedAt"
       ]
     },
+    "ScheduledPost": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ScheduledPost",
+      "type": "object",
+      "description": "Represents a post scheduled for future publication.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "networks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "mediaType": { "type": "string", "enum": ["image", "video", "none"] },
+            "mediaUrl": { "type": "string", "format": "uri" }
+          }
+        },
+        "timeZone": {
+          "type": "string"
+        },
+        "runAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "processing", "sent", "failed"]
+        },
+        "lastError": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["workspaceId", "ownerId", "networks", "content", "timeZone", "runAt", "status", "createdAt", "updatedAt"]
+    },
     "Workspace": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Workspace",
@@ -566,6 +615,12 @@
       },
       "description": "Contains all social media posts. Security rules enforce workspace-level access."
     },
+    "/scheduledPosts/{postId}": {
+      "schema": {
+        "$ref": "#/entities/ScheduledPost"
+      },
+      "description": "Contains posts scheduled for future publication."
+    },
     "/socialAccounts/{accountId}": {
       "schema": {
         "$ref": "#/entities/SocialAccount"
@@ -577,6 +632,18 @@
         "$ref": "#/entities/Notification"
       },
       "description": "Stores system notifications for workspaces."
+    },
+    "accountMetrics/{metricId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorSnapshot"
+      },
+      "description": "Stores historical metrics snapshots for a user's own account."
+    },
+    "competitorMetrics/{metricId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorSnapshot"
+      },
+      "description": "Stores historical metrics snapshots for a competitor account."
     }
   }
 }

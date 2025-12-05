@@ -1,5 +1,7 @@
 // path: src/domain/posts/postTypes.ts
 
+import type { Timestamp } from "firebase/firestore";
+
 export type SocialProvider = "instagram" | "facebook" | "whatsapp";
 
 export type PostSource = "manual" | "ai";
@@ -39,14 +41,14 @@ export interface ChannelConfig {
   accountId: string; // id interno da conta vinculada
   mode: string; // ex.: "feed", "stories", "reels", "page_feed", etc.
   status: ChannelStatus;
-  scheduledAt: FirebaseFirestore.Timestamp | null;
-  publishedAt: FirebaseFirestore.Timestamp | null;
+  scheduledAt: Timestamp | null;
+  publishedAt: Timestamp | null;
   externalPostId: string | null;
   lastError: string | null;
   
-  // controle de tentativa
+  // 🔁 controle de tentativa
   retryCount?: number;                    // quantas tentativas de publicar
-  lastAttemptAt?: FirebaseFirestore.Timestamp | null;
+  lastAttemptAt?: Timestamp | null;
 }
 
 export interface Metrics {
@@ -78,13 +80,15 @@ export interface PostDocument {
 
   metrics: Metrics | null;
   
-  // campo auxiliar pro cron encontrar posts agendados
-  nextRunAt: FirebaseFirestore.Timestamp | null;
-  metricsLastUpdatedAt?: FirebaseFirestore.Timestamp | null;
+  // 👉 campo auxiliar pro cron encontrar posts agendados
+  // menor scheduledAt entre os canais que ainda não publicaram
+  nextRunAt: Timestamp | null;
 
-  createdAt: FirebaseFirestore.Timestamp;
-  updatedAt: FirebaseFirestore.Timestamp;
-  deletedAt: FirebaseFirestore.Timestamp | null;
+  metricsLastUpdatedAt?: Timestamp | null;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  deletedAt: Timestamp | null;
 }
 
 /**
@@ -92,4 +96,22 @@ export interface PostDocument {
  */
 export interface PostWithId extends PostDocument {
   id: string;
+}
+
+// Para agendamentos
+export interface ScheduledPost {
+  workspaceId: string;
+  ownerId: string;
+  networks: string[];
+  content: {
+    text: string;
+    mediaType: "image" | "video" | "none";
+    mediaUrl: string | null;
+  };
+  timeZone: string;
+  runAt: Timestamp;
+  status: "pending" | "processing" | "sent" | "failed";
+  lastError: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
