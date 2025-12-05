@@ -11,6 +11,10 @@ import {
   FiImage,
   FiVideo,
 } from "react-icons/fi";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useDraftPostActions, MediaType } from "@/hooks/useDraftPostActions";
+import { useUser } from "@/firebase/provider";
+
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -19,9 +23,15 @@ type Rede = "Instagram" | "Facebook" | "WhatsApp";
 
 export default function CreatePostManualPage() {
   const router = useRouter();
+  const { currentWorkspace } = useWorkspace();
+  const { user: currentUser } = useUser();
+  const { createDraft } = useDraftPostActions();
 
-  const [redesSelecionadas, setRedesSelecionadas] = useState<Rede[]>([
-    "Instagram",
+  const workspaceId = currentWorkspace?.id;
+  const ownerId = currentUser?.uid;
+
+  const [redesSelecionadas, setRedesSelecionadas] = useState<string[]>([
+    "instagram",
   ]);
   const [titulo, setTitulo] = useState("");
   const [conteudo, setConteudo] = useState("");
@@ -29,12 +39,12 @@ export default function CreatePostManualPage() {
   const [data, setData] = useState("");
   const [hora, setHora] = useState("");
 
-  const [tipoMidia, setTipoMidia] = useState<"nenhuma" | "imagem" | "video">(
-    "imagem",
-  );
+  const [tipoMidia, setTipoMidia] = useState<MediaType>("image");
   const [midiaArquivoNome, setMidiaArquivoNome] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
 
-  function toggleRede(rede: Rede) {
+  function toggleRede(rede: string) {
     setRedesSelecionadas((atual) =>
       atual.includes(rede)
         ? atual.filter((r) => r !== rede)
@@ -46,38 +56,47 @@ export default function CreatePostManualPage() {
     router.push("/posts");
   }
 
-  function handleSalvar(tipo: "rascunho" | "agendar" | "publicar") {
-    if (redesSelecionadas.length === 0) {
-      alert("Selecione pelo menos uma rede social.");
+  async function handleSaveDraft() {
+    if (!workspaceId || !ownerId) {
+      alert("Workspace ou usuário não identificado. Faça login novamente.");
       return;
     }
-    if (!conteudo.trim()) {
-      alert("Digite o texto / legenda da postagem.");
+    if (!conteudo.trim() && !mediaUrl) {
+      alert("Adicione texto ou uma mídia antes de salvar o rascunho.");
       return;
     }
 
-    console.log("Salvar post manual:", {
-      redesSelecionadas,
-      titulo,
-      conteudo,
-      data,
-      hora,
-      tipoMidia,
-      midiaArquivoNome,
-      tipo,
-    });
-
-    alert(
-      `Simulação: salvar como ${tipo.toUpperCase()} para as redes: ${redesSelecionadas.join(
-        ", ",
-      )}.\n\nNa produção, isso vira um ou vários documentos no Firestore, ligados a cada rede selecionada, com a URL da mídia no Firebase Storage.`,
-    );
+    try {
+      setSavingDraft(true);
+      await createDraft({
+        workspaceId,
+        ownerId,
+        networks: redesSelecionadas,
+        text: conteudo,
+        mediaType: tipoMidia,
+        mediaUrl,
+      });
+      alert("Rascunho salvo com sucesso!");
+      router.push("/posts");
+    } catch (err) {
+      console.error("[NovoPostManualPage] erro ao salvar rascunho:", err);
+      alert("Ocorreu um erro ao salvar o rascunho.");
+    } finally {
+      setSavingDraft(false);
+    }
   }
 
   function handleChangeMidia(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     setMidiaArquivoNome(file ? file.name : null);
-    // Produção: upload para Firebase Storage
+    // Em produção, você faria o upload para o Firebase Storage aqui
+    // e setaria a URL retornada em `setMediaUrl`.
+    // Por enquanto, vamos simular com uma URL de placeholder.
+    if (file) {
+      setMediaUrl(`https://placehold.co/600x400?text=${file.name}`);
+    } else {
+      setMediaUrl(null);
+    }
   }
 
   return (
@@ -113,20 +132,24 @@ export default function CreatePostManualPage() {
             Em quais redes esse post será publicado?
           </label>
           <div className="flex flex-wrap gap-2 text-[11px]">
-            {(["Instagram", "Facebook", "WhatsApp"] as Rede[]).map((rede) => {
-              const ativo = redesSelecionadas.includes(rede);
+            {([
+              { id: "instagram", label: "Instagram" },
+              { id: "facebook", label: "Facebook" },
+              { id: "whatsapp", label: "WhatsApp" },
+            ]).map((rede) => {
+              const ativo = redesSelecionadas.includes(rede.id);
               return (
                 <button
-                  key={rede}
+                  key={rede.id}
                   type="button"
-                  onClick={() => toggleRede(rede)}
+                  onClick={() => toggleRede(rede.id)}
                   className={`px-3 py-1.5 rounded-full border transition ${
                     ativo
                       ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
                       : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
                   }`}
                 >
-                  {rede}
+                  {rede.label}
                 </button>
               );
             })}
@@ -148,8 +171,7 @@ export default function CreatePostManualPage() {
             className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
           />
           <p className="text-[10px] text-[#6B7280]">
-            • Apenas para sua organização dentro do VIRALINK. Não aparece nas
-            redes.
+            • Apenas para sua organização. Não aparece nas redes.
           </p>
         </div>
 
@@ -199,9 +221,9 @@ export default function CreatePostManualPage() {
             </button>
             <button
               type="button"
-              onClick={() => setTipoMidia("nenhuma")}
+              onClick={() => setTipoMidia("none")}
               className={`px-3 py-1.5 rounded-full border transition ${
-                tipoMidia === "nenhuma"
+                tipoMidia === "none"
                   ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
                   : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
               }`}
@@ -210,7 +232,7 @@ export default function CreatePostManualPage() {
             </button>
           </div>
 
-          {tipoMidia !== "nenhuma" && (
+          {tipoMidia !== "none" && (
             <input
               type="file"
               accept={tipoMidia === "imagem" ? "image/*" : "video/*"}
@@ -278,20 +300,18 @@ export default function CreatePostManualPage() {
         </div>
 
         {/* Ações */}
-        <div className="flex flex-wrap gap-2 pt-2">
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
           <button
             type="button"
-            onClick={() => handleSalvar("rascunho")}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold border border-[#312356] text-[#E5E7EB] hover:bg-white/5 transition"
+            onClick={handleSaveDraft}
+            disabled={savingDraft}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold border border-[#312356] text-[#E5E7EB] hover:bg-white/5 transition disabled:opacity-50"
           >
             <FiSave size={14} />
-            Salvar como rascunho
+            {savingDraft ? "Salvando..." : "Salvar como rascunho"}
           </button>
           <button
             type="button"
-            onClick={() =>
-              handleSalvar(publicarAgora ? "publicar" : "agendar")
-            }
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white shadow-lg"
             style={{
               background:
@@ -301,12 +321,6 @@ export default function CreatePostManualPage() {
             {publicarAgora ? "Publicar agora" : "Agendar post"}
           </button>
         </div>
-
-        <p className="text-[10px] text-[#6B7280]">
-          • Em produção, você pode criar um documento por post e uma lista de
-          redes, ou um documento por rede (ex.: um para Instagram, outro para
-          Facebook), todos apontando para a mesma mídia no Firebase Storage.
-        </p>
       </div>
     </section>
   );

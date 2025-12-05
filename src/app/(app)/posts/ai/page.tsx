@@ -10,14 +10,15 @@ import {
   FiImage,
   FiVideo,
   FiStar,
+  FiSave,
 } from "react-icons/fi";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useDraftPostActions, MediaType } from "@/hooks/useDraftPostActions";
+import { useUser } from "@/firebase/provider";
+
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
-
-type Rede = "Instagram" | "Facebook" | "WhatsApp";
-type MediaKind = "none" | "image" | "video";
-type MediaSource = "upload" | "ai";
 
 const TONS_PREDEFINIDOS = [
   "Profissional, mas próximo",
@@ -30,10 +31,16 @@ const TONS_PREDEFINIDOS = [
 
 export default function CreatePostAIPage() {
   const router = useRouter();
+  const { currentWorkspace } = useWorkspace();
+  const { user: currentUser } = useUser();
+  const { createDraft } = useDraftPostActions();
+
+  const workspaceId = currentWorkspace?.id;
+  const ownerId = currentUser?.uid;
 
   // Redes (multi-seleção)
-  const [redesSelecionadas, setRedesSelecionadas] = useState<Rede[]>([
-    "Instagram",
+  const [redesSelecionadas, setRedesSelecionadas] = useState<string[]>([
+    "instagram",
   ]);
 
   // Texto / parâmetros
@@ -53,9 +60,10 @@ export default function CreatePostAIPage() {
   );
 
   // MÍDIA
-  const [mediaKind, setMediaKind] = useState<MediaKind>("none");
-  const [mediaSource, setMediaSource] = useState<MediaSource>("upload");
+  const [mediaKind, setMediaKind] = useState<MediaType>("none");
+  const [mediaSource, setMediaSource] = useState<"upload" | "ai">("upload");
   const [mediaFileName, setMediaFileName] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   // Prompt para imagem IA
   const [mediaPrompt, setMediaPrompt] = useState("");
@@ -67,8 +75,10 @@ export default function CreatePostAIPage() {
   const [textoGerado, setTextoGerado] = useState<string | null>(null);
   const [hashtagsGeradas, setHashtagsGeradas] = useState<string[] | null>(null);
   const [loadingTexto, setLoadingTexto] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
-  function toggleRede(rede: Rede) {
+
+  function toggleRede(rede: string) {
     setRedesSelecionadas((atual) =>
       atual.includes(rede)
         ? atual.filter((r) => r !== rede)
@@ -93,7 +103,6 @@ export default function CreatePostAIPage() {
 
     setLoadingTexto(true);
 
-    // 🔮 AQUI entra sua chamada de IA de TEXTO (Cloud Function / API externa)
     setTimeout(() => {
       const redesStr = redesSelecionadas.join(", ");
 
@@ -133,9 +142,10 @@ export default function CreatePostAIPage() {
 
     setLoadingImage(true);
 
-    // 🎨 AQUI entra sua chamada de IA de IMAGEM (ex.: DALL·E via Cloud Function)
     setTimeout(() => {
       setImageGenerated(true);
+      const generatedUrl = `https://placehold.co/600x400?text=AI_IMG_FOR_${mediaPrompt.replace(/\s+/g, '_')}`
+      setMediaUrl(generatedUrl);
       setMediaFileName("imagem-gerada-pela-IA.png");
       setLoadingImage(false);
     }, 800);
@@ -147,6 +157,7 @@ export default function CreatePostAIPage() {
     setHashtagsGeradas(null);
     setImageGenerated(false);
     setMediaFileName(null);
+    setMediaUrl(null);
   }
 
   function handleVoltar() {
@@ -157,7 +168,41 @@ export default function CreatePostAIPage() {
     const file = e.target.files?.[0];
     setMediaFileName(file ? file.name : null);
     setImageGenerated(false);
-    // Produção: subir pro Firebase Storage e guardar URL no Firestore
+    if (file) {
+      setMediaUrl(`https://placehold.co/600x400?text=${file.name}`);
+    } else {
+      setMediaUrl(null);
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!workspaceId || !ownerId) {
+       alert("Workspace ou usuário não identificado. Faça login novamente.");
+      return;
+    }
+    if (!textoGerado && !mediaUrl) {
+      alert("Gere o texto ou adicione uma mídia antes de salvar o rascunho.");
+      return;
+    }
+
+    try {
+      setSavingDraft(true);
+      await createDraft({
+        workspaceId,
+        ownerId,
+        networks: redesSelecionadas,
+        text: textoGerado || "",
+        mediaType: mediaKind,
+        mediaUrl,
+      });
+      alert("Rascunho salvo com sucesso!");
+      router.push("/posts");
+    } catch (err) {
+      console.error("[NovoPostIaPage] erro ao salvar rascunho:", err);
+      alert("Ocorreu um erro ao salvar o rascunho.");
+    } finally {
+      setSavingDraft(false);
+    }
   }
 
   return (
@@ -194,21 +239,25 @@ export default function CreatePostAIPage() {
               Em quais redes esse post será publicado?
             </label>
             <div className="flex flex-wrap gap-2 text-[11px]">
-              {(["Instagram", "Facebook", "WhatsApp"] as Rede[]).map(
+              {([
+                {id: "instagram", label: "Instagram"}, 
+                {id: "facebook", label: "Facebook"}, 
+                {id: "whatsapp", label: "WhatsApp"}
+              ]).map(
                 (rede) => {
-                  const ativo = redesSelecionadas.includes(rede);
+                  const ativo = redesSelecionadas.includes(rede.id);
                   return (
                     <button
-                      key={rede}
+                      key={rede.id}
                       type="button"
-                      onClick={() => toggleRede(rede)}
+                      onClick={() => toggleRede(rede.id)}
                       className={`px-3 py-1.5 rounded-full border transition ${
                         ativo
                           ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
                           : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
                       }`}
                     >
-                      {rede}
+                      {rede.label}
                     </button>
                   );
                 },
@@ -496,13 +545,6 @@ export default function CreatePostAIPage() {
               Limpar resultado
             </button>
           </div>
-
-          <p className="text-[10px] text-[#6B7280] pt-1">
-            • Produção: enviar esses dados para suas Cloud Functions (texto +
-            imagem). O retorno salva um rascunho na coleção{" "}
-            <span className="text-[#C4B5FD] font-mono">posts</span> com URLs da
-            mídia gerada ou enviada.
-          </p>
         </div>
 
         {/* PREVIEW */}
@@ -530,7 +572,7 @@ export default function CreatePostAIPage() {
                 </span>
                 <span className="text-[10px] text-[#9CA3AF]">
                   {redesSelecionadas.length > 0
-                    ? redesSelecionadas.join(" • ")
+                    ? redesSelecionadas.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(" • ")
                     : "Selecione pelo menos uma rede"}
                 </span>
               </div>
@@ -538,12 +580,8 @@ export default function CreatePostAIPage() {
 
             {mediaKind !== "none" && (
               <div className="mt-2 h-28 rounded-xl bg-gradient-to-tr from-[#1F1033] to-[#020617] border border-[#261341] flex items-center justify-center text-[10px] text-[#9CA3AF] px-4 text-center">
-                {mediaFileName ? (
-                  imageGenerated ? (
-                    <>Imagem gerada pela IA: {mediaFileName}</>
-                  ) : (
-                    <>Preview de {mediaKind}: {mediaFileName}</>
-                  )
+                {mediaUrl ? (
+                  <img src={mediaUrl} alt="Preview da mídia" className="max-h-full max-w-full object-contain rounded-md" />
                 ) : mediaKind === "image" && mediaSource === "ai" ? (
                   <>A imagem gerada pela IA aparecerá aqui após a geração.</>
                 ) : (
@@ -568,19 +606,27 @@ export default function CreatePostAIPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="mt-2 w-full rounded-full border border-[#7C3AED] text-[#7C3AED] text-[11px] font-semibold py-2 hover:bg-[#7C3AED]/10 transition"
-          >
-            Salvar como rascunho &gt;
-          </button>
-
-          <p className="text-[10px] text-[#6B7280]">
-            • Quando integrar com o backend, esse botão vai criar o rascunho na
-            coleção <span className="text-[#C4B5FD] font-mono">posts</span>,
-            incluindo as redes selecionadas, links de mídia (Storage) e os
-            textos gerados.
-          </p>
+          <div className="flex items-center justify-end gap-2 text-[11px] pt-2">
+            <button
+              type="button"
+              className="px-4 py-2 rounded-full border border-[#272046] text-[#E5E7EB] hover:bg-[#111827]"
+            >
+              Publicar / Agendar
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={savingDraft || !textoGerado}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-white disabled:opacity-50"
+              style={{
+                background:
+                  "linear-gradient(90deg, #7C3AED 0%, #C026D3 50%, #0EA5E9 100%)",
+              }}
+            >
+              <FiSave size={12} />
+              {savingDraft ? "Salvando..." : "Salvar como rascunho"}
+            </button>
+          </div>
         </div>
       </div>
     </section>
