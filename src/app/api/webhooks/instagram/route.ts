@@ -26,22 +26,10 @@ export async function POST(req: NextRequest) {
     console.log("[instagram webhook] payload bruto:", JSON.stringify(payload));
 
     // ⚠️ Adaptar para o formato REAL que o Meta entrega
-    // Este é um exemplo para "new_follower"
-    const entry = payload.entry?.[0];
-    if (!entry) {
-        return NextResponse.json({ ok: true });
-    }
-
-    const igAccountId = entry.id; // ID da conta do Instagram Business
-    
-    // Supondo que um evento de "follow" venha dentro de "changes"
-    const change = entry.changes?.[0];
-    if (change?.field !== 'followers') { // Exemplo, o campo pode ser outro
-        // Aqui você trataria outros eventos como 'comments', 'messages', etc.
-        // return NextResponse.json({ ok: true });
-    }
-    
-    const followerId = String(change?.value?.user_id || 'unknown_user');
+    const igAccountId = String(payload.ig_account_id || payload.account_id);
+    const followerId = String(payload.user_id);
+    const followerUsername = payload.username || "";
+    const followerName = payload.full_name || "";
 
     const socialSnap = await adminFirestore
       .collection("socialAccounts")
@@ -65,12 +53,12 @@ export async function POST(req: NextRequest) {
       workspaceId: socialData.workspaceId,
       socialAccountId: socialDoc.id,
       network: "instagram",
-      type: "new_follower", // O tipo seria dinâmico com base no payload do webhook
-      text: "", // Para "new_follower", o texto está vazio
+      type: "new_follower",
+      text: "",
       fromUser: {
         externalId: followerId,
-        name: "Unknown Follower", // API do Instagram não fornece nome no follow
-        username: "unknown",
+        name: followerName,
+        username: followerUsername,
       },
       raw: payload,
       receivedAt: new Date().toISOString(),
