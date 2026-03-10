@@ -39,7 +39,7 @@ export default function CreatePostAIPage() {
   const { currentWorkspace } = useWorkspace();
   const { user: currentUser } = useUser();
   const { createPost } = usePostActions();
-  const { storage } = useFirebase();
+  //const { storage } = useFirebase();
 
   const workspaceId = currentWorkspace?.id;
   const ownerId = currentUser?.uid;

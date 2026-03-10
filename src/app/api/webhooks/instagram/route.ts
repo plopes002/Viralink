@@ -1,4 +1,5 @@
 // src/app/api/webhooks/instagram/route.ts
+import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import { runAutomationsForEvent } from "@/lib/automationEngine";
@@ -39,14 +40,6 @@ export async function POST(req: NextRequest) {
         // Aqui você trataria outros eventos como 'comments', 'messages', etc.
         // return NextResponse.json({ ok: true });
     }
-
-    // O payload de "new_follower" é hipotético aqui, pois o Meta não envia um webhook para isso.
-    // Isto é um placeholder para eventos como comentários e mensagens.
-    // Para um comentário, seria algo como:
-    // const commentId = change.value.id;
-    // const text = change.value.text;
-    // const fromId = change.value.from.id;
-    // const fromUsername = change.value.from.username;
     
     const followerId = String(change?.value?.user_id || 'unknown_user');
 

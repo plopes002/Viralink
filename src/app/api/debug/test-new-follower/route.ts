@@ -1,4 +1,5 @@
 // src/app/api/debug/test-new-follower/route.ts
+import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import { runAutomationsForEvent } from "@/lib/automationEngine";

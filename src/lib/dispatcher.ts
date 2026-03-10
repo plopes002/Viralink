@@ -1,4 +1,5 @@
 // src/lib/dispatcher.ts
+import 'server-only';
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import type { AutomationRule } from "@/types/automation";
 import type { MessageTemplate } from "@/types/messageTemplate";

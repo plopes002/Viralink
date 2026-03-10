@@ -1,4 +1,5 @@
 // src/lib/automationEngine.ts
+import 'server-only';
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import type { InternalSocialEvent } from "@/types/internalSocialEvent";
 import type { AutomationRule } from "@/types/automation";
