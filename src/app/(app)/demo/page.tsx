@@ -1,8 +1,7 @@
-
 // src/app/(app)/demo/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 type DemoLog = {
   id: string;
@@ -72,16 +71,21 @@ export default function DemoPage() {
   const [lastAutomation, setLastAutomation] =
     useState<LastAutomationPreview | null>(null);
 
-  const [logs, setLogs] = useState<DemoLog[]>([
-    {
-      id: "initial",
-      title: "Modo demonstração pronto",
-      message:
-        "Use os botões abaixo para simular eventos do VIRALINK durante a apresentação.",
-      status: "info",
-      createdAt: new Date().toLocaleTimeString("pt-BR"),
-    },
-  ]);
+  const [logs, setLogs] = useState<DemoLog[]>([]);
+
+  useEffect(() => {
+    setLogs([
+      {
+        id: "initial",
+        title: "Modo demonstração pronto",
+        message:
+          "Use os botões abaixo para simular eventos do VIRALINK durante a apresentação.",
+        status: "info",
+        createdAt: new Date().toLocaleTimeString("pt-BR"),
+      },
+    ]);
+  }, []);
+
 
   function addLog(
     title: string,
