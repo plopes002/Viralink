@@ -103,76 +103,54 @@ export default function DemoPage() {
     return LEAD_POOL[Math.floor(Math.random() * LEAD_POOL.length)];
   }
 
-  async function simulateFollower() {
+  const simulateFollower = async () => {
     setLoadingAction("follower");
     const lead = pickRandomLead();
 
     try {
-      const res = await fetch("/api/debug/test-new-follower", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          workspaceId: "workspace_123",
-          socialAccountId: "fake_instagram_1",
-          username: lead.username.replace("@", ""),
-          name: lead.name,
-          externalId: `demo-${Date.now()}`,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        addLog(
-          "Falha ao simular novo seguidor",
-          data?.error || "Não foi possível executar a simulação.",
-          "error",
-        );
-        return;
-      }
-
       const sentMessage = `Oi ${lead.name.split(" ")[0]}! 👋 Obrigado por seguir o nosso perfil, ${lead.username}. Se precisar de algo, é só chamar por aqui 💜`;
 
-      setMetrics((prev) => ({
-        ...prev,
-        followers: prev.followers + 1,
-        engagement: Number((prev.engagement + 0.1).toFixed(1)),
-      }));
-
-      setLastLead(lead);
-
-      setLastAutomation({
-        eventLabel: "Novo seguidor no Instagram",
-        automationName: "Boas-vindas novos seguidores IG",
-        templateName: "Boas-vindas novo seguidor IG",
-        sentMessage,
-      });
-
-      addLog(
-        "Novo seguidor simulado",
-        `${lead.name} começou a seguir o perfil e a automação de boas-vindas foi executada.`,
-        "success",
-      );
-
       setTimeout(() => {
+        setMetrics((prev) => ({
+          ...prev,
+          followers: prev.followers + 1,
+          engagement: Number((prev.engagement + 0.1).toFixed(1)),
+        }));
+
+        setLastLead(lead);
+
+        setLastAutomation({
+          eventLabel: "Novo seguidor no Instagram",
+          automationName: "Boas-vindas novos seguidores IG",
+          templateName: "Boas-vindas novo seguidor IG",
+          sentMessage,
+        });
+
         addLog(
-          "Mensagem automática enviada",
-          `A mensagem de boas-vindas foi preparada e enviada para ${lead.username}.`,
-          "info",
+          "Novo seguidor simulado",
+          `${lead.name} começou a seguir o perfil e a automação de boas-vindas foi executada.`,
+          "success",
         );
-      }, 700);
+
+        setTimeout(() => {
+          addLog(
+            "Mensagem automática enviada",
+            `A mensagem de boas-vindas foi enviada para ${lead.username}.`,
+            "info",
+          );
+        }, 700);
+
+        setLoadingAction(null);
+      }, 500);
     } catch (error) {
       addLog(
         "Erro na simulação",
         "Ocorreu um erro inesperado ao simular novo seguidor.",
         "error",
       );
-    } finally {
       setLoadingAction(null);
     }
-  }
+  };
 
   function simulateComment() {
     setLoadingAction("comment");
