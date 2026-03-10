@@ -1,3 +1,4 @@
+
 // app/(app)/layout.tsx
 "use client";
 
@@ -14,6 +15,7 @@ import {
   FiShare2,
   FiMenu,
   FiX,
+  FiPlayCircle,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import { useUser } from "@/firebase/provider";
@@ -31,6 +33,7 @@ const navItems = [
   { href: "/concorrentes", label: "Concorrentes", icon: FiUsers },
   { href: "/analytics", label: "Analytics", icon: FiBarChart2 },
   { href: "/settings", label: "Configurações", icon: FiSettings },
+  { href: "/demo", label: "Modo Demo", icon: FiPlayCircle },
 ];
 
 function AppLayoutContent({ children }: { children: ReactNode }) {
