@@ -1,3 +1,4 @@
+
 // src/app/(app)/demo/page.tsx
 "use client";
 
@@ -205,23 +206,64 @@ export default function DemoPage() {
       setLastLead(lead);
 
       setLastAutomation({
-        eventLabel: "Nova mensagem recebida",
-        automationName: "Primeiro atendimento automático",
-        templateName: "Template atendimento inicial",
+        eventLabel: "Nova mensagem recebida no Instagram Direct",
+        automationName: "Primeiro atendimento automático no Direct",
+        templateName: "Template atendimento inicial Direct",
         sentMessage:
-          `Olá ${lead.name.split(" ")[0]}! 👋 Recebi sua mensagem. Vou te ajudar com prazer. Me conta rapidinho o que você precisa?`,
+          `Olá ${lead.name.split(" ")[0]}! 👋 Recebi sua mensagem no Direct. ` +
+          "Vou te ajudar com prazer. Me conta rapidinho o que você precisa?",
       });
 
       addLog(
-        "Mensagem simulada",
-        `${lead.username} enviou uma mensagem direta para o perfil.`,
+        "Mensagem no Direct simulada",
+        `${lead.username} enviou uma mensagem direta no Instagram.`,
         "success",
       );
 
       setTimeout(() => {
         addLog(
-          "Fluxo de atendimento iniciado",
-          "O VIRALINK classificou o lead e iniciou o atendimento automático via Direct.",
+          "Fluxo de atendimento no Direct iniciado",
+          "O VIRALINK classificou o lead e iniciou o atendimento automático via Instagram Direct.",
+          "info",
+        );
+      }, 700);
+
+      setLoadingAction(null);
+    }, 500);
+  }
+
+  function simulateWhatsappMessage() {
+    setLoadingAction("whatsapp");
+    const lead = pickRandomLead();
+
+    setTimeout(() => {
+      setMetrics((prev) => ({
+        ...prev,
+        messages: prev.messages + 1,
+        engagement: Number((prev.engagement + 0.1).toFixed(1)),
+      }));
+
+      setLastLead(lead);
+
+      setLastAutomation({
+        eventLabel: "Nova mensagem recebida no WhatsApp",
+        automationName: "Atendimento inicial WhatsApp",
+        templateName: "Template boas-vindas WhatsApp",
+        sentMessage:
+          `Olá ${lead.name.split(" ")[0]}! 👋 Recebi sua mensagem no WhatsApp. ` +
+          "Posso te ajudar com informações, valores ou agendamento. Me diga o que você precisa 💜",
+      });
+
+      addLog(
+        "Mensagem de WhatsApp simulada",
+        `${lead.name} iniciou um atendimento pelo WhatsApp da empresa.`,
+        "success",
+      );
+
+      setTimeout(() => {
+        addLog(
+          "Atendimento automático no WhatsApp iniciado",
+          `O VIRALINK identificou o contato ${lead.username} e iniciou o fluxo de resposta automática no WhatsApp.`,
           "info",
         );
       }, 700);
@@ -289,10 +331,17 @@ export default function DemoPage() {
     },
     {
       id: "message",
-      title: "Simular Mensagem",
+      title: "Simular Mensagem no Direct",
       description:
-        "Demonstra entrada de lead por direct e início de atendimento.",
+        "Demonstra entrada de lead pelo Instagram Direct e início do atendimento.",
       action: simulateMessage,
+    },
+    {
+      id: "whatsapp",
+      title: "Simular Mensagem no WhatsApp",
+      description:
+        "Mostra um contato entrando pelo WhatsApp e o início do fluxo automático.",
+      action: simulateWhatsappMessage,
     },
     {
       id: "engagement",
