@@ -38,25 +38,24 @@ export async function runAutomationsForEvent(event: InternalSocialEvent) {
   );
 
   for (const automation of matching) {
-    // MessageTemplate type is not defined, we will add it later.
-    // const tplSnap = await adminFirestore
-    //   .collection("messageTemplates")
-    //   .doc(automation.messageTemplateId)
-    //   .get();
+    const tplSnap = await adminFirestore
+      .collection("messageTemplates")
+      .doc(automation.messageTemplateId)
+      .get();
 
-    // if (!tplSnap.exists) {
-    //   console.warn(
-    //     `[runAutomationsForEvent] template ${automation.messageTemplateId} não encontrado.`,
-    //   );
-    //   continue;
-    // }
+    if (!tplSnap.exists) {
+      console.warn(
+        `[runAutomationsForEvent] template ${automation.messageTemplateId} não encontrado.`,
+      );
+      continue;
+    }
 
-    // const template = {
-    //   id: tplSnap.id,
-    //   ...(tplSnap.data() as any),
-    // } as MessageTemplate;
+    const template = {
+      id: tplSnap.id,
+      ...(tplSnap.data() as any),
+    } as MessageTemplate;
 
-    // await dispatchMessageForAutomation(automation, template, event);
+    await dispatchMessageForAutomation(automation, template, event);
   }
 }
 
