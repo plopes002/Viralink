@@ -1,5 +1,35 @@
 {
   "entities": {
+    "ContactCategory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContactCategory",
+      "type": "object",
+      "description": "Represents a custom category for segmenting contacts.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "slug",
+        "name",
+        "createdAt"
+      ]
+    },
     "Competitor": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Competitor",
@@ -626,7 +656,13 @@
         "isFollower": { "type": "boolean" },
         "source": { "type": "string", "enum": ["post", "story"] },
         "postId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "categories": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       },
       "required": ["workspaceId", "socialAccountId", "username", "type", "source", "createdAt"]
     },
@@ -653,6 +689,10 @@
     ]
   },
   "firestore": {
+    "/contactCategories/{categoryId}": {
+      "schema": { "$ref": "#/entities/ContactCategory" },
+      "description": "Stores user-defined contact categories for a workspace."
+    },
     "/competitors/{competitorId}": {
       "schema": {
         "$ref": "#/entities/Competitor"

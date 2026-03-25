@@ -39,6 +39,11 @@ service cloud.firestore {
        // Admins can update roles
       allow update: if isWorkspaceAdmin(resource.data.workspaceId);
     }
+    
+    match /contactCategories/{categoryId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
 
     match /posts/{postId} {
       // Members can read posts in their workspace

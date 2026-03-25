@@ -8,6 +8,13 @@ import type {
 } from "@/types/engagement";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEngagements } from "@/hooks/useEngagements";
+import { useContactCategories } from "@/hooks/useContactCategories";
+import { createContactCategory } from "@/firebase/contactCategories";
+import {
+  addCategoryToEngagement,
+  removeCategoryFromEngagement,
+} from "@/firebase/engagementCategories";
+import { useFirebase } from "@/firebase/provider";
 
 
 type SentimentFilter = "all" | EngagementSentiment;
@@ -18,6 +25,13 @@ export default function EngagementPage() {
   const [selectedUser, setSelectedUser] = useState<EngagementItem | null>(null);
   const [message, setMessage] = useState("");
 
+  const { firestore } = useFirebase();
+  const { currentWorkspace } = useWorkspace();
+  const workspaceId = currentWorkspace?.id;
+
+  const { engagements, loading } = useEngagements(workspaceId);
+  const { categories } = useContactCategories(workspaceId);
+
   const [sentimentFilter, setSentimentFilter] =
     useState<SentimentFilter>("all");
   const [interactionFilter, setInteractionFilter] =
@@ -25,11 +39,11 @@ export default function EngagementPage() {
   const [followFilter, setFollowFilter] =
     useState<FollowFilter>("all");
   const [topicFilter, setTopicFilter] = useState<string>("all");
-
-  const { currentWorkspace } = useWorkspace();
-  const workspaceId = currentWorkspace?.id;
-
-  const { engagements, loading } = useEngagements(workspaceId);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkSending, setBulkSending] = useState(false);
 
   const topics = useMemo(() => {
     const values = Array.from(
@@ -66,9 +80,16 @@ export default function EngagementPage() {
         return false;
       }
 
+      if (
+        categoryFilter !== "all" &&
+        !(item.categories || []).includes(categoryFilter)
+      ) {
+        return false;
+      }
+
       return true;
     });
-  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter]);
+  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter]);
 
   function getSentimentLabel(sentiment: EngagementSentiment) {
     if (sentiment === "positive") return "Positivo";
@@ -136,6 +157,71 @@ export default function EngagementPage() {
     );
   }
 
+  function openWhatsAppForUser(user: EngagementItem) {
+    if (!user.phone) return;
+
+    const text = encodeURIComponent(
+      `Olá ${user.name.split(" ")[0]}! Vi sua interação com nosso conteúdo "${user.postTitle}". Gostaria de continuar essa conversa por aqui 😊`,
+    );
+
+    const digits = user.phone.replace(/\D/g, "");
+    const url = `https://wa.me/${digits}?text=${text}`;
+
+    window.open(url, "_blank");
+  }
+
+  async function handleCreateCategory() {
+    if (!workspaceId || !newCategoryName.trim() || !firestore) return;
+
+    const slug = newCategoryName
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-");
+
+    await createContactCategory(firestore, {
+      workspaceId,
+      name: newCategoryName.trim(),
+      slug,
+      color: null,
+      createdAt: new Date().toISOString(),
+    });
+
+    setNewCategoryName("");
+  }
+
+  async function handleBulkSend() {
+    if (!workspaceId || !bulkCategory || !bulkMessage.trim()) return;
+
+    setBulkSending(true);
+    try {
+      const res = await fetch("/api/engagement/send-bulk-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workspaceId,
+          category: bulkCategory,
+          message: bulkMessage,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Erro ao disparar mensagens.");
+        return;
+      }
+
+      alert(`Mensagens enfileiradas: ${data.queued}`);
+      setBulkMessage("");
+    } finally {
+      setBulkSending(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-center justify-between">
@@ -161,6 +247,96 @@ export default function EngagementPage() {
           </a>
         </div>
       </header>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <h2 className="text-sm font-semibold text-white mb-3">
+            Categorias de contatos
+          </h2>
+
+          <div className="flex gap-2">
+            <input
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="Ex.: Professores"
+              className="flex-1 rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+            />
+            <button
+              type="button"
+              onClick={handleCreateCategory}
+              className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] px-4 py-2 text-sm font-medium text-white"
+            >
+              Criar
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("all")}
+              className={`rounded-full px-3 py-1 text-xs ${
+                categoryFilter === "all"
+                  ? "bg-[#8B5CF6]/20 text-white"
+                  : "bg-[#111827] text-[#9CA3AF]"
+              }`}
+            >
+              Todas
+            </button>
+
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategoryFilter(cat.slug)}
+                className={`rounded-full px-3 py-1 text-xs ${
+                  categoryFilter === cat.slug
+                    ? "bg-[#8B5CF6]/20 text-white"
+                    : "bg-[#111827] text-[#9CA3AF]"
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <h2 className="text-sm font-semibold text-white mb-3">
+            Disparo por categoria
+          </h2>
+
+          <div className="flex flex-col gap-3">
+            <select
+              value={bulkCategory}
+              onChange={(e) => setBulkCategory(e.target.value)}
+              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+            >
+              <option value="">Selecione uma categoria</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.slug}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+
+            <textarea
+              value={bulkMessage}
+              onChange={(e) => setBulkMessage(e.target.value)}
+              placeholder="Digite a mensagem para essa categoria..."
+              className="min-h-[120px] rounded-xl border border-[#272046] bg-[#020012] p-3 text-sm text-white"
+            />
+
+            <button
+              type="button"
+              onClick={handleBulkSend}
+              disabled={bulkSending}
+              className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {bulkSending ? "Enviando..." : "Enviar para categoria"}
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* filtros */}
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -361,6 +537,52 @@ export default function EngagementPage() {
               </div>
 
               <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+                <p className="text-[11px] text-[#7D8590] mb-2">Categorias</p>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {(selectedUser.categories || []).length === 0 && (
+                    <span className="text-xs text-[#9CA3AF]">
+                      Nenhuma categoria atribuída.
+                    </span>
+                  )}
+
+                  {(selectedUser.categories || []).map((slug) => (
+                    <span
+                      key={slug}
+                      className="rounded-full bg-[#8B5CF6]/20 px-3 py-1 text-xs text-white"
+                    >
+                      {categories.find(c => c.slug === slug)?.name || slug}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => {
+                    const alreadyHas = (selectedUser.categories || []).includes(cat.slug);
+
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() =>
+                          alreadyHas
+                            ? removeCategoryFromEngagement(firestore, selectedUser.id, cat.slug)
+                            : addCategoryToEngagement(firestore, selectedUser.id, cat.slug)
+                        }
+                        className={`rounded-full px-3 py-1 text-xs ${
+                          alreadyHas
+                            ? "bg-rose-500/15 text-rose-400"
+                            : "bg-[#111827] text-[#E5E7EB]"
+                        }`}
+                      >
+                        {alreadyHas ? `Remover ${cat.name}` : `Adicionar ${cat.name}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
                 <p className="text-[11px] text-[#7D8590]">Interesse percebido</p>
                 <p className="text-sm text-white mt-1">
                   Conteúdo: {selectedUser.postTitle}
@@ -369,6 +591,16 @@ export default function EngagementPage() {
                   Tema: {selectedUser.postTopic} • Tipo: {selectedUser.postType}
                 </p>
               </div>
+
+              {selectedUser.phone && (
+                <button
+                  type="button"
+                  onClick={() => openWhatsAppForUser(selectedUser)}
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-400"
+                >
+                  Abrir no WhatsApp
+                </button>
+              )}
 
               <div className="flex gap-2">
                 <button

@@ -35,5 +35,10 @@ export interface EngagementItem {
 
   network: "instagram" | "facebook" | "whatsapp";
 
+  // NOVOS CAMPOS
+  phone?: string | null;
+  email?: string | null;
+  categories?: string[]; // ex.: ["professores", "lead-quente"]
+
   createdAt: string;
 }
