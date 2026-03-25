@@ -715,6 +715,182 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["workspaceId", "toUser", "channel", "content", "status", "createdAt"]
+    },
+    "EngagementProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EngagementProfile",
+      "type": "object",
+      "description": "Represents a consolidated profile of a user's engagement over time.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "socialAccountId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "avatar": {
+          "type": "string",
+          "format": "uri"
+        },
+        "isFollower": {
+          "type": "boolean"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "instagram",
+            "facebook",
+            "whatsapp"
+          ]
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interestTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "customTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operationalTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totalInteractions": {
+          "type": "number"
+        },
+        "totalViews": {
+          "type": "number"
+        },
+        "totalLikes": {
+          "type": "number"
+        },
+        "totalComments": {
+          "type": "number"
+        },
+        "totalReactions": {
+          "type": "number"
+        },
+        "totalShares": {
+          "type": "number"
+        },
+        "totalMessages": {
+          "type": "number"
+        },
+        "positiveCount": {
+          "type": "number"
+        },
+        "neutralCount": {
+          "type": "number"
+        },
+        "negativeCount": {
+          "type": "number"
+        },
+        "distinctPostsCount": {
+          "type": "number"
+        },
+        "distinctTopicsCount": {
+          "type": "number"
+        },
+        "lastInteractionAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "firstInteractionAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "recurringScore": {
+          "type": "number"
+        },
+        "leadScore": {
+          "type": "number"
+        },
+        "leadTemperature": {
+          "type": "string",
+          "enum": [
+            "cold",
+            "warm",
+            "hot",
+            "priority"
+          ]
+        },
+        "leadScoreReason": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "politicalFlags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "politicalEntities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "socialAccountId",
+        "username",
+        "name",
+        "isFollower",
+        "network",
+        "totalInteractions",
+        "totalViews",
+        "totalLikes",
+        "totalComments",
+        "totalReactions",
+        "totalShares",
+        "totalMessages",
+        "positiveCount",
+        "neutralCount",
+        "negativeCount",
+        "distinctPostsCount",
+        "distinctTopicsCount",
+        "recurringScore",
+        "leadScore",
+        "leadTemperature",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "auth": {
@@ -805,6 +981,12 @@
         "$ref": "#/entities/Message"
       },
       "description": "Stores messages sent to users from the engagement hub."
+    },
+    "/engagementProfiles/{profileId}": {
+      "schema": {
+        "$ref": "#/entities/EngagementProfile"
+      },
+      "description": "Stores consolidated engagement profiles for each user."
     }
   }
 }

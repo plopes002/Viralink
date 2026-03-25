@@ -117,5 +117,10 @@ service cloud.firestore {
         allow read: if isWorkspaceMember(get(/databases/$(database)/documents/competitors/$(competitorId)).data.workspaceId);
         allow write: if false;
     }
+    
+    match /engagementProfiles/{profileId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
   }
 }
