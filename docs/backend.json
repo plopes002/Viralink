@@ -663,6 +663,10 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "operationalTags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "politicalReview": {
           "type": "object",
           "description": "Analysis of political content in the interaction.",

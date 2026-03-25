@@ -18,6 +18,11 @@ import { useFirebase } from "@/firebase/provider";
 import { suggestAndSaveCategories } from "@/lib/suggestAndSaveCategories";
 import { matchesSmartSearch } from "@/lib/engagementSearch";
 import { analyzePoliticalReviewAndSave } from "@/lib/analyzePoliticalReview";
+import {
+  addOperationalTag,
+  removeOperationalTag,
+} from "@/firebase/engagementOperationalTags";
+import { OPERATIONAL_TAGS } from "@/constants/operationalTags";
 
 
 type SentimentFilter = "all" | EngagementSentiment;
@@ -44,12 +49,12 @@ export default function EngagementPage() {
   const [topicFilter, setTopicFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [bulkCategory, setBulkCategory] = useState("");
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkSending, setBulkSending] = useState(false);
   const [smartSearch, setSmartSearch] = useState("");
   const [taggingOneId, setTaggingOneId] = useState<string | null>(null);
   const [taggingAll, setTaggingAll] = useState(false);
+  const [operationalTagFilter, setOperationalTagFilter] = useState("all");
 
   const topics = useMemo(() => {
     const values = Array.from(
@@ -93,13 +98,20 @@ export default function EngagementPage() {
         return false;
       }
 
+      if (
+        operationalTagFilter !== "all" &&
+        !(item.operationalTags || []).includes(operationalTagFilter)
+      ) {
+        return false;
+      }
+
       if (!matchesSmartSearch(item, smartSearch)) {
         return false;
       }
 
       return true;
     });
-  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter, smartSearch]);
+  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter, smartSearch, operationalTagFilter]);
 
   function getSentimentLabel(sentiment: EngagementSentiment) {
     if (sentiment === "positive") return "Positivo";
@@ -201,31 +213,37 @@ export default function EngagementPage() {
     setNewCategoryName("");
   }
 
-  async function handleBulkSend() {
-    if (!workspaceId || !bulkCategory || !bulkMessage.trim()) return;
-
+  async function sendToFiltered() {
+    if (!workspaceId || !bulkMessage.trim()) return;
+  
+    const users = filtered;
+    if (!users.length) {
+      alert("Nenhum usuário na lista filtrada para enviar.");
+      return;
+    }
+  
     setBulkSending(true);
     try {
       const res = await fetch("/api/engagement/send-bulk-message", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workspaceId,
-          category: bulkCategory,
+          users: users.map((u) => ({
+            username: u.username,
+            phone: u.phone || null,
+          })),
           message: bulkMessage,
         }),
       });
-
+  
       const data = await res.json();
-
       if (!res.ok) {
         alert(data?.error || "Erro ao disparar mensagens.");
         return;
       }
-
-      alert(`Mensagens enfileiradas: ${data.queued}`);
+  
+      alert(`Mensagens enfileiradas para ${data.queued} usuários.`);
       setBulkMessage("");
     } finally {
       setBulkSending(false);
@@ -312,37 +330,24 @@ export default function EngagementPage() {
 
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <h2 className="text-sm font-semibold text-white mb-3">
-            Disparo por categoria
+            Disparo para lista filtrada
           </h2>
 
           <div className="flex flex-col gap-3">
-            <select
-              value={bulkCategory}
-              onChange={(e) => setBulkCategory(e.target.value)}
-              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-            >
-              <option value="">Selecione uma categoria</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.slug}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-
             <textarea
               value={bulkMessage}
               onChange={(e) => setBulkMessage(e.target.value)}
-              placeholder="Digite a mensagem para essa categoria..."
+              placeholder="Digite a mensagem para a lista de contatos filtrada..."
               className="min-h-[120px] rounded-xl border border-[#272046] bg-[#020012] p-3 text-sm text-white"
             />
 
             <button
               type="button"
-              onClick={handleBulkSend}
+              onClick={sendToFiltered}
               disabled={bulkSending}
               className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
             >
-              {bulkSending ? "Enviando..." : "Enviar para categoria"}
+              {bulkSending ? "Enviando..." : "Enviar para lista"}
             </button>
           </div>
         </div>
@@ -382,22 +387,21 @@ export default function EngagementPage() {
 
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <label className="block text-[11px] text-[#E5E7EB] mb-1">
-            Tipo de interação
+            Tag operacional
           </label>
+
           <select
-            value={interactionFilter}
-            onChange={(e) =>
-              setInteractionFilter(e.target.value as InteractionFilter)
-            }
-            className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-2"
+            value={operationalTagFilter}
+            onChange={(e) => setOperationalTagFilter(e.target.value)}
+            className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
           >
             <option value="all">Todas</option>
-            <option value="view">Visualização</option>
-            <option value="like">Curtida</option>
-            <option value="comment">Comentário</option>
-            <option value="reaction">Reação</option>
-            <option value="share">Compartilhamento</option>
-            <option value="message">Mensagem</option>
+
+            {OPERATIONAL_TAGS.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -695,6 +699,52 @@ export default function EngagementPage() {
                         }`}
                       >
                         {alreadyHas ? `Remover ${cat.name}` : `Adicionar ${cat.name}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+                <p className="text-[11px] text-[#7D8590] mb-2">
+                  Tags operacionais
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {(selectedUser.operationalTags || []).length === 0 && (
+                    <span className="text-xs text-[#9CA3AF]">
+                      Nenhuma tag aplicada
+                    </span>
+                  )}
+                  {(selectedUser.operationalTags || []).map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-[#06B6D4]/20 px-3 py-1 text-xs text-white"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {OPERATIONAL_TAGS.map((tag) => {
+                    const hasTag = (selectedUser.operationalTags || []).includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          if (!firestore) return;
+                           hasTag
+                            ? removeOperationalTag(firestore, selectedUser.id, tag)
+                            : addOperationalTag(firestore, selectedUser.id, tag)
+                          }
+                        }
+                        className={`rounded-full px-3 py-1 text-xs ${
+                          hasTag
+                            ? "bg-rose-500/15 text-rose-400"
+                            : "bg-[#111827] text-[#E5E7EB]"
+                        }`}
+                      >
+                        {hasTag ? `Remover ${tag}` : tag}
                       </button>
                     );
                   })}

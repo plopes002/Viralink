@@ -9,28 +9,34 @@ export async function POST(req: NextRequest) {
     const {
       workspaceId,
       category,
+      users,
       message,
     }: {
       workspaceId?: string;
       category?: string;
+      users?: { username: string; phone?: string | null }[];
       message?: string;
     } = body;
 
-    if (!workspaceId || !category || !message) {
+    if (!workspaceId || !message || (!users && !category)) {
       return NextResponse.json(
-        { error: "workspaceId, category e message são obrigatórios." },
+        { error: "workspaceId, message e (users ou category) são obrigatórios." },
         { status: 400 },
       );
     }
 
-    const snap = await adminFirestore
-      .collection("engagements")
-      .where("workspaceId", "==", workspaceId)
-      .get();
+    let recipients: any[] = [];
 
-    const recipients = snap.docs
-      .map((d) => ({ id: d.id, ...(d.data() as any) }))
-      .filter((item: any) => Array.isArray(item.categories) && item.categories.includes(category));
+    if (users) {
+      recipients = users;
+    } else if (category) {
+      const snap = await adminFirestore
+        .collection("engagements")
+        .where("workspaceId", "==", workspaceId)
+        .where("categories", "array-contains", category)
+        .get();
+      recipients = snap.docs.map((d) => d.data());
+    }
 
     // proteção simples anti-volume exagerado
     const MAX_BULK_SEND = 50;

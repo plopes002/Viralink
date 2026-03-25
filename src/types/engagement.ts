@@ -46,6 +46,7 @@ export interface EngagementItem {
   phone?: string | null;
   email?: string | null;
   categories?: string[];
+  operationalTags?: string[];
 
   politicalReview?: PoliticalReviewNote | null;
 
