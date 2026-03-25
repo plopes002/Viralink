@@ -10,13 +10,14 @@ export type EngagementInteractionType =
 export type EngagementSentiment = "positive" | "neutral" | "negative";
 
 export type EngagementPostType = "text" | "image" | "video" | "carousel";
+export type LeadTemperature = "cold" | "warm" | "hot" | "priority";
 
 export interface PoliticalReviewNote {
   hasPoliticalMention: boolean;
-  flags: string[]; // ex.: ["menciona-partido", "menciona-candidato"]
-  entities: string[]; // ex.: ["PT", "Lula", "segurança pública"]
-  excerpt?: string | null; // trecho relevante
-  summary?: string | null; // resumo neutro
+  flags: string[];
+  entities: string[];
+  excerpt?: string | null;
+  summary?: string | null;
 }
 
 export interface EngagementItem {
@@ -49,6 +50,10 @@ export interface EngagementItem {
   operationalTags?: string[];
 
   politicalReview?: PoliticalReviewNote | null;
+  
+  leadScore?: number;
+  leadTemperature?: LeadTemperature;
+  leadScoreReason?: string[];
 
   createdAt: string;
 }

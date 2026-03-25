@@ -23,7 +23,7 @@ import {
   removeOperationalTag,
 } from "@/firebase/engagementOperationalTags";
 import { OPERATIONAL_TAGS } from "@/constants/operationalTags";
-
+import { updateLeadScoreForEngagement } from "@/lib/updateLeadScore";
 
 type SentimentFilter = "all" | EngagementSentiment;
 type InteractionFilter = "all" | EngagementInteractionType;
@@ -55,6 +55,11 @@ export default function EngagementPage() {
   const [taggingOneId, setTaggingOneId] = useState<string | null>(null);
   const [taggingAll, setTaggingAll] = useState(false);
   const [operationalTagFilter, setOperationalTagFilter] = useState("all");
+  const [scoringOneId, setScoringOneId] = useState<string | null>(null);
+  const [scoringAll, setScoringAll] = useState(false);
+  const [temperatureFilter, setTemperatureFilter] = useState<
+    "all" | "cold" | "warm" | "hot" | "priority"
+  >("all");
 
   const topics = useMemo(() => {
     const values = Array.from(
@@ -105,13 +110,20 @@ export default function EngagementPage() {
         return false;
       }
 
+      if (
+        temperatureFilter !== "all" &&
+        item.leadTemperature !== temperatureFilter
+      ) {
+        return false;
+      }
+
       if (!matchesSmartSearch(item, smartSearch)) {
         return false;
       }
 
       return true;
     });
-  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter, smartSearch, operationalTagFilter]);
+  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter, smartSearch, operationalTagFilter, temperatureFilter]);
 
   function getSentimentLabel(sentiment: EngagementSentiment) {
     if (sentiment === "positive") return "Positivo";
@@ -140,6 +152,21 @@ export default function EngagementPage() {
     };
     return map[type];
   }
+
+  function getTemperatureLabel(temp?: string) {
+    if (temp === "priority") return "Prioridade";
+    if (temp === "hot") return "Quente";
+    if (temp === "warm") return "Morno";
+    return "Frio";
+  }
+
+  function getTemperatureClass(temp?: string) {
+    if (temp === "priority") return "bg-fuchsia-500/15 text-fuchsia-400";
+    if (temp === "hot") return "bg-rose-500/15 text-rose-400";
+    if (temp === "warm") return "bg-amber-500/15 text-amber-400";
+    return "bg-slate-500/15 text-slate-300";
+  }
+
 
   async function sendMessage() {
     if (!selectedUser || !message.trim()) return;
@@ -354,7 +381,7 @@ export default function EngagementPage() {
       </section>
 
       {/* filtros */}
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <label className="block text-[11px] text-[#E5E7EB] mb-1">
             Busca inteligente
@@ -365,6 +392,27 @@ export default function EngagementPage() {
             placeholder="Ex.: professores, fitness..."
             className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-[12px] text-white"
           />
+        </div>
+
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <label className="block text-[11px] text-[#E5E7EB] mb-1">
+            Temperatura do lead
+          </label>
+          <select
+            value={temperatureFilter}
+            onChange={(e) =>
+              setTemperatureFilter(
+                e.target.value as "all" | "cold" | "warm" | "hot" | "priority",
+              )
+            }
+            className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-[12px] text-white"
+          >
+            <option value="all">Todas</option>
+            <option value="cold">Frio</option>
+            <option value="warm">Morno</option>
+            <option value="hot">Quente</option>
+            <option value="priority">Prioridade</option>
+          </select>
         </div>
 
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
@@ -459,6 +507,25 @@ export default function EngagementPage() {
         >
           {taggingAll ? "Classificando..." : `Sugerir categorias para ${filtered.length} iten(s)`}
         </button>
+        <button
+          type="button"
+          disabled={scoringAll || filtered.length === 0}
+          onClick={async () => {
+            if (!firestore) return;
+            setScoringAll(true);
+            try {
+              for (const item of filtered) {
+                await updateLeadScoreForEngagement(firestore, item);
+              }
+              alert("Lead scoring atualizado para a lista filtrada.");
+            } finally {
+              setScoringAll(false);
+            }
+          }}
+          className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827] disabled:opacity-60"
+        >
+          {scoringAll ? "Calculando scores..." : "Atualizar lead scoring"}
+        </button>
       </div>
       
       {loading && (
@@ -504,13 +571,24 @@ export default function EngagementPage() {
                     </p>
                   </div>
 
-                  <span
-                    className={`text-[10px] px-2 py-1 rounded-full ${getSentimentClass(
-                      item.interactionSentiment,
-                    )}`}
-                  >
-                    {getSentimentLabel(item.interactionSentiment)}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`text-[10px] px-2 py-1 rounded-full ${getSentimentClass(
+                        item.interactionSentiment,
+                      )}`}
+                    >
+                      {getSentimentLabel(item.interactionSentiment)}
+                    </span>
+                    {item.leadTemperature && (
+                      <span
+                        className={`text-[10px] px-2 py-1 rounded-full ${getTemperatureClass(
+                          item.leadTemperature,
+                        )}`}
+                      >
+                        {getTemperatureLabel(item.leadTemperature)}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -585,6 +663,13 @@ export default function EngagementPage() {
                     Revisar menções políticas
                   </button>
                 </div>
+                
+                {typeof item.leadScore === "number" && (
+                  <p className="mt-2 text-[11px] text-[#9CA3AF]">
+                    Score: <span className="text-white font-medium">{item.leadScore}</span>
+                  </p>
+                )}
+
 
                  {item.politicalReview?.hasPoliticalMention && (
                   <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
@@ -654,6 +739,62 @@ export default function EngagementPage() {
                   >
                     {getSentimentLabel(selectedUser.interactionSentiment)}
                   </span>
+                </div>
+              </div>
+              
+              <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] text-[#7D8590]">Lead Scoring</p>
+                    <p className="text-xl font-semibold text-white">
+                      {selectedUser.leadScore ?? 0}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`text-[10px] px-3 py-1 rounded-full ${getTemperatureClass(
+                      selectedUser.leadTemperature,
+                    )}`}
+                  >
+                    {getTemperatureLabel(selectedUser.leadTemperature)}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2">
+                  {(selectedUser.leadScoreReason || []).length === 0 ? (
+                    <p className="text-xs text-[#9CA3AF]">
+                      Score ainda não calculado.
+                    </p>
+                  ) : (
+                    selectedUser.leadScoreReason?.map((reason, idx) => (
+                      <p key={idx} className="text-xs text-[#C7CAD1]">
+                        • {reason}
+                      </p>
+                    ))
+                  )}
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!firestore) return;
+                      setScoringOneId(selectedUser.id);
+                      try {
+                        const result = await updateLeadScoreForEngagement(firestore, selectedUser);
+                        alert(
+                          `Score atualizado: ${result.score} (${getTemperatureLabel(
+                            result.temperature,
+                          )})`,
+                        );
+                      } finally {
+                        setScoringOneId(null);
+                      }
+                    }}
+                    className="rounded-xl border border-[#272046] px-4 py-2 text-xs text-white hover:bg-[#111827]"
+                  >
+                    {scoringOneId === selectedUser.id ? "Calculando..." : "Recalcular score"}
+                  </button>
                 </div>
               </div>
 

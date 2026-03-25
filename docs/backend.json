@@ -683,6 +683,20 @@
             "excerpt": { "type": "string" },
             "summary": { "type": "string" }
           }
+        },
+        "leadScore": {
+          "type": "number",
+          "description": "Calculated score for the lead based on interactions."
+        },
+        "leadTemperature": {
+          "type": "string",
+          "enum": ["cold", "warm", "hot", "priority"],
+          "description": "Classification of the lead's temperature based on the score."
+        },
+        "leadScoreReason": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "A list of reasons contributing to the lead score."
         }
       },
       "required": ["workspaceId", "socialAccountId", "username", "type", "source", "createdAt"]
