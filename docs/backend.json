@@ -662,6 +662,23 @@
         "categories": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "politicalReview": {
+          "type": "object",
+          "description": "Analysis of political content in the interaction.",
+          "properties": {
+            "hasPoliticalMention": { "type": "boolean" },
+            "flags": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "entities": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "excerpt": { "type": "string" },
+            "summary": { "type": "string" }
+          }
         }
       },
       "required": ["workspaceId", "socialAccountId", "username", "type", "source", "createdAt"]

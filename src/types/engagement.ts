@@ -11,6 +11,14 @@ export type EngagementSentiment = "positive" | "neutral" | "negative";
 
 export type EngagementPostType = "text" | "image" | "video" | "carousel";
 
+export interface PoliticalReviewNote {
+  hasPoliticalMention: boolean;
+  flags: string[]; // ex.: ["menciona-partido", "menciona-candidato"]
+  entities: string[]; // ex.: ["PT", "Lula", "segurança pública"]
+  excerpt?: string | null; // trecho relevante
+  summary?: string | null; // resumo neutro
+}
+
 export interface EngagementItem {
   id: string;
   workspaceId: string;
@@ -35,10 +43,11 @@ export interface EngagementItem {
 
   network: "instagram" | "facebook" | "whatsapp";
 
-  // NOVOS CAMPOS
   phone?: string | null;
   email?: string | null;
-  categories?: string[]; // ex.: ["professores", "lead-quente"]
+  categories?: string[];
+
+  politicalReview?: PoliticalReviewNote | null;
 
   createdAt: string;
 }

@@ -17,6 +17,7 @@ import {
 import { useFirebase } from "@/firebase/provider";
 import { suggestAndSaveCategories } from "@/lib/suggestAndSaveCategories";
 import { matchesSmartSearch } from "@/lib/engagementSearch";
+import { analyzePoliticalReviewAndSave } from "@/lib/analyzePoliticalReview";
 
 
 type SentimentFilter = "all" | EngagementSentiment;
@@ -540,28 +541,79 @@ export default function EngagementPage() {
                     </p>
                   </div>
                 )}
-                 <button
-                  type="button"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!firestore) return;
-                    setTaggingOneId(item.id);
-                    try {
-                      const cats = await suggestAndSaveCategories(firestore, item);
-                      if (cats.length) {
-                        alert(`Categorias sugeridas: ${cats.join(", ")}`);
-                      } else {
-                        alert("Nenhuma categoria sugerida com confiança.");
+                 <div className="flex flex-wrap gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!firestore) return;
+                      setTaggingOneId(item.id);
+                      try {
+                        const cats = await suggestAndSaveCategories(firestore, item);
+                        if (cats.length) {
+                          alert(`Categorias sugeridas: ${cats.join(", ")}`);
+                        } else {
+                          alert("Nenhuma categoria sugerida com confiança.");
+                        }
+                      } finally {
+                        setTaggingOneId(null);
                       }
-                    } finally {
-                      setTaggingOneId(null);
-                    }
-                  }}
-                  className="mt-3 rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-[#E5E7EB] hover:bg-[#111827]"
-                  disabled={taggingOneId === item.id}
-                >
-                  {taggingOneId === item.id ? "Analisando..." : "Sugerir categorias com IA"}
-                </button>
+                    }}
+                    className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-[#E5E7EB] hover:bg-[#111827]"
+                    disabled={taggingOneId === item.id}
+                  >
+                    {taggingOneId === item.id ? "Analisando..." : "Sugerir categorias com IA"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!firestore) return;
+                        const result = await analyzePoliticalReviewAndSave(firestore, item);
+                        if (result?.hasPoliticalMention) {
+                          alert("Texto político sinalizado para revisão manual.");
+                        } else {
+                          alert("Sem menções políticas claras.");
+                        }
+                    }}
+                    className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-[#E5E7EB] hover:bg-[#111827]"
+                  >
+                    Revisar menções políticas
+                  </button>
+                </div>
+
+                 {item.politicalReview?.hasPoliticalMention && (
+                  <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                    <p className="text-[11px] text-amber-300 font-medium">
+                      Texto político detectado
+                    </p>
+
+                    {item.politicalReview.summary && (
+                      <p className="mt-1 text-xs text-[#E5E7EB]">
+                        {item.politicalReview.summary}
+                      </p>
+                    )}
+
+                    {(item.politicalReview.entities || []).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.politicalReview.entities.map((entity) => (
+                          <span
+                            key={entity}
+                            className="rounded-full bg-[#111827] px-2 py-1 text-[10px] text-[#E5E7EB]"
+                          >
+                            {entity}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {item.politicalReview.excerpt && (
+                      <p className="mt-2 text-[11px] text-[#C7CAD1]">
+                        Trecho: “{item.politicalReview.excerpt}”
+                      </p>
+                    )}
+                  </div>
+                )}
               </button>
             ))}
           </div>
