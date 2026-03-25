@@ -6,7 +6,9 @@ import type {
   EngagementItem,
   EngagementSentiment,
 } from "@/types/engagement";
-import { MOCK_ENGAGEMENTS } from "@/mocks/engagements";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useEngagements } from "@/hooks/useEngagements";
+
 
 type SentimentFilter = "all" | EngagementSentiment;
 type InteractionFilter = "all" | EngagementInteractionType;
@@ -24,15 +26,20 @@ export default function EngagementPage() {
     useState<FollowFilter>("all");
   const [topicFilter, setTopicFilter] = useState<string>("all");
 
+  const { currentWorkspace } = useWorkspace();
+  const workspaceId = currentWorkspace?.id;
+
+  const { engagements, loading } = useEngagements(workspaceId);
+
   const topics = useMemo(() => {
     const values = Array.from(
-      new Set(MOCK_ENGAGEMENTS.map((e) => e.postTopic).filter(Boolean)),
+      new Set(engagements.map((e) => e.postTopic).filter(Boolean)),
     ) as string[];
     return values;
-  }, []);
+  }, [engagements]);
 
   const filtered = useMemo(() => {
-    return MOCK_ENGAGEMENTS.filter((item) => {
+    return engagements.filter((item) => {
       if (
         sentimentFilter !== "all" &&
         item.interactionSentiment !== sentimentFilter
@@ -61,7 +68,7 @@ export default function EngagementPage() {
 
       return true;
     });
-  }, [sentimentFilter, interactionFilter, followFilter, topicFilter]);
+  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter]);
 
   function getSentimentLabel(sentiment: EngagementSentiment) {
     if (sentiment === "positive") return "Positivo";
@@ -131,11 +138,28 @@ export default function EngagementPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold text-white">Engajamento</h1>
-        <p className="text-sm text-[#9CA3AF]">
-          Veja quem interagiu, com qual conteúdo, o sentimento da interação e envie mensagens personalizadas.
-        </p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Engajamento</h1>
+          <p className="text-sm text-[#9CA3AF]">
+            Veja quem interagiu, com qual conteúdo, o sentimento da interação e envie mensagens personalizadas.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <a
+            href={`/api/engagement/export/xlsx?workspaceId=${workspaceId}`}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827]"
+          >
+            Exportar XLSX
+          </a>
+        
+          <a
+            href={`/api/engagement/export/pdf?workspaceId=${workspaceId}`}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827]"
+          >
+            Exportar PDF
+          </a>
+        </div>
       </header>
 
       {/* filtros */}
@@ -212,6 +236,12 @@ export default function EngagementPage() {
           </select>
         </div>
       </section>
+      
+      {loading && (
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-sm text-[#9CA3AF]">Carregando engajamentos...</p>
+        </div>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         {/* lista */}
