@@ -15,6 +15,8 @@ import {
   removeCategoryFromEngagement,
 } from "@/firebase/engagementCategories";
 import { useFirebase } from "@/firebase/provider";
+import { suggestAndSaveCategories } from "@/lib/suggestAndSaveCategories";
+import { matchesSmartSearch } from "@/lib/engagementSearch";
 
 
 type SentimentFilter = "all" | EngagementSentiment;
@@ -44,6 +46,9 @@ export default function EngagementPage() {
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkSending, setBulkSending] = useState(false);
+  const [smartSearch, setSmartSearch] = useState("");
+  const [taggingOneId, setTaggingOneId] = useState<string | null>(null);
+  const [taggingAll, setTaggingAll] = useState(false);
 
   const topics = useMemo(() => {
     const values = Array.from(
@@ -87,9 +92,13 @@ export default function EngagementPage() {
         return false;
       }
 
+      if (!matchesSmartSearch(item, smartSearch)) {
+        return false;
+      }
+
       return true;
     });
-  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter]);
+  }, [engagements, sentimentFilter, interactionFilter, followFilter, topicFilter, categoryFilter, smartSearch]);
 
   function getSentimentLabel(sentiment: EngagementSentiment) {
     if (sentiment === "positive") return "Positivo";
@@ -339,7 +348,19 @@ export default function EngagementPage() {
       </section>
 
       {/* filtros */}
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <label className="block text-[11px] text-[#E5E7EB] mb-1">
+            Busca inteligente
+          </label>
+          <input
+            value={smartSearch}
+            onChange={(e) => setSmartSearch(e.target.value)}
+            placeholder="Ex.: professores, fitness..."
+            className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-[12px] text-white"
+          />
+        </div>
+
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <label className="block text-[11px] text-[#E5E7EB] mb-1">
             Sentimento
@@ -412,6 +433,28 @@ export default function EngagementPage() {
           </select>
         </div>
       </section>
+
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          disabled={taggingAll || filtered.length === 0}
+          onClick={async () => {
+            if (!firestore) return;
+            setTaggingAll(true);
+            try {
+              for (const item of filtered) {
+                await suggestAndSaveCategories(firestore, item);
+              }
+              alert("Sugestão automática de categorias concluída para os itens filtrados.");
+            } finally {
+              setTaggingAll(false);
+            }
+          }}
+          className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827] disabled:opacity-60"
+        >
+          {taggingAll ? "Classificando..." : `Sugerir categorias para ${filtered.length} iten(s)`}
+        </button>
+      </div>
       
       {loading && (
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
@@ -497,6 +540,28 @@ export default function EngagementPage() {
                     </p>
                   </div>
                 )}
+                 <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!firestore) return;
+                    setTaggingOneId(item.id);
+                    try {
+                      const cats = await suggestAndSaveCategories(firestore, item);
+                      if (cats.length) {
+                        alert(`Categorias sugeridas: ${cats.join(", ")}`);
+                      } else {
+                        alert("Nenhuma categoria sugerida com confiança.");
+                      }
+                    } finally {
+                      setTaggingOneId(null);
+                    }
+                  }}
+                  className="mt-3 rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-[#E5E7EB] hover:bg-[#111827]"
+                  disabled={taggingOneId === item.id}
+                >
+                  {taggingOneId === item.id ? "Analisando..." : "Sugerir categorias com IA"}
+                </button>
               </button>
             ))}
           </div>
@@ -564,10 +629,12 @@ export default function EngagementPage() {
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() =>
-                          alreadyHas
+                        onClick={() => {
+                           if (!firestore) return;
+                           alreadyHas
                             ? removeCategoryFromEngagement(firestore, selectedUser.id, cat.slug)
                             : addCategoryToEngagement(firestore, selectedUser.id, cat.slug)
+                          }
                         }
                         className={`rounded-full px-3 py-1 text-xs ${
                           alreadyHas
