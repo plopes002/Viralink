@@ -16,6 +16,7 @@ import {
   FiMenu,
   FiX,
   FiPlayCircle,
+  FiHeart,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import { useUser } from "@/firebase/provider";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/dashboard", label: "Visão geral", icon: FiHome },
   { href: "/posts", label: "Posts & Agenda", icon: FiEdit3 },
   { href: "/automations", label: "Automações", icon: FiZap },
+  { href: "/engajamento", label: "Engajamento", icon: FiHeart },
   { href: "/social-accounts", label: "Contas conectadas", icon: FiShare2 },
   { href: "/concorrentes", label: "Concorrentes", icon: FiUsers },
   { href: "/analytics", label: "Analytics", icon: FiBarChart2 },

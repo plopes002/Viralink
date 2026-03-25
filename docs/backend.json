@@ -611,6 +611,39 @@
         "message",
         "createdAt"
       ]
+    },
+    "Engagement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Engagement",
+      "type": "object",
+      "description": "Represents a single user interaction like a like or comment.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "socialAccountId": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "mention"] },
+        "isFollower": { "type": "boolean" },
+        "source": { "type": "string", "enum": ["post", "story"] },
+        "postId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "socialAccountId", "username", "type", "source", "createdAt"]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a message sent to a user.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "toUser": { "type": "string" },
+        "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["sent", "failed", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "toUser", "channel", "content", "status", "createdAt"]
     }
   },
   "auth": {
@@ -685,6 +718,18 @@
         "$ref": "#/entities/CompetitorSnapshot"
       },
       "description": "Stores historical metrics snapshots for a competitor account."
+    },
+    "/engagements/{engagementId}": {
+      "schema": {
+        "$ref": "#/entities/Engagement"
+      },
+      "description": "Stores individual user engagement events like likes and comments."
+    },
+    "/messages/{messageId}": {
+      "schema": {
+        "$ref": "#/entities/Message"
+      },
+      "description": "Stores messages sent to users from the engagement hub."
     }
   }
 }
