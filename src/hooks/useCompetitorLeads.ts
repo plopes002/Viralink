@@ -9,24 +9,37 @@ import type { CompetitorLead } from "@/types/competitorLead";
 export function useCompetitorLeads(workspaceId?: string) {
   const { firestore } = useFirebase();
   const [leads, setLeads] = useState<CompetitorLead[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!workspaceId || !firestore) {
-        setLeads([]);
-        return;
-    };
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
 
     const q = query(
       collection(firestore, "competitorLeads"),
       where("workspaceId", "==", workspaceId),
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as CompetitorLead)));
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CompetitorLead));
+        setLeads(docs);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("[useCompetitorLeads] erro:", err);
+        setLoading(false);
+      },
+    );
 
     return () => unsub();
   }, [workspaceId, firestore]);
 
-  return leads;
+  return { leads, loading };
 }

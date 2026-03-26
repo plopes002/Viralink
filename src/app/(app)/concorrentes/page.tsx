@@ -1,521 +1,239 @@
-// app/(app)/concorrentes/page.tsx
+// src/app/(app)/concorrentes/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  FiTrendingUp,
-  FiUsers,
-  FiActivity,
-  FiAlertCircle,
-  FiPlus,
-} from "react-icons/fi";
-import { useNotifications } from "@/hooks/useNotifications";
-import type { Notification } from "@/types/notification";
-import { useUser, useFirebase } from "@/firebase/provider";
-import { CompetitorAnalyticsSection } from "./components/CompetitorAnalyticsSection";
-import { useCompetitorMetrics } from "@/hooks/useCompetitorMetrics";
-import { useAccountMetrics } from "@/hooks/useAccountMetrics";
-import { CompetitorVsBrandSection } from "./components/CompetitorVsBrandSection";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
 import { simulateCompetitorLeads } from "@/lib/simulateCompetitorLeads";
 import { importLeadToCRM } from "@/lib/importCompetitorLead";
+import { useFirebase } from "@/firebase/provider";
 import type { CompetitorLead } from "@/types/competitorLead";
 
-// TODO: trocar por seus hooks reais de user/workspace
-function useCurrentUserAndWorkspace() {
-  const { user } = useUser();
-  // TODO: Replace with dynamic workspace ID from context
-  const workspaceId = user ? "agency_123" : null;
-
-  return {
-    uid: user?.uid ?? null,
-    workspaceId: workspaceId,
-  };
+function truncateText(text?: string, max = 140) {
+  if (!text) return "";
+  return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
-// Tipo base do concorrente no front (espelhando o Firestore)
-interface Competitor {
-  id: string;
-  workspaceId: string;
-  name: string;
-  handle: string;
-  network: "instagram" | "facebook" | "tiktok" | "youtube";
-  profileUrl: string;
-  avatarUrl?: string | null;
-  isActive: boolean;
-  planIncluded: boolean;
-  extraCharge?: boolean;
-
-  followers: number;
-  postsLast7d?: number;
-  followersDelta7d?: number;
-  engagementRate7d?: number;
-}
-
-// TODO: remover mock e carregar de Firestore
-const mockCompetitors: Competitor[] = [
-  {
-    id: "c1",
-    workspaceId: "agency_123",
-    name: "Studio Glow",
-    handle: "@studioglow",
-    network: "instagram",
-    profileUrl: "https://instagram.com/studioglow",
-    avatarUrl: null,
-    isActive: true,
-    planIncluded: true,
-    followers: 18450,
-    postsLast7d: 9,
-    followersDelta7d: 320,
-    engagementRate7d: 7.8,
-  },
-  {
-    id: "c2",
-    workspaceId: "agency_123",
-    name: "Beleza Prime",
-    handle: "@belezaprime",
-    network: "facebook",
-    profileUrl: "https://facebook.com/belezaprime",
-    avatarUrl: null,
-    isActive: true,
-    planIncluded: true,
-    followers: 23210,
-    postsLast7d: 4,
-    followersDelta7d: 110,
-    engagementRate7d: 5.2,
-  },
-  {
-    id: "c3",
-    workspaceId: "agency_123",
-    name: "Clínica Aura",
-    handle: "@clinicaaura",
-    network: "instagram",
-    profileUrl: "https://instagram.com/clinicaaura",
-    avatarUrl: null,
-    isActive: true,
-    planIncluded: true,
-    followers: 9870,
-    postsLast7d: 7,
-    followersDelta7d: 410,
-    engagementRate7d: 9.1,
-  },
-];
-
-function formatNumber(n: number | undefined) {
-  if (n == null) return "-";
-  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(".", ",") + "M";
-  if (n >= 1000) return (n / 1000).toFixed(1).replace(".", ",") + "k";
-  return n.toString();
-}
-
-function networkLabel(network: Competitor["network"]) {
-  switch (network) {
-    case "instagram":
-      return "Instagram";
-    case "facebook":
-      return "Facebook";
-    case "tiktok":
-      return "TikTok";
-    case "youtube":
-      return "YouTube";
-  }
-}
-
-export default function CompetitorsPage() {
-  const { uid, workspaceId } = useCurrentUserAndWorkspace();
+export default function ConcorrentesPage() {
+  const { currentWorkspace } = useWorkspace() as any;
   const { firestore } = useFirebase();
+  const workspaceId = currentWorkspace?.id;
 
-  // TODO: filtrar concorrentes pelo workspaceId real
-  const competitors = mockCompetitors;
+  const { leads, loading } = useCompetitorLeads(workspaceId);
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    competitors[0]?.id ?? null,
+  const [selectedCompetitorId, setSelectedCompetitorId] =
+    useState("concorrente_1");
+
+  const [campaignMessage, setCampaignMessage] = useState(
+    "Vi que você interagiu recentemente com um conteúdo 👀 Queria te mostrar um ponto que pode te interessar bastante. Se fizer sentido para você, acompanha a página porque sempre publicamos conteúdos relevantes por aqui.",
   );
 
-  const selected = useMemo(
-    () => competitors.find((c) => c.id === selectedId) ?? competitors[0] ?? null,
-    [competitors, selectedId],
-  );
-
-  const {
-    notifications,
-    unreadCount,
-    loading: loadingNotifs,
-  } = useNotifications(workspaceId, uid);
-  
-  const leads = useCompetitorLeads(workspaceId);
+  const [dispatching, setDispatching] = useState(false);
+  const [importingAll, setImportingAll] = useState(false);
 
   const totalLeads = leads.length;
-  const engagedLeads = leads.filter(l => l.hasInteracted).length;
-  const notFollowerLeads = leads.filter(l => !l.isFollower).length;
+  const engagedLeads = leads.filter((l) => l.hasInteracted).length;
+  const notFollowers = leads.filter((l) => !l.isFollower).length;
+  const positiveLeads = leads.filter((l) => l.sentiment === "positive").length;
 
-  const competitorAlerts: Notification[] = useMemo(
-    () =>
-      notifications.filter(
-        (n) =>
-          n.type === "competitor_alert" &&
-          (!selected || n.competitorId === selected.id),
-      ),
-    [notifications, selected],
-  );
-
-  const totalCompetitors = competitors.length;
-  const networksSet = new Set(competitors.map((c) => c.network));
-  const totalNetworks = networksSet.size;
-
-  const bestEngagement = competitors.reduce<Competitor | null>(
-    (best, c) => {
-      if (c.engagementRate7d == null) return best;
-      if (!best || (best.engagementRate7d ?? 0) < c.engagementRate7d) return c;
-      return best;
-    },
-    null,
-  );
-  
-  // TODO: pegar accountId real da conta principal (rede social do cliente)
-  const currentAccountId = "main_account_123"; // trocar depois
-
-  // métricas da conta principal (minha marca)
-  const {
-    followers7d: myFollowers7d,
-    clicks7d: myClicks7d,
-    engagement7d: myEngagement7d,
-  } = useAccountMetrics(currentAccountId);
-
-  // métricas do concorrente selecionado
-  const {
-    followers7d: competitorFollowers7d,
-    clicks7d: competitorClicks7d,
-    engagement7d: competitorEngagement7d,
-  } = useCompetitorMetrics(selected?.id ?? null);
-  
-  const handleSimulateLeads = async () => {
-    if (workspaceId && selectedId) {
-      await simulateCompetitorLeads(firestore, workspaceId, selectedId);
-      alert('Leads de concorrentes simulados!');
+  const leadsByCompetitor = useMemo(() => {
+    const groups: Record<string, CompetitorLead[]> = {};
+    for (const lead of leads) {
+      const key = lead.competitorId || "sem_concorrente";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(lead);
     }
-  };
+    return groups;
+  }, [leads]);
 
-  const handleImportToCRM = async (lead: CompetitorLead) => {
-    await importLeadToCRM(firestore, lead);
-    alert(`@${lead.username} adicionado ao CRM.`);
-  };
+  async function handleSimulateCapture() {
+    if (!workspaceId || !firestore) return;
+    await simulateCompetitorLeads(firestore, workspaceId, selectedCompetitorId);
+    alert("Leads simulados com sucesso.");
+  }
 
+  async function handleImportAllToCRM() {
+    if (!firestore) return;
+    setImportingAll(true);
+    try {
+      for (const lead of leads) {
+        await importLeadToCRM(firestore, lead);
+      }
+      alert(`${leads.length} lead(s) importado(s) para o CRM.`);
+    } finally {
+      setImportingAll(false);
+    }
+  }
+
+  async function handleDispatchCompetitorCampaign() {
+    if (!workspaceId || !campaignMessage.trim()) return;
+
+    setDispatching(true);
+    try {
+      const res = await fetch("/api/campaigns/dispatch", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workspaceId,
+          name: "Campanha de concorrente",
+          channel: "instagram_dm",
+          message: campaignMessage,
+          audienceMode: "competitor",
+          filters: {
+            onlyNonFollowers: true,
+            onlyEngaged: true,
+            sentiment: "positive",
+            competitorId: selectedCompetitorId,
+          },
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Erro ao criar campanha de concorrente.");
+        return;
+      }
+
+      alert(
+        [
+          "Campanha criada com sucesso.",
+          `Risco: ${data.riskLevel || "n/a"}`,
+          `Agendadas: ${data.scheduledCount ?? 0}`,
+          `Em revisão: ${data.reviewCount ?? 0}`,
+          `Puladas: ${data.skippedCount ?? 0}`,
+        ].join("\n"),
+      );
+    } finally {
+      setDispatching(false);
+    }
+  }
 
   return (
-    <section className="mt-4 space-y-6">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-white">
-            Concorrentes
-          </h1>
-          <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-2xl">
-            Compare o desempenho da sua marca com até 3 concorrentes por rede,
-            acompanhe crescimento, engajamento e receba alertas inteligentes
-            quando alguém disparar nas redes sociais.
+          <h1 className="text-xl font-semibold text-white">Concorrentes</h1>
+          <p className="text-sm text-[#9CA3AF]">
+            Analise concorrentes, capture leads, importe para o CRM e dispare campanhas específicas.
           </p>
         </div>
-        <div className="flex gap-2">
-            <button
-            onClick={handleSimulateLeads}
-            className="bg-purple-600 px-4 py-2 rounded text-xs text-white"
-            >
-            Simular captura de leads
-            </button>
-            <button
+
+        <div className="flex gap-2 flex-wrap">
+          <button
             type="button"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-medium text-white"
-            style={{
-                background:
-                "linear-gradient(90deg,#7C3AED 0%,#EC4899 50%,#0EA5E9 100%)",
-            }}
-            >
-            <FiPlus size={13} />
-            Adicionar concorrente
-            </button>
+            onClick={handleSimulateCapture}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827]"
+          >
+            Simular captura de leads
+          </button>
+
+          <button
+            type="button"
+            onClick={handleImportAllToCRM}
+            disabled={importingAll || leads.length === 0}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827] disabled:opacity-60"
+          >
+            {importingAll ? "Importando..." : "Adicionar todos ao CRM"}
+          </button>
         </div>
       </header>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="rounded-2xl border border-[#261341] bg-[#050017] px-4 py-3 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-300">
-            <FiTrendingUp size={16} />
-          </div>
-          <div>
-            <p className="text-[10px] text-[#9CA3AF]">Concorrentes monitorados</p>
-            <p className="text-lg font-semibold text-white">
-              {totalCompetitors}
-            </p>
-            <p className="text-[10px] text-[#6B7280]">
-              Incluídos no plano Expert
-            </p>
-          </div>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Leads capturados</p>
+          <p className="mt-1 text-2xl font-semibold text-white">{totalLeads}</p>
         </div>
 
-        <div className="rounded-2xl border border-[#261341] bg-[#050017] px-4 py-3 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-sky-500/10 border border-sky-500/40 flex items-center justify-center text-sky-300">
-            <FiUsers size={16} />
-          </div>
-          <div>
-            <p className="text-[10px] text-[#9CA3AF]">Redes analisadas</p>
-            <p className="text-lg font-semibold text-white">
-              {totalNetworks}
-            </p>
-            <p className="text-[10px] text-[#6B7280]">
-              Instagram, Facebook, etc.
-            </p>
-          </div>
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Engajaram</p>
+          <p className="mt-1 text-2xl font-semibold text-emerald-400">
+            {engagedLeads}
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-[#261341] bg-[#050017] px-4 py-3 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-red-500/10 border border-red-500/40 flex items-center justify-center text-red-300">
-            <FiAlertCircle size={16} />
-          </div>
-          <div>
-            <p className="text-[10px] text-[#9CA3AF]">Alertas recentes</p>
-            <p className="text-lg font-semibold text-white">
-              {loadingNotifs ? "..." : competitorAlerts.length}
-            </p>
-            <p className="text-[10px] text-[#6B7280]">
-              Baseado em atividade de concorrentes
-            </p>
-          </div>
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Não seguem você</p>
+          <p className="mt-1 text-2xl font-semibold text-rose-400">
+            {notFollowers}
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-[#261341] bg-[#050017] px-4 py-3 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-emerald-300">
-            <FiActivity size={16} />
-          </div>
-          <div>
-            <p className="text-[10px] text-[#9CA3AF]">Melhor engajamento 7 dias</p>
-            <p className="text-lg font-semibold text-white">
-              {bestEngagement?.engagementRate7d != null
-                ? `${bestEngagement.engagementRate7d.toFixed(1)}%`
-                : "-"}
-            </p>
-            <p className="text-[10px] text-[#6B7280]">
-              {bestEngagement
-                ? `${bestEngagement.name} (${networkLabel(
-                    bestEngagement.network,
-                  )})`
-                : "Aguardando dados"}
-            </p>
-          </div>
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Sentimento positivo</p>
+          <p className="mt-1 text-2xl font-semibold text-sky-400">
+            {positiveLeads}
+          </p>
         </div>
-      </div>
+      </section>
 
-      {/* layout principal: lista + painel detalhado */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* LISTA DE CONCORRENTES */}
-        <div className="lg:col-span-1 space-y-2">
-          <h2 className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-wide">
-            Concorrentes monitorados
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <h2 className="text-sm font-semibold text-white mb-4">
+            Leads capturados dos concorrentes
           </h2>
-          <div className="rounded-2xl border border-[#261341] bg-[#050017] divide-y divide-[#1F1134]">
-            {competitors.map((c) => {
-              const isSelected = selected?.id === c.id;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setSelectedId(c.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-[#0B001F] transition ${
-                    isSelected ? "bg-[#0B001F]" : "bg-transparent"
-                  }`}
-                >
-                  {/* avatar "fake" por enquanto */}
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-sky-500 flex items-center justify-center text-[11px] font-semibold">
-                    {c.name
-                      .split(" ")
-                      .slice(0, 2)
-                      .map((p) => p[0]?.toUpperCase())
-                      .join("")}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[12px] text-white truncate">
-                        {c.name}
-                      </p>
-                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#1F1134] text-[#E5E7EB]">
-                        {networkLabel(c.network)}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-[#9CA3AF] truncate">
-                      {c.handle}
-                    </p>
-                    <div className="flex items-center gap-3 mt-1 text-[10px] text-[#6B7280]">
-                      <span>Seg.: {formatNumber(c.followers)}</span>
-                      {c.postsLast7d != null && (
-                        <>
-                          <span>•</span>
-                          <span>Posts 7d: {c.postsLast7d}</span>
-                        </>
-                      )}
-                      {c.engagementRate7d != null && (
-                        <>
-                          <span>•</span>
-                          <span>
-                            Engaj. 7d: {c.engagementRate7d.toFixed(1)}%
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span
-                      className={`text-[9px] px-2 py-0.5 rounded-full ${
-                        c.planIncluded
-                          ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
-                          : "bg-amber-500/10 text-amber-300 border border-amber-500/40"
-                      }`}
-                    >
-                      {c.planIncluded ? "Incluído" : "Extra"}
-                    </span>
-                    {c.followersDelta7d != null && (
-                      <span className="text-[9px] text-emerald-300">
-                        +{c.followersDelta7d} seg. /7d
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* PAINEL DETALHADO */}
-        <div className="lg:col-span-2 space-y-3">
-          {selected ? (
-            <>
-              <div className="rounded-2xl border border-[#261341] bg-[#050017] p-4 flex flex-col gap-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          {loading && (
+            <p className="text-sm text-[#9CA3AF]">Carregando leads...</p>
+          )}
+
+          {!loading && leads.length === 0 && (
+            <p className="text-sm text-[#9CA3AF]">
+              Nenhum lead capturado ainda.
+            </p>
+          )}
+
+          <div className="flex flex-col gap-4">
+            {Object.entries(leadsByCompetitor).map(([competitorId, group]) => (
+              <div
+                key={competitorId}
+                className="rounded-xl border border-[#272046] bg-[#020012] p-4"
+              >
+                <div className="flex items-center justify-between gap-3 mb-3">
                   <div>
-                    <p className="text-xs text-[#9CA3AF] mb-1">
-                      Visão detalhada
+                    <p className="text-sm font-medium text-white">
+                      {competitorId}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold text-white">
-                        {selected.name}
-                      </h2>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1F1134] text-[#E5E7EB]">
-                        {networkLabel(selected.network)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#9CA3AF]">
-                      {selected.handle} • {formatNumber(selected.followers)}{" "}
-                      seguidores
+                    <p className="text-xs text-[#9CA3AF]">
+                      {group.length} lead(s)
                     </p>
                   </div>
-                  <a
-                    href={selected.profileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] px-3 py-1.5 rounded-full border border-[#312356] text-[#E5E7EB] hover:bg-white/5"
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCompetitorId(competitorId)}
+                    className={`rounded-lg px-3 py-1.5 text-[11px] ${
+                      selectedCompetitorId === competitorId
+                        ? "bg-[#8B5CF6]/20 text-white"
+                        : "bg-[#111827] text-[#E5E7EB]"
+                    }`}
                   >
-                    Ver perfil na rede
-                  </a>
+                    Selecionar
+                  </button>
                 </div>
 
-                <CompetitorAnalyticsSection
-                  followers7d={competitorFollowers7d}
-                  clicks7d={competitorClicks7d}
-                  engagement7d={competitorEngagement7d}
-                />
-                
-                {selected && (
-                  <CompetitorVsBrandSection
-                    brandName="Sua Marca (Exemplo)" // depois você pega do contexto
-                    brandFollowers7d={myFollowers7d}
-                    brandEngagement7d={myEngagement7d}
-                    competitorName={selected.name}
-                    competitorFollowers7d={competitorFollowers7d}
-                    competitorEngagement7d={competitorEngagement7d}
-                  />
-                )}
-
-
-                {/* cards de resumo */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
-                  <div className="rounded-2xl border border-[#1F1134] bg-[#050017] px-3 py-3">
-                    <p className="text-[10px] text-[#9CA3AF] mb-1">
-                      Seguidores atuais
-                    </p>
-                    <p className="text-lg font-semibold text-white">
-                      {formatNumber(selected.followers)}
-                    </p>
-                    {selected.followersDelta7d != null && (
-                      <p className="text-[10px] text-emerald-300">
-                        +{selected.followersDelta7d} em 7 dias
-                      </p>
-                    )}
-                  </div>
-                  <div className="rounded-2xl border border-[#1F1134] bg-[#050017] px-3 py-3">
-                    <p className="text-[10px] text-[#9CA3AF] mb-1">
-                      Posts nos últimos 7 dias
-                    </p>
-                    <p className="text-lg font-semibold text-white">
-                      {selected.postsLast7d ?? "-"}
-                    </p>
-                    <p className="text-[10px] text-[#6B7280]">
-                      Frequência de conteúdo
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-[#1F1134] bg-[#050017] px-3 py-3">
-                    <p className="text-[10px] text-[#9CA3AF] mb-1">
-                      Engajamento médio 7 dias
-                    </p>
-                    <p className="text-lg font-semibold text-white">
-                      {selected.engagementRate7d != null
-                        ? `${selected.engagementRate7d.toFixed(1)}%`
-                        : "-"}
-                    </p>
-                    <p className="text-[10px] text-[#6B7280]">
-                      Curtidas + comentários / alcance
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
-                <h2 className="text-sm font-semibold text-white mb-4">
-                  Leads capturados dos concorrentes
-                </h2>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <p className="text-xs text-[#9CA3AF]">Total</p>
-                    <p className="text-lg text-white">{totalLeads}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-[#9CA3AF]">Engajaram</p>
-                    <p className="text-lg text-green-400">{engagedLeads}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-[#9CA3AF]">Não seguem você</p>
-                    <p className="text-lg text-red-400">{notFollowerLeads}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {leads.map((lead) => (
+                <div className="flex flex-col gap-2">
+                  {group.map((lead) => (
                     <div
                       key={lead.id}
-                      className="rounded-xl border border-[#272046] p-3 flex justify-between"
+                      className="rounded-xl border border-[#272046] p-3 flex items-center justify-between gap-3"
                     >
                       <div>
-                        <p className="text-white text-sm">@{lead.username}</p>
+                        <p className="text-sm text-white font-medium">
+                          @{lead.username}
+                        </p>
                         <p className="text-xs text-[#9CA3AF]">
-                          {lead.interactionType} • {lead.sentiment}
+                          {lead.interactionType || "sem interação"} •{" "}
+                          {lead.sentiment || "sem sentimento"}
                         </p>
                       </div>
 
                       <button
-                        onClick={() => handleImportToCRM(lead)}
-                        className="text-xs bg-purple-600 px-3 py-1 rounded"
+                        type="button"
+                        onClick={() => importLeadToCRM(firestore, lead)}
+                        className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
                       >
                         Adicionar ao CRM
                       </button>
@@ -523,71 +241,86 @@ export default function CompetitorsPage() {
                   ))}
                 </div>
               </div>
-
-              {/* bloco de alertas ligados a notifications.competitor_alert */}
-              <div className="rounded-2xl border border-[#261341] bg-[#050017] p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="text-xs font-semibold text-white">
-                      Alertas do concorrente
-                    </p>
-                    <p className="text-[10px] text-[#9CA3AF]">
-                      Eventos recentes gerados automaticamente pelo monitoramento.
-                    </p>
-                  </div>
-                </div>
-
-                {loadingNotifs && (
-                  <p className="text-[11px] text-[#9CA3AF]">Carregando...</p>
-                )}
-
-                {!loadingNotifs && competitorAlerts.length === 0 && (
-                  <p className="text-[11px] text-[#9CA3AF]">
-                    Nenhum alerta recente para este concorrente.
-                  </p>
-                )}
-
-                {!loadingNotifs && competitorAlerts.length > 0 && (
-                  <div className="mt-2 space-y-2 max-h-56 overflow-y-auto">
-                    {competitorAlerts.map((n) => (
-                      <div
-                        key={n.id}
-                        className="flex items-start gap-2 px-3 py-2 rounded-xl bg-[#0B001F] border border-[#1F1134]"
-                      >
-                        <div className="h-7 w-7 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-300">
-                          <FiTrendingUp size={13} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-[#E5E7EB]">
-                            {n.message}
-                          </p>
-                          <p className="text-[10px] text-[#6B7280] mt-0.5">
-                            {(() => {
-                              const diff =
-                                Date.now() - n.createdAt.getTime();
-                              const min = Math.floor(diff / 60000);
-                              if (min < 1) return "agora";
-                              if (min < 60) return `${min} min atrás`;
-                              const h = Math.floor(min / 60);
-                              if (h < 24) return `${h} h atrás`;
-                              const d = Math.floor(h / 24);
-                              return `${d} d atrás`;
-                            })()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="rounded-2xl border border-[#261341] bg-[#050017] p-6 text-center text-[11px] text-[#9CA3AF]">
-              Nenhum concorrente selecionado.
-            </div>
-          )}
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-white">
+              Campanha para leads de concorrente
+            </h2>
+            <p className="text-xs text-[#9CA3AF] mt-1">
+              Dispare uma campanha específica para quem interagiu com concorrentes.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-[#E5E7EB] mb-1">
+              Concorrente selecionado
+            </label>
+            <select
+              value={selectedCompetitorId}
+              onChange={(e) => setSelectedCompetitorId(e.target.value)}
+              className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+            >
+              {Object.keys(leadsByCompetitor).length === 0 ? (
+                <option value="concorrente_1">concorrente_1</option>
+              ) : (
+                Object.keys(leadsByCompetitor).map((competitorId) => (
+                  <option key={competitorId} value={competitorId}>
+                    {competitorId}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+            <p className="text-[11px] text-[#7D8590] mb-2">
+              Regras desta campanha
+            </p>
+            <div className="flex flex-col gap-1 text-xs text-[#E5E7EB]">
+              <p>• Apenas quem não segue você</p>
+              <p>• Apenas quem interagiu</p>
+              <p>• Apenas sentimento positivo</p>
+              <p>• Pode ir para revisão se a regra de risco exigir</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-[#E5E7EB] mb-1">
+              Mensagem
+            </label>
+            <textarea
+              value={campaignMessage}
+              onChange={(e) => setCampaignMessage(e.target.value)}
+              className="min-h-[180px] w-full rounded-2xl border border-[#272046] bg-[#020012] p-3 text-sm text-white"
+            />
+            <p className="mt-2 text-[10px] text-[#9CA3AF]">
+              O sistema adiciona contexto automático para leads de concorrente.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+            <p className="text-[11px] text-[#7D8590] mb-2">
+              Preview rápido
+            </p>
+            <p className="text-xs text-[#E5E7EB]">
+              {truncateText(campaignMessage, 220)}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDispatchCompetitorCampaign}
+            disabled={dispatching}
+            className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {dispatching ? "Criando campanha..." : "Criar campanha de concorrente"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
