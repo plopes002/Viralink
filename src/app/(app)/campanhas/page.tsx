@@ -5,11 +5,19 @@ import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEngagementProfiles } from "@/hooks/useEngagementProfiles";
 import { useCampaigns } from "@/hooks/useCampaigns";
-import type { CampaignChannel } from "@/types/campaign";
+import type { Campaign, CampaignChannel } from "@/types/campaign";
 import { useMessages } from "@/hooks/useMessages";
 import { useQueuePolling } from "@/hooks/useQueuePolling";
 import { CAMPAIGN_TEMPLATE_TYPES } from "@/constants/campaignTemplateTypes";
 import type { CampaignTemplateType } from "@/types/campaignTemplate";
+import { useSavedCampaignTemplates } from "@/hooks/useSavedCampaignTemplates";
+import {
+  createSavedCampaignTemplate,
+  updateSavedCampaignTemplate,
+  deleteSavedCampaignTemplate,
+} from "@/firebase/savedCampaignTemplates";
+import { useFirebase } from "@/firebase/provider";
+import type { SavedCampaignTemplate } from "@/types/savedCampaignTemplate";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 type FollowFilter = "all" | "followers" | "non_followers";
@@ -22,12 +30,15 @@ function getStatusClass(status?: string) {
 }
 
 export default function CampanhasPage() {
+  const { firestore } = useFirebase();
   const { currentWorkspace } = useWorkspace() as any;
   const workspaceId = currentWorkspace?.id;
 
   const { profiles, loading } = useEngagementProfiles(workspaceId);
   const { campaigns } = useCampaigns(workspaceId);
   const { messages } = useMessages(workspaceId);
+  const { templates, loading: loadingTemplates } =
+    useSavedCampaignTemplates(workspaceId);
   
   useQueuePolling({
     enabled: !!workspaceId,
@@ -53,6 +64,10 @@ export default function CampanhasPage() {
   const [audienceDescription, setAudienceDescription] = useState("");
   const [tone, setTone] = useState("profissional");
   const [generatingTemplate, setGeneratingTemplate] = useState(false);
+
+  const [templateNameToSave, setTemplateNameToSave] = useState("");
+  const [templateDescriptionToSave, setTemplateDescriptionToSave] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -200,6 +215,61 @@ export default function CampanhasPage() {
     } finally {
       setGeneratingTemplate(false);
     }
+  }
+
+  async function handleSaveCurrentTemplate() {
+    if (!workspaceId || !firestore) return;
+    if (!message.trim()) {
+      alert("Gere ou escreva uma mensagem antes de salvar o template.");
+      return;
+    }
+  
+    setSavingTemplate(true);
+    try {
+      const now = new Date().toISOString();
+  
+      await createSavedCampaignTemplate(firestore, {
+        workspaceId,
+        name: templateNameToSave.trim() || name.trim() || "Template sem nome",
+        description: templateDescriptionToSave.trim() || null,
+        templateType,
+        channel,
+        tone,
+        topic: topic || null,
+        audienceDescription: audienceDescription || null,
+        message,
+        isFavorite: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+  
+      setTemplateNameToSave("");
+      setTemplateDescriptionToSave("");
+      alert("Template salvo com sucesso.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  function applySavedTemplate(template: SavedCampaignTemplate) {
+    setName(template.name || "");
+    setChannel(template.channel || "instagram_dm");
+    setTemplateType(template.templateType || "aproximacao");
+    setTone(template.tone || "profissional");
+    setTopic(template.topic || "");
+    setAudienceDescription(template.audienceDescription || "");
+    setMessage(template.message || "");
+  }
+  
+  function duplicateCampaign(campaign: Campaign) {
+    setName(`${campaign.name} (cópia)`);
+    setChannel(campaign.channel || "instagram_dm");
+    setMessage(campaign.message || "");
+    setTemperature(campaign.audienceFilters?.temperature || "all");
+    setFollowStatus(campaign.audienceFilters?.followStatus || "all");
+    setCategory(campaign.audienceFilters?.category || "all");
+    setOperationalTag(campaign.audienceFilters?.operationalTag || "all");
+    setSearch(campaign.audienceFilters?.search || "");
   }
 
   return (
@@ -432,6 +502,39 @@ export default function CampanhasPage() {
             </div>
           </div>
 
+          <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4 flex flex-col gap-3">
+            <h3 className="text-sm font-semibold text-white">
+              Salvar na biblioteca
+            </h3>
+          
+            <div className="grid gap-3 md:grid-cols-2">
+              <input
+                value={templateNameToSave}
+                onChange={(e) => setTemplateNameToSave(e.target.value)}
+                placeholder="Nome do template"
+                className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              />
+          
+              <input
+                value={templateDescriptionToSave}
+                onChange={(e) => setTemplateDescriptionToSave(e.target.value)}
+                placeholder="Descrição curta"
+                className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              />
+            </div>
+          
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveCurrentTemplate}
+                disabled={savingTemplate}
+                className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827] disabled:opacity-60"
+              >
+                {savingTemplate ? "Salvando..." : "Salvar template"}
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-[11px] text-[#E5E7EB] mb-1">
               Mensagem
@@ -530,6 +633,94 @@ export default function CampanhasPage() {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-white">
+            Biblioteca de templates
+          </h2>
+          <span className="text-xs text-[#9CA3AF]">
+            {loadingTemplates ? "Carregando..." : `${templates.length} template(s)`}
+          </span>
+        </div>
+      
+        <div className="flex flex-col gap-3">
+          {!loadingTemplates && templates.length === 0 && (
+            <p className="text-sm text-[#9CA3AF]">
+              Nenhum template salvo ainda.
+            </p>
+          )}
+      
+          {templates.map((template) => (
+            <div
+              key={template.id}
+              className="rounded-xl border border-[#272046] bg-[#020012] p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-white">
+                      {template.name}
+                    </p>
+                    {template.isFavorite && (
+                      <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-400">
+                        Favorito
+                      </span>
+                    )}
+                  </div>
+      
+                  {template.description && (
+                    <p className="mt-1 text-xs text-[#9CA3AF]">
+                      {template.description}
+                    </p>
+                  )}
+      
+                  <p className="mt-2 text-[11px] text-[#7D8590]">
+                    {template.templateType} • {template.channel} • {template.tone || "sem tom"}
+                  </p>
+                </div>
+      
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applySavedTemplate(template)}
+                    className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                  >
+                    Usar template
+                  </button>
+      
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateSavedCampaignTemplate(firestore, template.id, {
+                        isFavorite: !template.isFavorite,
+                        updatedAt: new Date().toISOString(),
+                      })
+                    }
+                    className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                  >
+                    {template.isFavorite ? "Desfavoritar" : "Favoritar"}
+                  </button>
+      
+                  <button
+                    type="button"
+                    onClick={() => deleteSavedCampaignTemplate(firestore, template.id)}
+                    className="rounded-lg border border-rose-500/20 px-3 py-1.5 text-[11px] text-rose-400 hover:bg-rose-500/10"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+      
+              <div className="mt-3 rounded-xl bg-[#111827] px-3 py-3">
+                <p className="text-xs text-[#E5E7EB] whitespace-pre-line">
+                  {template.message}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* histórico */}
       <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
         <h2 className="text-sm font-semibold text-white mb-4">
@@ -594,6 +785,16 @@ export default function CampanhasPage() {
                       <p className="text-[10px] text-[#9CA3AF]">Erros</p>
                       <p className="text-sm text-white">{error}</p>
                     </div>
+                  </div>
+
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => duplicateCampaign(campaign)}
+                      className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                    >
+                      Duplicar campanha
+                    </button>
                   </div>
                 </div>
               );

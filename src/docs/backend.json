@@ -1,0 +1,1090 @@
+{
+  "entities": {
+    "Campaign": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Campaign",
+      "type": "object",
+      "description": "Represents a marketing or communication campaign targeting a specific audience.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
+        "message": { "type": "string" },
+        "audienceFilters": {
+          "type": "object",
+          "properties": {
+            "temperature": { "type": "string", "enum": ["cold", "warm", "hot", "priority", "all"] },
+            "followStatus": { "type": "string", "enum": ["followers", "non_followers", "all"] },
+            "category": { "type": "string" },
+            "operationalTag": { "type": "string" },
+            "search": { "type": "string" }
+          }
+        },
+        "recipientsCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "queued", "processing", "done", "error"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "channel", "message", "audienceFilters", "recipientsCount", "status", "createdAt", "updatedAt"]
+    },
+    "ContactCategory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContactCategory",
+      "type": "object",
+      "description": "Represents a custom category for segmenting contacts.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "slug",
+        "name",
+        "createdAt"
+      ]
+    },
+    "Competitor": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Competitor",
+      "type": "object",
+      "description": "Represents a competitor being monitored in a workspace.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "createdByUid": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "handle": {
+          "type": "string"
+        },
+        "network": {
+          "type": "string",
+          "enum": ["instagram", "facebook", "tiktok", "youtube"]
+        },
+        "profileUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "planIncluded": {
+          "type": "boolean"
+        },
+        "extraCharge": {
+          "type": "boolean"
+        },
+        "followers": {
+          "type": "number"
+        },
+        "following": {
+          "type": "number"
+        },
+        "postsTotal": {
+          "type": "number"
+        },
+        "avgEngagementRate": {
+          "type": "number"
+        },
+        "avgLikesPerPost": {
+          "type": "number"
+        },
+        "avgCommentsPerPost": {
+          "type": "number"
+        },
+        "postsLast7d": {
+          "type": "number"
+        },
+        "followersDelta7d": {
+          "type": "number"
+        },
+        "engagementRate7d": {
+          "type": "number"
+        },
+        "lastInsightsSyncAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAlertAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "createdByUid",
+        "name",
+        "handle",
+        "network",
+        "profileUrl",
+        "isActive",
+        "planIncluded",
+        "followers",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CompetitorSnapshot": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompetitorSnapshot",
+      "type": "object",
+      "description": "A snapshot of a competitor's metrics at a specific point in time.",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "followers": {
+          "type": "number"
+        },
+        "postsTotal": {
+          "type": "number"
+        },
+        "engagementRate": {
+          "type": "number"
+        },
+        "postsLast24h": {
+          "type": "number"
+        }
+      },
+      "required": ["createdAt", "followers"]
+    },
+    "Post": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Post",
+      "type": "object",
+      "description": "Represents a social media post, encompassing content, scheduling, and channel-specific configurations.",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The agency/client owning the post."
+        },
+        "createdByUid": {
+          "type": "string",
+          "description": "User ID of the user who created the post."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "ai"
+          ],
+          "description": "Source of the content."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "scheduled",
+            "publishing",
+            "published",
+            "failed"
+          ],
+          "description": "Status of the post."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the post."
+        },
+        "caption": {
+          "type": "string",
+          "description": "Final caption of the post."
+        },
+        "hashtags": {
+          "type": "array",
+          "description": "Array of hashtags associated with the post.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "callToAction": {
+          "type": "string",
+          "description": "Call to action text for the post."
+        },
+        "aiConfig": {
+          "type": "object",
+          "description": "Configuration details for AI-generated content (if applicable).",
+          "properties": {
+            "textPrompt": {
+              "type": "string"
+            },
+            "imagePrompt": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "temperature": {
+              "type": "number"
+            }
+          }
+        },
+        "media": {
+          "type": "object",
+          "description": "Information about the media associated with the post.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "image",
+                "video",
+                "null"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "upload",
+                "ai",
+                "external",
+                "null"
+              ]
+            },
+            "storagePath": {
+              "type": "string"
+            },
+            "generated": {
+              "type": "boolean"
+            },
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            },
+            "aspectRatio": {
+              "type": "string"
+            }
+          }
+        },
+        "channels": {
+          "type": "array",
+          "description": "Array of channels where the post will be published.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "instagram",
+                  "facebook",
+                  "whatsapp"
+                ]
+              },
+              "accountId": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "scheduled",
+                  "publishing",
+                  "published",
+                  "failed"
+                ]
+              },
+              "scheduledAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "publishedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "externalPostId": {
+                "type": "string"
+              },
+              "lastError": {
+                "type": "string"
+              },
+              "retryCount": {
+                "type": "number"
+              },
+              "lastAttemptAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "description": "Metrics for the post (impressions, likes, comments, etc.).",
+          "properties": {
+            "impressions": {
+              "type": "number"
+            },
+            "likes": {
+              "type": "number"
+            },
+            "comments": {
+              "type": "number"
+            },
+            "shares": {
+              "type": "number"
+            },
+            "clicks": {
+              "type": "number"
+            }
+          }
+        },
+        "nextRunAt": {
+          "type": "string",
+          "description": "The next scheduled time for this post to be processed by a job.",
+          "format": "date-time"
+        },
+        "metricsLastUpdatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last time metrics were updated for this post.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the post was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the post was last updated.",
+          "format": "date-time"
+        },
+        "deletedAt": {
+          "type": "string",
+          "description": "Timestamp of when the post was deleted (if applicable).",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "createdByUid",
+        "source",
+        "status",
+        "caption",
+        "channels",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ScheduledPost": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ScheduledPost",
+      "type": "object",
+      "description": "Represents a post scheduled for future publication.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "networks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "mediaType": { "type": "string", "enum": ["image", "video", "none"] },
+            "mediaUrl": { "type": "string", "format": "uri" }
+          }
+        },
+        "timeZone": {
+          "type": "string"
+        },
+        "runAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "processing", "sent", "failed"]
+        },
+        "lastError": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["workspaceId", "ownerId", "networks", "content", "timeZone", "runAt", "status", "createdAt", "updatedAt"]
+    },
+    "DraftPost": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DraftPost",
+      "type": "object",
+      "description": "Represents a draft of a social media post before it is scheduled.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "networks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "mediaType": { "type": "string", "enum": ["image", "video", "none"] },
+            "mediaUrl": { "type": "string", "format": "uri" }
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["workspaceId", "ownerId", "networks", "content", "createdAt", "updatedAt"]
+    },
+    "Workspace": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Workspace",
+      "type": "object",
+      "description": "Represents a workspace (agency/client) in the system, enabling multi-tenant support.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the workspace."
+        },
+        "plan": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "pro",
+            "expert"
+          ],
+          "description": "Subscription plan of the workspace."
+        },
+        "ownerUid": {
+          "type": "string",
+          "description": "User ID of the workspace owner."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the workspace was created.",
+          "format": "date-time"
+        },
+        "billingCustomerId": {
+          "type": "string",
+          "description": "Reference to billing information stored in the payment provider (e.g., Stripe)."
+        }
+      },
+      "required": [
+        "name",
+        "plan",
+        "ownerUid",
+        "createdAt"
+      ]
+    },
+    "WorkspaceUser": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WorkspaceUser",
+      "type": "object",
+      "description": "Represents a user's membership in a workspace, defining their role and access level.",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "ID of the workspace the user is a member of."
+        },
+        "uid": {
+          "type": "string",
+          "description": "User ID of the member."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member"
+          ],
+          "description": "Role of the user in the workspace."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the user joined the workspace.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "uid",
+        "role",
+        "createdAt"
+      ]
+    },
+    "SocialAccount": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SocialAccount",
+      "type": "object",
+      "description": "Represents a social media account connected to the system, storing display information but NOT sensitive tokens.",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "ID of the workspace the social account belongs to."
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "instagram",
+            "facebook",
+            "whatsapp"
+          ],
+          "description": "Social media provider."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the social account."
+        },
+        "username": {
+          "type": "string",
+          "description": "Username of the social account."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL of the social account's avatar (profile picture).",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the social account was connected.",
+          "format": "date-time"
+        },
+        "connected": {
+          "type": "boolean",
+          "description": "Indicates whether the social account is currently connected."
+        }
+      },
+      "required": [
+        "workspaceId",
+        "provider",
+        "displayName",
+        "username",
+        "createdAt",
+        "connected"
+      ]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a system notification for a user within a workspace.",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The workspace this notification belongs to."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "post_published",
+            "post_publish_failed",
+            "metrics_updated",
+            "competitor_alert"
+          ],
+          "description": "The type of the notification."
+        },
+        "postId": {
+          "type": "string",
+          "description": "The ID of the related post, if applicable."
+        },
+        "competitorId": {
+          "type": "string",
+          "description": "The ID of the related competitor, if applicable."
+        },
+        "channels": {
+          "type": "array",
+          "description": "The social media channels related to this notification.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "message": {
+          "type": "string",
+          "description": "The content of the notification message."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the notification was created."
+        },
+        "readBy": {
+          "type": "array",
+          "description": "Array of user UIDs who have read the notification.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "workspaceId",
+        "type",
+        "message",
+        "createdAt"
+      ]
+    },
+    "Engagement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Engagement",
+      "type": "object",
+      "description": "Represents a single user interaction like a like or comment.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "socialAccountId": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "mention"] },
+        "isFollower": { "type": "boolean" },
+        "source": { "type": "string", "enum": ["post", "story"] },
+        "postId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "categories": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "operationalTags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "politicalReview": {
+          "type": "object",
+          "description": "Analysis of political content in the interaction.",
+          "properties": {
+            "hasPoliticalMention": { "type": "boolean" },
+            "flags": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "entities": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "excerpt": { "type": "string" },
+            "summary": { "type": "string" }
+          }
+        },
+        "leadScore": {
+          "type": "number",
+          "description": "Calculated score for the lead based on interactions."
+        },
+        "leadTemperature": {
+          "type": "string",
+          "enum": ["cold", "warm", "hot", "priority"],
+          "description": "Classification of the lead's temperature based on the score."
+        },
+        "leadScoreReason": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "A list of reasons contributing to the lead score."
+        }
+      },
+      "required": ["workspaceId", "socialAccountId", "username", "type", "source", "createdAt"]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a message sent to a user.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "campaignId": { "type": "string" },
+        "toUser": { "type": "string" },
+        "toPhone": { "type": "string" },
+        "toEmail": { "type": "string" },
+        "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["sent", "failed", "pending", "queued", "processing", "error"] },
+        "errorMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "channel", "content", "status", "createdAt"]
+    },
+    "EngagementProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EngagementProfile",
+      "type": "object",
+      "description": "Represents a consolidated profile of a user's engagement over time.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "socialAccountId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "avatar": {
+          "type": "string",
+          "format": "uri"
+        },
+        "isFollower": {
+          "type": "boolean"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "instagram",
+            "facebook",
+            "whatsapp"
+          ]
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interestTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "customTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operationalTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totalInteractions": {
+          "type": "number"
+        },
+        "totalViews": {
+          "type": "number"
+        },
+        "totalLikes": {
+          "type": "number"
+        },
+        "totalComments": {
+          "type": "number"
+        },
+        "totalReactions": {
+          "type": "number"
+        },
+        "totalShares": {
+          "type": "number"
+        },
+        "totalMessages": {
+          "type": "number"
+        },
+        "positiveCount": {
+          "type": "number"
+        },
+        "neutralCount": {
+          "type": "number"
+        },
+        "negativeCount": {
+          "type": "number"
+        },
+        "distinctPostsCount": {
+          "type": "number"
+        },
+        "distinctTopicsCount": {
+          "type": "number"
+        },
+        "lastInteractionAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "firstInteractionAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "recurringScore": {
+          "type": "number"
+        },
+        "leadScore": {
+          "type": "number"
+        },
+        "leadTemperature": {
+          "type": "string",
+          "enum": [
+            "cold",
+            "warm",
+            "hot",
+            "priority"
+          ]
+        },
+        "leadScoreReason": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "politicalFlags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "politicalEntities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "socialAccountId",
+        "username",
+        "name",
+        "isFollower",
+        "network",
+        "totalInteractions",
+        "totalViews",
+        "totalLikes",
+        "totalComments",
+        "totalReactions",
+        "totalShares",
+        "totalMessages",
+        "positiveCount",
+        "neutralCount",
+        "negativeCount",
+        "distinctPostsCount",
+        "distinctTopicsCount",
+        "recurringScore",
+        "leadScore",
+        "leadTemperature",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ProcessingQueueJob": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProcessingQueueJob",
+      "type": "object",
+      "description": "Represents a job in the background processing queue.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "engagement_profile_update",
+            "engagement_sentiment_analysis",
+            "engagement_category_suggestion",
+            "engagement_political_review"
+          ]
+        },
+        "workspaceId": { "type": "string" },
+        "engagementId": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "processing", "done", "error"]
+        },
+        "attempts": { "type": "number" },
+        "payload": { "type": "object" },
+        "errorMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "workspaceId", "status", "attempts", "createdAt", "updatedAt"]
+    },
+    "SavedCampaignTemplate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SavedCampaignTemplate",
+      "type": "object",
+      "description": "Represents a reusable message template for campaigns.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "templateType": { "type": "string", "enum": ["aproximacao", "recuperacao", "mobilizacao", "convite", "conversao", "critica_escuta"] },
+        "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
+        "tone": { "type": "string" },
+        "topic": { "type": "string" },
+        "audienceDescription": { "type": "string" },
+        "message": { "type": "string" },
+        "isFavorite": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "templateType", "channel", "message", "isFavorite", "createdAt", "updatedAt"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "google.com"
+    ]
+  },
+  "firestore": {
+    "/campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/Campaign" },
+      "description": "Stores marketing and communication campaigns."
+    },
+    "/contactCategories/{categoryId}": {
+      "schema": { "$ref": "#/entities/ContactCategory" },
+      "description": "Stores user-defined contact categories for a workspace."
+    },
+    "/competitors/{competitorId}": {
+      "schema": {
+        "$ref": "#/entities/Competitor"
+      },
+      "description": "Stores information about monitored competitors."
+    },
+    "/competitors/{competitorId}/metricsSnapshots/{snapshotId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorSnapshot"
+      },
+      "description": "Stores historical metrics snapshots for a competitor."
+    },
+    "/workspaces/{workspaceId}": {
+      "schema": {
+        "$ref": "#/entities/Workspace"
+      },
+      "description": "Stores workspace information. Access is restricted to members of the workspace."
+    },
+    "/workspaceUsers/{membershipId}": {
+      "schema": {
+        "$ref": "#/entities/WorkspaceUser"
+      },
+      "description": "Maps users to workspaces and defines their roles."
+    },
+    "/posts/{postId}": {
+      "schema": {
+        "$ref": "#/entities/Post"
+      },
+      "description": "Contains all social media posts. Security rules enforce workspace-level access."
+    },
+    "/scheduledPosts/{postId}": {
+      "schema": {
+        "$ref": "#/entities/ScheduledPost"
+      },
+      "description": "Contains posts scheduled for future publication."
+    },
+    "/draftPosts/{draftId}": {
+      "schema": {
+        "$ref": "#/entities/DraftPost"
+      },
+      "description": "Contains draft posts that are not yet scheduled."
+    },
+    "/socialAccounts/{accountId}": {
+      "schema": {
+        "$ref": "#/entities/SocialAccount"
+      },
+      "description": "Stores connected social media account information (non-sensitive)."
+    },
+    "/notifications/{notificationId}": {
+      "schema": {
+        "$ref": "#/entities/Notification"
+      },
+      "description": "Stores system notifications for workspaces."
+    },
+    "accountMetrics/{metricId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorSnapshot"
+      },
+      "description": "Stores historical metrics snapshots for a user's own account."
+    },
+    "competitorMetrics/{metricId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorSnapshot"
+      },
+      "description": "Stores historical metrics snapshots for a competitor account."
+    },
+    "/engagements/{engagementId}": {
+      "schema": {
+        "$ref": "#/entities/Engagement"
+      },
+      "description": "Stores individual user engagement events like likes and comments."
+    },
+    "/messages/{messageId}": {
+      "schema": {
+        "$ref": "#/entities/Message"
+      },
+      "description": "Stores messages sent to users from the engagement hub."
+    },
+    "/engagementProfiles/{profileId}": {
+      "schema": {
+        "$ref": "#/entities/EngagementProfile"
+      },
+      "description": "Stores consolidated engagement profiles for each user."
+    },
+    "/processingQueue/{jobId}": {
+      "schema": {
+        "$ref": "#/entities/ProcessingQueueJob"
+      },
+      "description": "Stores background jobs to be processed asynchronously."
+    },
+    "/savedCampaignTemplates/{templateId}": {
+      "schema": {
+        "$ref": "#/entities/SavedCampaignTemplate"
+      },
+      "description": "Stores reusable campaign message templates for a workspace."
+    }
+  }
+}

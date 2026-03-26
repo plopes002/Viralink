@@ -50,6 +50,11 @@ service cloud.firestore {
       allow write: if isWorkspaceMember(request.resource.data.workspaceId);
     }
 
+    match /savedCampaignTemplates/{templateId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
+
     match /posts/{postId} {
       // Members can read posts in their workspace
       allow read: if isWorkspaceMember(resource.data.workspaceId);
