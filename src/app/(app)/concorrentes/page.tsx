@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useCompetitors } from "@/hooks/useCompetitors";
 import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
@@ -26,6 +27,7 @@ import { generateCompetitorAlerts } from "@/lib/competitorAlertsEngine";
 import { buildCompetitorAlertKey } from "@/lib/competitorAlertDedup";
 import { useCompetitorAlerts } from "@/hooks/useCompetitorAlerts";
 import { createCompetitorAlert, markCompetitorAlertAsRead } from "@/firebase/competitorAlerts";
+import { getCompetitorAlertAction } from "@/lib/competitorAlertActions";
 
 
 function formatPercent(value?: number) {
@@ -39,6 +41,7 @@ function truncateText(text?: string, max = 180) {
 }
 
 export default function ConcorrentesPage() {
+  const router = useRouter();
   const { firestore } = useFirebase();
   const { currentWorkspace } = useWorkspace() as any;
   const workspaceId = currentWorkspace?.id;
@@ -136,6 +139,8 @@ export default function ConcorrentesPage() {
   const [simulating, setSimulating] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [strategyResult, setStrategyResult] = useState<CompetitorStrategyResult | null>(null);
+  const [contentStrategyLoading, setContentStrategyLoading] = useState(false);
+  const [contentStrategyResult, setContentStrategyResult] = useState<any | null>(null);
 
   const { history: strategyHistory } = useCompetitorStrategyHistory(
     workspaceId,
@@ -361,6 +366,70 @@ export default function ConcorrentesPage() {
       }
     } finally {
       setStrategyLoading(false);
+    }
+  }
+
+  async function handleAlertAction(alert: any) {
+    const action = getCompetitorAlertAction(alert);
+    if (!action) return;
+  
+    if (action.type === "open_campaign") {
+      const message =
+        "Olá! Temos compartilhado conteúdos que podem te interessar bastante sobre esse tema. Se fizer sentido para você, acompanhe nossa página para ver mais atualizações.";
+  
+      const params = new URLSearchParams({
+        audienceMode: "competitor",
+        competitorId: String(alert.competitorId || ""),
+        message,
+        name: `Campanha sugerida - ${selectedCompetitor?.name || "Concorrente"}`,
+      });
+  
+      router.push(`/campanhas?${params.toString()}`);
+      return;
+    }
+  
+    if (action.type === "generate_content_strategy") {
+      setContentStrategyLoading(true);
+      try {
+        const res = await fetch("/api/competitors/generate-content-strategy", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            myAccount: comparison.myAccount,
+            competitor: comparison.competitor,
+            periodDays,
+            alertTitle: alert.title,
+            alertDescription: alert.description,
+          }),
+        });
+  
+        const data = await res.json();
+  
+        if (!res.ok) {
+          alert(data?.error || "Erro ao gerar estratégia de conteúdo.");
+          return;
+        }
+  
+        setContentStrategyResult(data);
+        return;
+      } finally {
+        setContentStrategyLoading(false);
+      }
+    }
+  
+    if (action.type === "import_leads_to_crm") {
+      if (!firestore) return;
+      const leadsToImport = leads.filter(
+        (lead) => lead.competitorId === alert.competitorId,
+      );
+  
+      for (const lead of leadsToImport) {
+        await importLeadToCRM(firestore, lead);
+      }
+  
+      alert(`${leadsToImport.length} lead(s) importado(s) para o CRM.`);
     }
   }
 
@@ -831,53 +900,122 @@ export default function ConcorrentesPage() {
               )}
 
               <div className="flex flex-col gap-3">
-                {competitorAlerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className="rounded-xl border border-[#272046] bg-[#020012] p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {alert.title}
-                        </p>
-                        <p className="mt-1 text-xs text-[#E5E7EB]">
-                          {alert.description}
-                        </p>
+                {competitorAlerts.map((alert) => {
+                  const action = getCompetitorAlertAction(alert);
+                  return (
+                    <div
+                      key={alert.id}
+                      className="rounded-xl border border-[#272046] bg-[#020012] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">
+                            {alert.title}
+                          </p>
+                          <p className="mt-1 text-xs text-[#E5E7EB]">
+                            {alert.description}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-[10px] ${
+                            alert.severity === "critical"
+                              ? "bg-rose-500/15 text-rose-400"
+                              : alert.severity === "warning"
+                              ? "bg-amber-500/15 text-amber-400"
+                              : "bg-sky-500/15 text-sky-400"
+                          }`}
+                        >
+                          {alert.severity}
+                        </span>
                       </div>
 
-                      <span
-                        className={`rounded-full px-3 py-1 text-[10px] ${
-                          alert.severity === "critical"
-                            ? "bg-rose-500/15 text-rose-400"
-                            : alert.severity === "warning"
-                            ? "bg-amber-500/15 text-amber-400"
-                            : "bg-sky-500/15 text-sky-400"
-                        }`}
-                      >
-                        {alert.severity}
-                      </span>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-[10px] text-[#9CA3AF]">
+                          {new Date(alert.createdAt).toLocaleDateString("pt-BR")}
+                        </p>
+
+                        <div className="flex gap-2">
+                          {action && (
+                            <button
+                              type="button"
+                              onClick={() => handleAlertAction(alert)}
+                              className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                            >
+                              {action.label}
+                            </button>
+                          )}
+
+                          {!alert.isRead && (
+                            <button
+                              type="button"
+                              onClick={() => markCompetitorAlertAsRead(firestore, alert.id)}
+                              className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                            >
+                              Marcar como lido
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            </section>
+            
+            {contentStrategyResult && (
+              <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">
+                    Estratégia de conteúdo sugerida
+                  </h2>
+                  <p className="mt-2 text-sm text-white">
+                    {contentStrategyResult.summary}
+                  </p>
+                </div>
 
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <p className="text-[10px] text-[#9CA3AF]">
-                        {new Date(alert.createdAt).toLocaleDateString("pt-BR")}
-                      </p>
-
-                      {!alert.isRead && (
-                        <button
-                          type="button"
-                          onClick={() => markCompetitorAlertAsRead(firestore, alert.id)}
-                          className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
-                        >
-                          Marcar como lido
-                        </button>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Pilares de conteúdo</p>
+                    <div className="flex flex-col gap-2">
+                      {(contentStrategyResult.contentPillars || []).map(
+                        (item: string, idx: number) => (
+                          <p key={idx} className="text-xs text-[#E5E7EB]">
+                            • {item}
+                          </p>
+                        ),
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </section>
+
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Formatos recomendados</p>
+                    <div className="flex flex-col gap-2">
+                      {(contentStrategyResult.recommendedFormats || []).map(
+                        (item: string, idx: number) => (
+                          <p key={idx} className="text-xs text-[#E5E7EB]">
+                            • {item}
+                          </p>
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Ações recomendadas</p>
+                    <div className="flex flex-col gap-2">
+                      {(contentStrategyResult.recommendedActions || []).map(
+                        (item: string, idx: number) => (
+                          <p key={idx} className="text-xs text-[#E5E7EB]">
+                            • {item}
+                          </p>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
 
 
           {/* métricas dos leads capturados */}
@@ -1012,22 +1150,3 @@ export default function ConcorrentesPage() {
     </div>
   );
 }
-
-O que essa versão final tem
-
-lista de concorrentes reais
-seleção do concorrente ativo
-comparação de métricas (minha conta X concorrente ativo)
-evolução temporal por período (7, 30, 90 dias)
-gráficos de linha (seguidores, engajamento)
-gráficos de barra (likes, comentários)
-análise de vantagens/desvantagens
-análise estratégica com IA
-histórico de análises estratégicas
-comparação automática entre análises
-captura de leads do concorrente
-importação para CRM
-campanha para leads do concorrente
-
-Ou seja:
-É a versão completa, com tudo integrado.

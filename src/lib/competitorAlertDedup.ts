@@ -4,4 +4,5 @@ export function buildCompetitorAlertKey(params: {
   type: string;
   periodDays: number;
 }) {
-  return `${params.competitorId}
+  return `${params.competitorId}:${params.type}:${params.periodDays}`; 
+}
