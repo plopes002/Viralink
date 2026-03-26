@@ -1,7 +1,5 @@
 // src/lib/simulateCompetitorLeads.ts
 import { addDoc, collection, Firestore } from "firebase/firestore";
-import { processCompetitorLead } from "./automationEngine";
-import type { CompetitorLead } from "@/types/competitorLead";
 
 export async function simulateCompetitorLeads(
   firestore: Firestore,
@@ -38,19 +36,16 @@ export async function simulateCompetitorLeads(
   const now = new Date().toISOString();
 
   for (const user of fakeUsers) {
-    const leadData: Omit<CompetitorLead, "id"> = {
+    await addDoc(collection(firestore, "competitorLeads"), {
       workspaceId,
       competitorId,
       username: user.username,
       name: user.name,
       isFollower: false,
       hasInteracted: user.type !== "view",
-      interactionType: user.type as any,
-      sentiment: user.sentiment as any,
+      interactionType: user.type,
+      sentiment: user.sentiment,
       extractedAt: now,
-    };
-    const docRef = await addDoc(collection(firestore, "competitorLeads"), leadData);
-
-    await processCompetitorLead(firestore, { id: docRef.id, ...leadData });
+    });
   }
 }
