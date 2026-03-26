@@ -4,8 +4,10 @@
 import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEngagementProfiles } from "@/hooks/useEngagementProfiles";
+import { useContacts } from "@/hooks/useContacts";
+import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
 import { useCampaigns } from "@/hooks/useCampaigns";
-import type { Campaign, CampaignChannel } from "@/types/campaign";
+import type { Campaign } from "@/types/campaign";
 import { useMessages } from "@/hooks/useMessages";
 import { useQueuePolling } from "@/hooks/useQueuePolling";
 import { CAMPAIGN_TEMPLATE_TYPES } from "@/constants/campaignTemplateTypes";
@@ -18,11 +20,11 @@ import {
 } from "@/firebase/savedCampaignTemplates";
 import { useFirebase } from "@/firebase/provider";
 import type { SavedCampaignTemplate } from "@/types/savedCampaignTemplate";
-import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
-import { useContacts } from "@/hooks/useContacts";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 type FollowFilter = "all" | "followers" | "non_followers";
+type Channel = "instagram_dm" | "facebook_dm" | "whatsapp";
+type AudienceMode = "profiles" | "contacts" | "competitor";
 
 function getStatusClass(status?: string) {
   if (status === "done") return "bg-emerald-500/15 text-emerald-400";
@@ -62,26 +64,20 @@ export default function CampanhasPage() {
   });
 
   const [name, setName] = useState("");
-  const [channel, setChannel] = useState<CampaignChannel>("instagram_dm");
+  const [channel, setChannel] = useState<Channel>("instagram_dm");
   const [message, setMessage] = useState("");
-  const [audienceMode, setAudienceMode] = useState<"profiles" | "contacts" | "competitor">("profiles");
-  
-  const [filters, setFilters] = useState({
-    temperature: "all",
-    followStatus: "all",
-    category: "all",
-    operationalTag: "all",
-    search: "",
-    // competitor filters
-    onlyNonFollowers: false,
-    onlyEngaged: false,
-    sentiment: "all",
-    interactionType: "all",
-  });
-
+  const [temperature, setTemperature] =
+    useState<TemperatureFilter>("all");
+  const [followStatus, setFollowStatus] =
+    useState<FollowFilter>("all");
+  const [category, setCategory] = useState("all");
+  const [operationalTag, setOperationalTag] = useState("all");
+  const [search, setSearch] = useState("");
   const [dispatching, setDispatching] = useState(false);
 
-  // AI states
+  const [audienceMode, setAudienceMode] =
+    useState<AudienceMode>("profiles");
+
   const [templateType, setTemplateType] =
     useState<CampaignTemplateType>("aproximacao");
   const [topic, setTopic] = useState("");
@@ -90,10 +86,23 @@ export default function CampanhasPage() {
   const [generatingTemplate, setGeneratingTemplate] = useState(false);
 
   const [templateNameToSave, setTemplateNameToSave] = useState("");
-  const [templateDescriptionToSave, setTemplateDescriptionToSave] = useState("");
+  const [templateDescriptionToSave, setTemplateDescriptionToSave] =
+    useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   
   const loading = loadingProfiles || loadingContacts || loadingLeads;
+  
+  // filtros extras para concorrente
+  const [competitorOnlyNonFollowers, setCompetitorOnlyNonFollowers] =
+    useState(true);
+  const [competitorOnlyEngaged, setCompetitorOnlyEngaged] =
+    useState(true);
+  const [competitorSentiment, setCompetitorSentiment] =
+    useState("all");
+  const [competitorInteractionType, setCompetitorInteractionType] =
+    useState("all");
+  const [competitorIdFilter, setCompetitorIdFilter] =
+    useState("all");
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -108,6 +117,14 @@ export default function CampanhasPage() {
     );
     return Array.from(set).sort();
   }, [profiles]);
+  
+  const competitorIds = useMemo(() => {
+    const set = new Set<string>();
+    competitorLeads.forEach((p: any) => {
+      if (p.competitorId) set.add(p.competitorId);
+    });
+    return Array.from(set).sort();
+  }, [competitorLeads]);
 
   const previewRecipients = useMemo(() => {
     let sourceData: any[];
@@ -118,34 +135,53 @@ export default function CampanhasPage() {
     } else {
       sourceData = profiles;
     }
-  
+
     return sourceData.filter((profile: any) => {
-      if (audienceMode === 'competitor') {
-        if (filters.onlyNonFollowers && profile.isFollower) return false;
-        if (filters.onlyEngaged && !profile.hasInteracted) return false;
-        if (filters.sentiment !== 'all' && profile.sentiment !== filters.sentiment) return false;
-        if (filters.interactionType !== 'all' && profile.interactionType !== filters.interactionType) return false;
+      if (audienceMode === "competitor") {
+        if (competitorOnlyNonFollowers && profile.isFollower) return false;
+        if (competitorOnlyEngaged && !profile.hasInteracted) return false;
+        if (
+          competitorSentiment !== "all" &&
+          profile.sentiment !== competitorSentiment
+        ) {
+          return false;
+        }
+        if (
+          competitorInteractionType !== "all" &&
+          profile.interactionType !== competitorInteractionType
+        ) {
+          return false;
+        }
+        if (
+          competitorIdFilter !== "all" &&
+          profile.competitorId !== competitorIdFilter
+        ) {
+          return false;
+        }
         return true;
       }
-  
-      // Default logic for profiles and contacts
-      if (filters.temperature !== "all" && profile.leadTemperature !== filters.temperature) {
+      
+      // Filtros comuns
+      if (temperature !== "all" && profile.leadTemperature !== temperature) {
         return false;
       }
-      if (filters.followStatus === "followers" && !profile.isFollower) {
+      if (followStatus === "followers" && !profile.isFollower) {
         return false;
       }
-      if (filters.followStatus === "non_followers" && profile.isFollower) {
+      if (followStatus === "non_followers" && profile.isFollower) {
         return false;
       }
-      if (filters.category !== "all" && !(profile.categories || []).includes(filters.category)) {
+      if (category !== "all" && !(profile.categories || []).includes(category)) {
         return false;
       }
-      if (filters.operationalTag !== "all" && !(profile.operationalTags || []).includes(filters.operationalTag)) {
+      if (
+        operationalTag !== "all" &&
+        !(profile.operationalTags || []).includes(operationalTag)
+      ) {
         return false;
       }
-      if (filters.search.trim()) {
-        const term = filters.search.trim().toLowerCase();
+      if (search.trim()) {
+        const term = search.trim().toLowerCase();
         const haystack = [
           profile.name,
           profile.username,
@@ -161,7 +197,117 @@ export default function CampanhasPage() {
       }
       return true;
     });
-  }, [profiles, contacts, competitorLeads, filters, audienceMode]);
+  }, [
+    profiles,
+    contacts,
+    competitorLeads,
+    audienceMode,
+    temperature,
+    followStatus,
+    category,
+    operationalTag,
+    search,
+    competitorOnlyNonFollowers,
+    competitorOnlyEngaged,
+    competitorSentiment,
+    competitorInteractionType,
+    competitorIdFilter,
+  ]);
+
+  async function handleGenerateTemplate() {
+    setGeneratingTemplate(true);
+    try {
+      const res = await fetch("/api/campaigns/generate-template", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateType,
+          channel,
+          topic,
+          audienceDescription,
+          tone,
+          context:
+            `Filtros atuais: audienceMode=${audienceMode}, temperatura=${temperature}, ` +
+            `followStatus=${followStatus}, categoria=${category}, tag=${operationalTag}, busca=${search}`,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Erro ao gerar template.");
+        return;
+      }
+
+      if (data?.title && !name.trim()) {
+        setName(data.title);
+      }
+
+      if (data?.generatedMessage) {
+        setMessage(data.generatedMessage);
+      }
+    } finally {
+      setGeneratingTemplate(false);
+    }
+  }
+
+  async function handleSaveCurrentTemplate() {
+    if (!workspaceId || !firestore) return;
+    if (!message.trim()) {
+      alert("Gere ou escreva uma mensagem antes de salvar o template.");
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const now = new Date().toISOString();
+
+      await createSavedCampaignTemplate(firestore, {
+        workspaceId,
+        name: templateNameToSave.trim() || name.trim() || "Template sem nome",
+        description: templateDescriptionToSave.trim() || null,
+        templateType,
+        channel,
+        tone,
+        topic: topic || null,
+        audienceDescription: audienceDescription || null,
+        message,
+        isFavorite: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      setTemplateNameToSave("");
+      setTemplateDescriptionToSave("");
+      alert("Template salvo com sucesso.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  function applySavedTemplate(template: SavedCampaignTemplate) {
+    setName(template.name || "");
+    setChannel(template.channel || "instagram_dm");
+    setTemplateType(template.templateType || "aproximacao");
+    setTone(template.tone || "profissional");
+    setTopic(template.topic || "");
+    setAudienceDescription(template.audienceDescription || "");
+    setMessage(template.message || "");
+  }
+  
+  function duplicateCampaign(campaign: Campaign) {
+    setName(`${campaign.name} (cópia)`);
+    setChannel(campaign.channel || "instagram_dm");
+    setMessage(campaign.message || "");
+    setTemperature(campaign.audienceFilters?.temperature || "all");
+    setFollowStatus(campaign.audienceFilters?.followStatus || "all");
+    setCategory(campaign.audienceFilters?.category || "all");
+    setOperationalTag(campaign.audienceFilters?.operationalTag || "all");
+    setSearch(campaign.audienceFilters?.search || "");
+    setAudienceMode(campaign.audienceMode || "profiles");
+  }
 
   async function handleDispatch() {
     if (!workspaceId) return;
@@ -182,7 +328,22 @@ export default function CampanhasPage() {
           name: name.trim(),
           channel,
           message,
-          filters,
+          filters: {
+            temperature,
+            followStatus,
+            category,
+            operationalTag,
+            search,
+            ...(audienceMode === "competitor"
+              ? {
+                  onlyNonFollowers: competitorOnlyNonFollowers,
+                  onlyEngaged: competitorOnlyEngaged,
+                  sentiment: competitorSentiment,
+                  interactionType: competitorInteractionType,
+                  competitorId: competitorIdFilter,
+                }
+              : {}),
+          },
           audienceMode,
         }),
       });
@@ -213,103 +374,14 @@ export default function CampanhasPage() {
       setDispatching(false);
     }
   }
-
-  async function handleGenerateTemplate() {
-    setGeneratingTemplate(true);
-    try {
-      const res = await fetch("/api/campaigns/generate-template", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          templateType,
-          channel,
-          topic,
-          audienceDescription,
-          tone,
-          context:
-            `Filtros atuais: temperatura=${filters.temperature}, followStatus=${filters.followStatus}, ` +
-            `categoria=${filters.category}, tag=${filters.operationalTag}, busca=${filters.search}`,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data?.error || "Erro ao gerar template.");
-        return;
-      }
-
-      if (data?.title && !name.trim()) {
-        setName(data.title);
-      }
-
-      if (data?.generatedMessage) {
-        setMessage(data.generatedMessage);
-      }
-    } finally {
-      setGeneratingTemplate(false);
-    }
-  }
-
-  async function handleSaveCurrentTemplate() {
-    if (!workspaceId || !firestore) return;
-    if (!message.trim()) {
-      alert("Gere ou escreva uma mensagem antes de salvar o template.");
-      return;
-    }
   
-    setSavingTemplate(true);
-    try {
-      const now = new Date().toISOString();
-  
-      await createSavedCampaignTemplate(firestore, {
-        workspaceId,
-        name: templateNameToSave.trim() || name.trim() || "Template sem nome",
-        description: templateDescriptionToSave.trim() || null,
-        templateType,
-        channel,
-        tone,
-        topic: topic || null,
-        audienceDescription: audienceDescription || null,
-        message,
-        isFavorite: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-  
-      setTemplateNameToSave("");
-      setTemplateDescriptionToSave("");
-      alert("Template salvo com sucesso.");
-    } finally {
-      setSavingTemplate(false);
-    }
-  }
+  const reviewCount = messages.filter(m => m.status === 'awaiting_review').length;
+  const scheduledCount = messages.filter(m => m.status === 'scheduled').length;
+  const processingCount = messages.filter(m => m.status === 'processing').length;
+  const sentCount = messages.filter(m => m.status === 'sent').length;
+  const skippedCount = messages.filter(m => m.status === 'skipped').length;
+  const errorCount = messages.filter(m => m.status === 'error').length;
 
-  function applySavedTemplate(template: SavedCampaignTemplate) {
-    setName(template.name || "");
-    setChannel(template.channel || "instagram_dm");
-    setTemplateType(template.templateType || "aproximacao");
-    setTone(template.tone || "profissional");
-    setTopic(template.topic || "");
-    setAudienceDescription(template.audienceDescription || "");
-    setMessage(template.message || "");
-  }
-  
-  function duplicateCampaign(campaign: Campaign) {
-    setName(`${campaign.name} (cópia)`);
-    setChannel(campaign.channel || "instagram_dm");
-    setMessage(campaign.message || "");
-    setFilters(prev => ({
-        ...prev,
-        temperature: campaign.audienceFilters?.temperature || "all",
-        followStatus: campaign.audienceFilters?.followStatus || "all",
-        category: campaign.audienceFilters?.category || "all",
-        operationalTag: campaign.audienceFilters?.operationalTag || "all",
-        search: campaign.audienceFilters?.search || "",
-    }));
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -318,46 +390,34 @@ export default function CampanhasPage() {
           Central de Campanhas
         </h1>
         <p className="text-sm text-[#9CA3AF]">
-          Monte campanhas usando filtros inteligentes e dispare ações para públicos segmentados.
+          Monte campanhas com filtros inteligentes, IA, revisão de risco e disparo controlado.
         </p>
       </header>
 
       <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Em revisão</p>
-          <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "awaiting_review").length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-white">{reviewCount}</p>
         </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Agendadas</p>
-          <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "scheduled").length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-white">{scheduledCount}</p>
         </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Processando</p>
-          <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "processing").length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-white">{processingCount}</p>
         </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Enviadas</p>
-          <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "sent").length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-white">{sentCount}</p>
         </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Puladas</p>
-          <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "skipped").length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-white">{skippedCount}</p>
         </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Erros</p>
-          <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "error").length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-white">{errorCount}</p>
         </div>
       </section>
 
@@ -387,7 +447,7 @@ export default function CampanhasPage() {
               </label>
               <select
                 value={channel}
-                onChange={(e) => setChannel(e.target.value as CampaignChannel)}
+                onChange={(e) => setChannel(e.target.value as Channel)}
                 className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
               >
                 <option value="instagram_dm">Instagram DM</option>
@@ -403,7 +463,7 @@ export default function CampanhasPage() {
             </label>
             <select
                 value={audienceMode}
-                onChange={(e) => setAudienceMode(e.target.value as any)}
+                onChange={(e) => setAudienceMode(e.target.value as AudienceMode)}
                 className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
             >
                 <option value="profiles">Perfis (Engajamento)</option>
@@ -412,117 +472,138 @@ export default function CampanhasPage() {
             </select>
           </div>
 
-          {audienceMode === "competitor" ? (
-            <div className="grid gap-3 md:grid-cols-2 text-sm text-white p-3 rounded-xl border border-[#272046] bg-[#020012]">
-                <label className="flex items-center gap-2">
-                <input
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <select
+              value={temperature}
+              onChange={(e) =>
+                  setTemperature(
+                  e.target.value as "all" | "cold" | "warm" | "hot" | "priority",
+                  )
+              }
+              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              >
+              <option value="all">Todas as temperaturas</option>
+              <option value="cold">Frio</option>
+              <option value="warm">Morno</option>
+              <option value="hot">Quente</option>
+              <option value="priority">Prioridade</option>
+              </select>
+
+              <select
+              value={followStatus}
+              onChange={(e) =>
+                  setFollowStatus(
+                  e.target.value as "all" | "followers" | "non_followers",
+                  )
+              }
+              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              >
+              <option value="all">Todos</option>
+              <option value="followers">Já seguem</option>
+              <option value="non_followers">Não seguem</option>
+              </select>
+
+              <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              >
+              <option value="all">Todas as categorias</option>
+              {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                  {cat}
+                  </option>
+              ))}
+              </select>
+
+              <select
+              value={operationalTag}
+              onChange={(e) => setOperationalTag(e.target.value)}
+              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              >
+              <option value="all">Todas as tags</option>
+              {tags.map((tag) => (
+                  <option key={tag} value={tag}>
+                  {tag}
+                  </option>
+              ))}
+              </select>
+
+              <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Busca livre..."
+              className="xl:col-span-2 rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+              />
+          </div>
+
+          {audienceMode === "competitor" && (
+            <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4 flex flex-col gap-3">
+              <h3 className="text-sm font-semibold text-white">
+                Filtros para concorrentes
+              </h3>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <label className="flex items-center gap-2 text-sm text-white">
+                  <input
                     type="checkbox"
-                    checked={filters.onlyNonFollowers}
+                    checked={competitorOnlyNonFollowers}
                     onChange={(e) =>
-                    setFilters({ ...filters, onlyNonFollowers: e.target.checked })
+                      setCompetitorOnlyNonFollowers(e.target.checked)
                     }
-                />
-                Apenas quem NÃO segue você
+                  />
+                  Apenas quem não segue você
                 </label>
 
-                <label className="flex items-center gap-2">
-                <input
+                <label className="flex items-center gap-2 text-sm text-white">
+                  <input
                     type="checkbox"
-                    checked={filters.onlyEngaged}
+                    checked={competitorOnlyEngaged}
                     onChange={(e) =>
-                    setFilters({ ...filters, onlyEngaged: e.target.checked })
+                      setCompetitorOnlyEngaged(e.target.checked)
                     }
-                />
-                Apenas quem interagiu (não só visualizou)
+                  />
+                  Apenas quem interagiu
                 </label>
 
                 <select
-                    value={filters.sentiment}
-                    onChange={(e) =>
-                        setFilters({ ...filters, sentiment: e.target.value })
-                    }
-                    className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                  value={competitorSentiment}
+                  onChange={(e) => setCompetitorSentiment(e.target.value)}
+                  className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
                 >
-                    <option value="all">Todos os sentimentos</option>
-                    <option value="positive">Positivo</option>
-                    <option value="neutral">Neutro</option>
-                    <option value="negative">Negativo</option>
-                </select>
-                <select
-                    value={filters.interactionType}
-                    onChange={(e) =>
-                        setFilters({ ...filters, interactionType: e.target.value })
-                    }
-                    className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-                >
-                    <option value="all">Todas as interações</option>
-                    <option value="comment">Comentário</option>
-                    <option value="like">Curtida</option>
-                    <option value="view">Visualização</option>
-                </select>
-            </div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <select
-                value={filters.temperature}
-                onChange={(e) =>
-                    setFilters({ ...filters, temperature: e.target.value })
-                }
-                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-                >
-                <option value="all">Todas as temperaturas</option>
-                <option value="cold">Frio</option>
-                <option value="warm">Morno</option>
-                <option value="hot">Quente</option>
-                <option value="priority">Prioridade</option>
+                  <option value="all">Todos os sentimentos</option>
+                  <option value="positive">Positivo</option>
+                  <option value="neutral">Neutro</option>
+                  <option value="negative">Negativo</option>
                 </select>
 
                 <select
-                value={filters.followStatus}
-                onChange={(e) =>
-                    setFilters({ ...filters, followStatus: e.target.value })
-                }
-                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                  value={competitorInteractionType}
+                  onChange={(e) =>
+                    setCompetitorInteractionType(e.target.value)
+                  }
+                  className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
                 >
-                <option value="all">Todos</option>
-                <option value="followers">Já seguem</option>
-                <option value="non_followers">Não seguem</option>
+                  <option value="all">Todos os tipos</option>
+                  <option value="like">Curtida</option>
+                  <option value="comment">Comentário</option>
+                  <option value="view">Visualização</option>
+                  <option value="reaction">Reação</option>
                 </select>
 
                 <select
-                value={filters.category}
-                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                  value={competitorIdFilter}
+                  onChange={(e) => setCompetitorIdFilter(e.target.value)}
+                  className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
                 >
-                <option value="all">Todas as categorias</option>
-                {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                    {cat}
+                  <option value="all">Todos os concorrentes</option>
+                  {competitorIds.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
                     </option>
-                ))}
+                  ))}
                 </select>
-
-                <select
-                value={filters.operationalTag}
-                onChange={(e) =>
-                    setFilters({ ...filters, operationalTag: e.target.value })
-                }
-                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-                >
-                <option value="all">Todas as tags</option>
-                {tags.map((tag) => (
-                    <option key={tag} value={tag}>
-                    {tag}
-                    </option>
-                ))}
-                </select>
-
-                <input
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                placeholder="Busca livre..."
-                className="xl:col-span-2 rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-                />
+              </div>
             </div>
           )}
 
