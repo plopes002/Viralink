@@ -4,27 +4,11 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { useFirebase } from "@/firebase/provider";
-
-export interface CompetitorItem {
-  id: string;
-  workspaceId: string;
-  name: string;
-  username?: string | null;
-  platform?: "instagram" | "facebook" | "tiktok" | "youtube" | null;
-
-  followers?: number;
-  engagementRate?: number;
-  growthRate?: number;
-  avgLikes?: number;
-  avgComments?: number;
-
-  createdAt?: string;
-  updatedAt?: string;
-}
+import type { Competitor } from "@/types/competitor";
 
 export function useCompetitors(workspaceId?: string) {
   const { firestore } = useFirebase();
-  const [competitors, setCompetitors] = useState<CompetitorItem[]>([]);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,7 +32,7 @@ export function useCompetitors(workspaceId?: string) {
         const docs = snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as any),
-        })) as CompetitorItem[];
+        })) as Competitor[];
 
         setCompetitors(docs);
         setLoading(false);

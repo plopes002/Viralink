@@ -17,11 +17,13 @@ export function useSocialAccounts(workspaceId?: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!workspaceId) {
+    if (!workspaceId || !firestore) {
         setLoading(false);
         setAccounts([]);
         return;
     };
+    
+    setLoading(true);
 
     const colRef = collection(firestore, "socialAccounts");
     const q = query(colRef, where("workspaceId", "==", workspaceId));
@@ -31,8 +33,10 @@ export function useSocialAccounts(workspaceId?: string) {
       (snap) => {
         const docs: SocialAccount[] = snap.docs.map((d) => ({
           id: d.id,
+          name: d.data().displayName, // The DB uses displayName. I'll map it to name.
           ...(d.data() as any),
         }));
+        docs.sort((a, b) => Number(Boolean(b.isPrimary)) - Number(Boolean(a.isPrimary)));
         setAccounts(docs);
         setLoading(false);
       },

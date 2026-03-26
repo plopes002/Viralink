@@ -59,7 +59,7 @@ export default function SocialAccountsPage() {
         status: "expired" as const,
         label: "Conexão expirada",
         badgeClass: "bg-yellow-500/15 text-yellow-400",
-        accountName: acc.displayName,
+        accountName: acc.name,
       };
     }
 
@@ -68,7 +68,7 @@ export default function SocialAccountsPage() {
         status: "connected" as const,
         label: "Conectado",
         badgeClass: "bg-emerald-500/15 text-emerald-400",
-        accountName: acc.displayName,
+        accountName: acc.name,
       };
     }
 
@@ -77,7 +77,7 @@ export default function SocialAccountsPage() {
       status: "disconnected" as const,
       label: "Não conectado",
       badgeClass: "bg-rose-500/15 text-rose-400",
-      accountName: acc.displayName,
+      accountName: acc.name,
     };
   };
 

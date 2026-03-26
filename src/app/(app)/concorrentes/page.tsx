@@ -8,6 +8,8 @@ import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
 import { simulateCompetitorLeads } from "@/lib/simulateCompetitorLeads";
 import { importLeadToCRM } from "@/lib/importCompetitorLead";
 import { useFirebase } from "@/firebase/provider";
+import { useSocialAccounts } from "@/hooks/useSocialAccounts";
+import { useSocialMetricsHistory } from "@/hooks/useSocialMetricsHistory";
 
 function formatPercent(value?: number) {
   if (typeof value !== "number") return "-";
@@ -27,6 +29,8 @@ export default function ConcorrentesPage() {
   const { competitors, loading: loadingCompetitors } =
     useCompetitors(workspaceId);
 
+  const { accounts, loading: loadingAccounts } = useSocialAccounts(workspaceId);
+
   const [selectedCompetitorId, setSelectedCompetitorId] =
     useState<string | null>(null);
 
@@ -34,6 +38,22 @@ export default function ConcorrentesPage() {
     () =>
       competitors.find((c) => c.id === selectedCompetitorId) || null,
     [competitors, selectedCompetitorId],
+  );
+
+  const primaryAccount = useMemo(() => {
+    return accounts.find((a) => a.isPrimary) || accounts[0] || null;
+  }, [accounts]);
+
+  const { history: accountHistory } = useSocialMetricsHistory(
+    workspaceId,
+    "account",
+    primaryAccount?.id || null,
+  );
+
+  const { history: competitorHistory } = useSocialMetricsHistory(
+    workspaceId,
+    "competitor",
+    selectedCompetitorId,
   );
 
   useEffect(() => {
@@ -61,25 +81,26 @@ export default function ConcorrentesPage() {
   const positiveLeads = leads.filter((l) => l.sentiment === "positive").length;
 
   const comparison = useMemo(() => {
-    // ajuste aqui se você tiver métricas reais da conta principal no seu projeto
     const myAccount = {
-      followers: 125000,
-      engagementRate: 4.8,
-      growthRate: 6.3,
-      avgLikes: 2100,
-      avgComments: 180,
+      followers: primaryAccount?.followers || 0,
+      engagementRate: primaryAccount?.engagementRate || 0,
+      growthRate: primaryAccount?.growthRate || 0,
+      avgLikes: primaryAccount?.avgLikes || 0,
+      avgComments: primaryAccount?.avgComments || 0,
+      name: primaryAccount?.name || "Minha conta",
     };
-
+  
     const competitor = {
       followers: selectedCompetitor?.followers || 0,
       engagementRate: selectedCompetitor?.engagementRate || 0,
       growthRate: selectedCompetitor?.growthRate || 0,
       avgLikes: selectedCompetitor?.avgLikes || 0,
       avgComments: selectedCompetitor?.avgComments || 0,
+      name: selectedCompetitor?.name || "Concorrente",
     };
-
+  
     return { myAccount, competitor };
-  }, [selectedCompetitor]);
+  }, [primaryAccount, selectedCompetitor]);
 
   async function handleSimulateCapture() {
     if (!workspaceId || !selectedCompetitorId || !firestore) return;
@@ -240,62 +261,138 @@ export default function ConcorrentesPage() {
 
         {/* painel principal */}
         <div className="flex flex-col gap-4">
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+            <p className="text-[11px] text-[#9CA3AF]">Conta principal utilizada</p>
+            <p className="mt-1 text-sm text-white">
+                {loadingAccounts
+                ? "Carregando..."
+                : primaryAccount
+                ? `${primaryAccount.name} (@${primaryAccount.username || "-"})`
+                : "Nenhuma conta principal cadastrada."}
+            </p>
+        </div>
           {/* comparação */}
           <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
             <h2 className="text-sm font-semibold text-white mb-4">
-              Comparação: Minha conta × {selectedCompetitor?.name || "Concorrente"}
+              Comparação: {comparison.myAccount.name} × {comparison.competitor.name}
             </h2>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-xl bg-[#020012] p-4">
                 <p className="text-[11px] text-[#9CA3AF]">Seguidores</p>
                 <p className="mt-2 text-xs text-[#E5E7EB]">
-                  Minha conta: {comparison.myAccount.followers}
+                  {comparison.myAccount.name}: {comparison.myAccount.followers}
                 </p>
                 <p className="text-xs text-white">
-                  Concorrente: {comparison.competitor.followers}
+                  {comparison.competitor.name}: {comparison.competitor.followers}
                 </p>
               </div>
 
               <div className="rounded-xl bg-[#020012] p-4">
                 <p className="text-[11px] text-[#9CA3AF]">Engajamento</p>
                 <p className="mt-2 text-xs text-[#E5E7EB]">
-                  Minha conta: {formatPercent(comparison.myAccount.engagementRate)}
+                  {comparison.myAccount.name}: {formatPercent(comparison.myAccount.engagementRate)}
                 </p>
                 <p className="text-xs text-white">
-                  Concorrente: {formatPercent(comparison.competitor.engagementRate)}
+                  {comparison.competitor.name}: {formatPercent(comparison.competitor.engagementRate)}
                 </p>
               </div>
 
               <div className="rounded-xl bg-[#020012] p-4">
                 <p className="text-[11px] text-[#9CA3AF]">Crescimento</p>
                 <p className="mt-2 text-xs text-[#E5E7EB]">
-                  Minha conta: {formatPercent(comparison.myAccount.growthRate)}
+                  {comparison.myAccount.name}: {formatPercent(comparison.myAccount.growthRate)}
                 </p>
                 <p className="text-xs text-white">
-                  Concorrente: {formatPercent(comparison.competitor.growthRate)}
+                  {comparison.competitor.name}: {formatPercent(comparison.competitor.growthRate)}
                 </p>
               </div>
 
               <div className="rounded-xl bg-[#020012] p-4">
                 <p className="text-[11px] text-[#9CA3AF]">Média de curtidas</p>
                 <p className="mt-2 text-xs text-[#E5E7EB]">
-                  Minha conta: {comparison.myAccount.avgLikes}
+                  {comparison.myAccount.name}: {comparison.myAccount.avgLikes}
                 </p>
                 <p className="text-xs text-white">
-                  Concorrente: {comparison.competitor.avgLikes}
+                  {comparison.competitor.name}: {comparison.competitor.avgLikes}
                 </p>
               </div>
 
               <div className="rounded-xl bg-[#020012] p-4">
                 <p className="text-[11px] text-[#9CA3AF]">Média de comentários</p>
                 <p className="mt-2 text-xs text-[#E5E7EB]">
-                  Minha conta: {comparison.myAccount.avgComments}
+                  {comparison.myAccount.name}: {comparison.myAccount.avgComments}
                 </p>
                 <p className="text-xs text-white">
-                  Concorrente: {comparison.competitor.avgComments}
+                  {comparison.competitor.name}: {comparison.competitor.avgComments}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+            <h2 className="text-sm font-semibold text-white mb-4">
+                Evolução temporal lado a lado
+            </h2>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl bg-[#020012] p-4">
+                <p className="text-[11px] text-[#9CA3AF] mb-3">
+                    {comparison.myAccount.name}
+                </p>
+
+                <div className="flex flex-col gap-2">
+                    {accountHistory.length === 0 && (
+                    <p className="text-xs text-[#9CA3AF]">
+                        Sem histórico disponível.
+                    </p>
+                    )}
+
+                    {accountHistory.slice(-6).map((item) => (
+                    <div
+                        key={item.id}
+                        className="rounded-lg border border-[#272046] px-3 py-2"
+                    >
+                        <p className="text-[10px] text-[#7D8590]">{item.date}</p>
+                        <p className="text-xs text-white">
+                        Seguidores: {item.followers ?? "-"} • Engajamento:{" "}
+                        {typeof item.engagementRate === "number"
+                            ? `${item.engagementRate.toFixed(1)}%`
+                            : "-"}
+                        </p>
+                    </div>
+                    ))}
+                </div>
+                </div>
+
+                <div className="rounded-xl bg-[#020012] p-4">
+                <p className="text-[11px] text-[#9CA3AF] mb-3">
+                    {comparison.competitor.name}
+                </p>
+
+                <div className="flex flex-col gap-2">
+                    {competitorHistory.length === 0 && (
+                    <p className="text-xs text-[#9CA3AF]">
+                        Sem histórico disponível.
+                    </p>
+                    )}
+
+                    {competitorHistory.slice(-6).map((item) => (
+                    <div
+                        key={item.id}
+                        className="rounded-lg border border-[#272046] px-3 py-2"
+                    >
+                        <p className="text-[10px] text-[#7D8590]">{item.date}</p>
+                        <p className="text-xs text-white">
+                        Seguidores: {item.followers ?? "-"} • Engajamento:{" "}
+                        {typeof item.engagementRate === "number"
+                            ? `${item.engagementRate.toFixed(1)}%`
+                            : "-"}
+                        </p>
+                    </div>
+                    ))}
+                </div>
+                </div>
             </div>
           </div>
 
