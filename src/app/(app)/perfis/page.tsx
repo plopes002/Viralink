@@ -1,4 +1,3 @@
-
 // src/app/(app)/perfis/page.tsx
 "use client";
 
@@ -6,6 +5,8 @@ import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEngagementProfiles } from "@/hooks/useEngagementProfiles";
 import type { EngagementProfile } from "@/types/engagementProfile";
+import { importProfileToContact } from "@/lib/importProfileToContact";
+import { useFirebase } from "@/firebase/provider";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 type FollowFilter = "all" | "followers" | "non_followers";
@@ -26,6 +27,7 @@ function getTemperatureClass(temp?: string) {
 
 export default function PerfisConsolidadosPage() {
   const { currentWorkspace } = useWorkspace() as any;
+  const { firestore } = useFirebase();
   const workspaceId = currentWorkspace?.id;
 
   const { profiles, loading } = useEngagementProfiles(workspaceId);
@@ -39,6 +41,8 @@ export default function PerfisConsolidadosPage() {
   const [followFilter, setFollowFilter] =
     useState<FollowFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
+  const [importingOneId, setImportingOneId] = useState<string | null>(null);
+  const [importingBatch, setImportingBatch] = useState(false);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
@@ -132,7 +136,29 @@ export default function PerfisConsolidadosPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={importingBatch || filteredProfiles.length === 0}
+            onClick={async () => {
+              if (!firestore) return;
+              setImportingBatch(true);
+              try {
+                for (const profile of filteredProfiles) {
+                  await importProfileToContact(firestore, profile);
+                }
+                alert(
+                  `${filteredProfiles.length} perfil(is) foram adicionados ao CRM.`,
+                );
+              } finally {
+                setImportingBatch(false);
+              }
+            }}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827] disabled:opacity-60"
+          >
+            {importingBatch ? "Importando..." : "Adicionar filtrados ao CRM"}
+          </button>
+
           <button
             type="button"
             onClick={exportProfilesXlsx}
@@ -319,6 +345,24 @@ export default function PerfisConsolidadosPage() {
                     ))}
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!firestore) return;
+                    setImportingOneId(profile.id);
+                    try {
+                      await importProfileToContact(firestore, profile);
+                      alert(`${profile.name} foi adicionado ao CRM.`);
+                    } finally {
+                      setImportingOneId(null);
+                    }
+                  }}
+                  className="mt-3 rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                >
+                  {importingOneId === profile.id ? "Adicionando..." : "Adicionar ao CRM"}
+                </button>
               </button>
             ))}
           </div>
@@ -483,6 +527,26 @@ export default function PerfisConsolidadosPage() {
               )}
 
               <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!selectedProfile || !firestore) return;
+
+                    setImportingOneId(selectedProfile.id);
+                    try {
+                      await importProfileToContact(firestore, selectedProfile);
+                      alert(`${selectedProfile.name} foi adicionado ao CRM.`);
+                    } finally {
+                      setImportingOneId(null);
+                    }
+                  }}
+                  className="rounded-xl border border-[#272046] px-4 py-3 text-sm font-medium text-white hover:bg-[#111827]"
+                >
+                  {importingOneId === selectedProfile.id
+                    ? "Adicionando ao CRM..."
+                    : "Adicionar ao CRM"}
+                </button>
+                
                 {selectedProfile.phone && (
                   <button
                     type="button"
