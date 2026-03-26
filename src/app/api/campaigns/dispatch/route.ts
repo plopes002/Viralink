@@ -2,6 +2,11 @@
 import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
+import { DELIVERY_POLICIES } from '@/constants/deliveryPolicies';
+import { calculateCampaignRisk } from '@/lib/campaignRisk';
+import { hasRecentSimilarMessage } from '@/lib/messageDedup';
+import { scheduleMessageTime } from '@/lib/scheduleMessages';
+
 
 // Helper function to filter profiles based on various criteria
 function matchesFilters(profile: any, filters: any, audienceMode: string) {
@@ -98,6 +103,11 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    
+    const policy = DELIVERY_POLICIES[channel];
+    if (!policy) {
+        return NextResponse.json({ error: `Política de entrega não encontrada para o canal ${channel}.`}, { status: 400 });
+    }
 
     const collectionName =
         audienceMode === "contacts"
@@ -135,9 +145,19 @@ export async function POST(req: NextRequest) {
       matchesFilters(profile, filters || {}, audienceMode),
     );
 
-    // segurança anti-volume exagerado
-    const MAX_DISPATCH = 80;
-    const limitedRecipients = recipients.slice(0, MAX_DISPATCH);
+    const limitedRecipients = recipients.slice(0, policy.maxPerDay);
+
+    const risk = calculateCampaignRisk({
+        recipientsCount: limitedRecipients.length,
+        channel,
+        audienceMode,
+        hasColdLeads: limitedRecipients.some(p => p.leadTemperature === 'cold'),
+        hasNonFollowers: limitedRecipients.some(p => !p.isFollower),
+    });
+
+    const initialMessageStatus = risk === 'high' ? 'awaiting_review' : 'scheduled';
+    const campaignStatus = risk === 'high' ? 'draft' : 'queued';
+
 
     const now = new Date().toISOString();
 
@@ -148,12 +168,41 @@ export async function POST(req: NextRequest) {
       message,
       audienceFilters: filters || {},
       recipientsCount: limitedRecipients.length,
-      status: "queued",
+      status: campaignStatus,
       createdAt: now,
       updatedAt: now,
     });
 
+    let messageIndex = 0;
     for (const recipient of limitedRecipients) {
+        
+        const isDuplicate = await hasRecentSimilarMessage({
+            workspaceId,
+            toUser: recipient.username,
+            toPhone: recipient.phone,
+            channel,
+            lookbackHours: 72,
+        });
+
+        if (isDuplicate) {
+            await adminFirestore.collection("messages").add({
+                workspaceId,
+                campaignId: campaignRef.id,
+                toUser: recipient.username,
+                channel,
+                content: "Skipped due to recent contact",
+                status: "skipped",
+                createdAt: now,
+                errorMessage: "Deduplication: Recent similar message found.",
+            });
+            continue;
+        }
+
+        const scheduledAt = scheduleMessageTime({
+            channel,
+            index: messageIndex,
+        });
+
         const personalizedMessage =
             audienceMode === "competitor"
                 ? generateCompetitorMessage(message, recipient)
@@ -167,8 +216,10 @@ export async function POST(req: NextRequest) {
             toEmail: recipient.email || null,
             channel,
             content: applyVariables(personalizedMessage, recipient),
-            status: "queued",
+            status: initialMessageStatus,
+            scheduledAt,
             createdAt: now,
+            errorMessage: null,
         });
 
         if (audienceMode === "contacts") {
@@ -201,17 +252,19 @@ export async function POST(req: NextRequest) {
               createdAt: now,
             });
         }
+
+        messageIndex++;
     }
 
     return NextResponse.json({
       ok: true,
       campaignId: campaignRef.id,
       recipientsCount: limitedRecipients.length,
-      limited: recipients.length > MAX_DISPATCH,
+      limited: recipients.length > policy.maxPerDay,
       note:
-        recipients.length > MAX_DISPATCH
-          ? `Por segurança, apenas ${MAX_DISPATCH} destinatários foram enfileirados nesta ação.`
-          : "Campanha enfileirada com sucesso.",
+        recipients.length > policy.maxPerDay
+          ? `Por segurança, apenas ${policy.maxPerDay} destinatários foram enfileirados nesta ação.`
+          : `Campanha enfileirada com status: ${campaignStatus}.`,
     });
   } catch (err) {
     console.error("[campaign dispatch] erro:", err);

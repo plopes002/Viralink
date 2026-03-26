@@ -3,8 +3,11 @@ export type MessageChannel = "instagram_dm" | "facebook_dm" | "whatsapp";
 
 export type MessageStatus =
   | "queued"
+  | "awaiting_review"
+  | "scheduled"
   | "processing"
   | "sent"
+  | "skipped"
   | "error";
 
 export interface MessageItem {
@@ -19,6 +22,8 @@ export interface MessageItem {
   channel: MessageChannel;
   content: string;
   status: MessageStatus;
+
+  scheduledAt?: string | null; // ISO string
 
   errorMessage?: string | null;
   createdAt: string;

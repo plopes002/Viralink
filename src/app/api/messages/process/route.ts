@@ -43,7 +43,7 @@ async function refreshCampaignStatus(campaignId: string) {
   const items = snap.docs.map((d) => d.data() as any);
 
   const total = items.length;
-  const queued = items.filter((m) => m.status === "queued").length;
+  const queued = items.filter((m) => m.status === "queued" || m.status === "scheduled" || m.status === "awaiting_review").length;
   const processing = items.filter((m) => m.status === "processing").length;
   const sent = items.filter((m) => m.status === "sent").length;
   const error = items.filter((m) => m.status === "error").length;
@@ -66,10 +66,12 @@ async function refreshCampaignStatus(campaignId: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const now = new Date().toISOString();
     const snap = await adminFirestore
       .collection("messages")
-      .where("status", "==", "queued")
-      .limit(20)
+      .where("status", "==", "scheduled")
+      .where("scheduledAt", "<=", now)
+      .limit(10)
       .get();
 
     const docs = snap.docs;
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         processed: 0,
-        note: "Nenhuma mensagem pendente.",
+        note: "Nenhuma mensagem agendada para agora.",
       });
     }
 
