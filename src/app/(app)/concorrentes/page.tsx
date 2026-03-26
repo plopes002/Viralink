@@ -18,6 +18,7 @@ import {
   formatVariation,
 } from "@/lib/metricsPeriod";
 import { generateCompetitorInsights, generateSummary } from "@/lib/competitorInsights";
+import type { CompetitorStrategyResult } from "@/types/competitorStrategy";
 
 
 function formatPercent(value?: number) {
@@ -126,6 +127,8 @@ export default function ConcorrentesPage() {
   const [dispatching, setDispatching] = useState(false);
   const [importingAll, setImportingAll] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [strategyLoading, setStrategyLoading] = useState(false);
+  const [strategyResult, setStrategyResult] = useState<CompetitorStrategyResult | null>(null);
 
   const totalLeads = leads.length;
   const engagedLeads = leads.filter((l) => l.hasInteracted).length;
@@ -234,6 +237,37 @@ export default function ConcorrentesPage() {
       );
     } finally {
       setDispatching(false);
+    }
+  }
+  
+  async function handleGenerateStrategy() {
+    if (!selectedCompetitor || !primaryAccount) return;
+  
+    setStrategyLoading(true);
+    try {
+      const res = await fetch("/api/competitors/generate-strategy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          myAccount: comparison.myAccount,
+          competitor: comparison.competitor,
+          periodDays,
+          variations,
+        }),
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        alert(data?.error || "Erro ao gerar análise estratégica.");
+        return;
+      }
+  
+      setStrategyResult(data);
+    } finally {
+      setStrategyLoading(false);
     }
   }
 
@@ -506,7 +540,7 @@ export default function ConcorrentesPage() {
             
             <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
               <h2 className="text-sm font-semibold text-white mb-3">
-                Análise automática
+                Análise Rápida (Sintética)
               </h2>
 
               <p className="text-sm text-white mb-3">
@@ -524,6 +558,111 @@ export default function ConcorrentesPage() {
                 ))}
               </div>
             </div>
+            
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleGenerateStrategy}
+                disabled={strategyLoading || !selectedCompetitor || !primaryAccount}
+                className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {strategyLoading ? "Gerando análise..." : "Gerar análise estratégica com IA"}
+              </button>
+            </div>
+            
+            {strategyResult && (
+              <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">
+                    Estratégia sugerida por IA
+                  </h2>
+                  <p className="mt-2 text-sm text-white">
+                    {strategyResult.summary}
+                  </p>
+                </div>
+            
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Forças</p>
+                    <div className="flex flex-col gap-2">
+                      {(strategyResult.strengths || []).map((item: string, idx: number) => (
+                        <p key={idx} className="text-xs text-[#E5E7EB]">
+                          • {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+            
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Fraquezas</p>
+                    <div className="flex flex-col gap-2">
+                      {(strategyResult.weaknesses || []).map((item: string, idx: number) => (
+                        <p key={idx} className="text-xs text-[#E5E7EB]">
+                          • {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+            
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Oportunidades</p>
+                    <div className="flex flex-col gap-2">
+                      {(strategyResult.opportunities || []).map((item: string, idx: number) => (
+                        <p key={idx} className="text-xs text-[#E5E7EB]">
+                          • {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+            
+                  <div className="rounded-xl bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Recomendações</p>
+                    <div className="flex flex-col gap-2">
+                      {(strategyResult.recommendations || []).map((item: string, idx: number) => (
+                        <p key={idx} className="text-xs text-[#E5E7EB]">
+                          • {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+            
+                {(strategyResult.suggestedCampaignTitle ||
+                  strategyResult.suggestedCampaignMessage) && (
+                  <div className="rounded-xl border border-[#272046] bg-[#020012] p-4">
+                    <p className="text-[11px] text-[#9CA3AF] mb-2">Campanha sugerida</p>
+            
+                    {strategyResult.suggestedCampaignTitle && (
+                      <p className="text-sm font-medium text-white mb-2">
+                        {strategyResult.suggestedCampaignTitle}
+                      </p>
+                    )}
+            
+                    {strategyResult.suggestedCampaignMessage && (
+                      <p className="text-xs text-[#E5E7EB] whitespace-pre-line">
+                        {strategyResult.suggestedCampaignMessage}
+                      </p>
+                    )}
+                    
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!strategyResult) return;
+                          setCampaignMessage(
+                            strategyResult.suggestedCampaignMessage || campaignMessage,
+                          );
+                        }}
+                        className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827]"
+                      >
+                        Usar mensagem sugerida na campanha
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
 
           {/* métricas dos leads capturados */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

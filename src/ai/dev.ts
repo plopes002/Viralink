@@ -9,3 +9,4 @@ import '@/ai/flows/generate-image-flow';
 import '@/ai/flows/suggest-categories';
 import '@/ai/flows/political-review-flow';
 import '@/ai/flows/generate-campaign-template';
+import '@/ai/flows/generate-competitor-strategy.ts';
