@@ -11,6 +11,12 @@ import { useFirebase } from "@/firebase/provider";
 import { useSocialAccounts } from "@/hooks/useSocialAccounts";
 import { useSocialMetricsHistory } from "@/hooks/useSocialMetricsHistory";
 import CompetitorComparisonChart from "@/components/charts/CompetitorComparisonChart";
+import CompetitorBarComparisonChart from "@/components/charts/CompetitorBarComparisonChart";
+import {
+  calculateVariationPercent,
+  filterHistoryByPeriod,
+  formatVariation,
+} from "@/lib/metricsPeriod";
 
 
 function formatPercent(value?: number) {
@@ -36,6 +42,8 @@ export default function ConcorrentesPage() {
   const [selectedCompetitorId, setSelectedCompetitorId] =
     useState<string | null>(null);
 
+  const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
+
   const selectedCompetitor = useMemo(
     () =>
       competitors.find((c) => c.id === selectedCompetitorId) || null,
@@ -57,6 +65,46 @@ export default function ConcorrentesPage() {
     "competitor",
     selectedCompetitorId,
   );
+
+  const filteredAccountHistory = useMemo(() => {
+    return filterHistoryByPeriod(accountHistory, periodDays);
+  }, [accountHistory, periodDays]);
+
+  const filteredCompetitorHistory = useMemo(() => {
+    return filterHistoryByPeriod(competitorHistory, periodDays);
+  }, [competitorHistory, periodDays]);
+
+  const variations = useMemo(() => {
+    return {
+      myFollowers: formatVariation(
+        calculateVariationPercent(filteredAccountHistory, "followers"),
+      ),
+      competitorFollowers: formatVariation(
+        calculateVariationPercent(filteredCompetitorHistory, "followers"),
+      ),
+  
+      myEngagement: formatVariation(
+        calculateVariationPercent(filteredAccountHistory, "engagementRate"),
+      ),
+      competitorEngagement: formatVariation(
+        calculateVariationPercent(filteredCompetitorHistory, "engagementRate"),
+      ),
+  
+      myLikes: formatVariation(
+        calculateVariationPercent(filteredAccountHistory, "avgLikes"),
+      ),
+      competitorLikes: formatVariation(
+        calculateVariationPercent(filteredCompetitorHistory, "avgLikes"),
+      ),
+  
+      myComments: formatVariation(
+        calculateVariationPercent(filteredAccountHistory, "avgComments"),
+      ),
+      competitorComments: formatVariation(
+        calculateVariationPercent(filteredCompetitorHistory, "avgComments"),
+      ),
+    };
+  }, [filteredAccountHistory, filteredCompetitorHistory]);
 
   useEffect(() => {
     if (!selectedCompetitorId && competitors.length > 0) {
@@ -331,26 +379,116 @@ export default function ConcorrentesPage() {
               </div>
             </div>
           </div>
+          
+          <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-[11px] text-[#9CA3AF]">Período de análise</p>
+                  <p className="text-sm text-white">
+                    Comparação temporal entre conta principal e concorrente selecionado
+                  </p>
+                </div>
 
-          <section className="grid gap-4 lg:grid-cols-2">
-            <CompetitorComparisonChart
-              title="Seguidores ao longo do tempo"
-              metric="followers"
-              myLabel={comparison.myAccount.name}
-              competitorLabel={comparison.competitor.name}
-              myHistory={accountHistory}
-              competitorHistory={competitorHistory}
-            />
+                <div className="flex gap-2">
+                  {[7, 30, 90].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => setPeriodDays(days as 7 | 30 | 90)}
+                      className={`rounded-xl px-4 py-2 text-sm ${
+                        periodDays === days
+                          ? "bg-[#8B5CF6] text-white"
+                          : "border border-[#272046] text-white hover:bg-[#111827]"
+                      }`}
+                    >
+                      {days} dias
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-            <CompetitorComparisonChart
-              title="Engajamento ao longo do tempo"
-              metric="engagementRate"
-              myLabel={comparison.myAccount.name}
-              competitorLabel={comparison.competitor.name}
-              myHistory={accountHistory}
-              competitorHistory={competitorHistory}
-            />
-          </section>
+            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+                <p className="text-[11px] text-[#9CA3AF]">Variação de seguidores</p>
+                <p className="mt-2 text-xs text-[#E5E7EB]">
+                  {comparison.myAccount.name}: {variations.myFollowers}
+                </p>
+                <p className="text-xs text-white">
+                  {comparison.competitor.name}: {variations.competitorFollowers}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+                <p className="text-[11px] text-[#9CA3AF]">Variação de engajamento</p>
+                <p className="mt-2 text-xs text-[#E5E7EB]">
+                  {comparison.myAccount.name}: {variations.myEngagement}
+                </p>
+                <p className="text-xs text-white">
+                  {comparison.competitor.name}: {variations.competitorEngagement}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+                <p className="text-[11px] text-[#9CA3AF]">Variação de likes médios</p>
+                <p className="mt-2 text-xs text-[#E5E7EB]">
+                  {comparison.myAccount.name}: {variations.myLikes}
+                </p>
+                <p className="text-xs text-white">
+                  {comparison.competitor.name}: {variations.competitorLikes}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+                <p className="text-[11px] text-[#9CA3AF]">Variação de comentários médios</p>
+                <p className="mt-2 text-xs text-[#E5E7EB]">
+                  {comparison.myAccount.name}: {variations.myComments}
+                </p>
+                <p className="text-xs text-white">
+                  {comparison.competitor.name}: {variations.competitorComments}
+                </p>
+              </div>
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-2">
+              <CompetitorComparisonChart
+                title={`Seguidores ao longo dos últimos ${periodDays} dias`}
+                metric="followers"
+                myLabel={comparison.myAccount.name}
+                competitorLabel={comparison.competitor.name}
+                myHistory={filteredAccountHistory}
+                competitorHistory={filteredCompetitorHistory}
+              />
+
+              <CompetitorComparisonChart
+                title={`Engajamento ao longo dos últimos ${periodDays} dias`}
+                metric="engagementRate"
+                myLabel={comparison.myAccount.name}
+                competitorLabel={comparison.competitor.name}
+                myHistory={filteredAccountHistory}
+                competitorHistory={filteredCompetitorHistory}
+              />
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-2">
+              <CompetitorBarComparisonChart
+                title={`Likes médios no período de ${periodDays} dias`}
+                metric="avgLikes"
+                myLabel={comparison.myAccount.name}
+                competitorLabel={comparison.competitor.name}
+                myHistory={filteredAccountHistory}
+                competitorHistory={filteredCompetitorHistory}
+              />
+
+              <CompetitorBarComparisonChart
+                title={`Comentários médios no período de ${periodDays} dias`}
+                metric="avgComments"
+                myLabel={comparison.myAccount.name}
+                competitorLabel={comparison.competitor.name}
+                myHistory={filteredAccountHistory}
+                competitorHistory={filteredCompetitorHistory}
+              />
+            </section>
 
           {/* métricas dos leads capturados */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
