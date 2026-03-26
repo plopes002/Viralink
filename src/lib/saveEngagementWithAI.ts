@@ -1,5 +1,6 @@
 // src/lib/saveEngagementWithAI.ts
 import { createEngagement } from "@/firebase/engagements";
+import { updateConsolidatedEngagementProfile } from "@/lib/updateEngagementProfile";
 import type { EngagementItem } from "@/types/engagement";
 import type { Firestore } from 'firebase/firestore';
 
@@ -30,7 +31,7 @@ export async function saveEngagementWithAI(
         sentiment = data.sentiment;
       }
     } catch (err) {
-      console.error("[saveEngagementWithAI] falha ao classificar:", err);
+      console.error("Erro sentimento:", err);
     }
   } else {
     sentiment =
@@ -41,8 +42,22 @@ export async function saveEngagementWithAI(
         : "neutral";
   }
 
-  return createEngagement(firestore, {
+  // 1️⃣ salva o engagement
+  const id = await createEngagement(firestore, {
     ...payload,
     interactionSentiment: sentiment,
   });
+
+  // 2️⃣ 🔥 TRIGGER AUTOMÁTICO DO PERFIL CONSOLIDADO
+  try {
+    await updateConsolidatedEngagementProfile(firestore, {
+      ...payload,
+      id,
+      interactionSentiment: sentiment,
+    } as any);
+  } catch (err) {
+    console.error("[AUTO PROFILE UPDATE ERROR]", err);
+  }
+
+  return id;
 }
