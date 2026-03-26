@@ -3,51 +3,57 @@ import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 
-function matchesFilters(profile: any, filters: any) {
-  if (filters.temperature && filters.temperature !== "all") {
-    if (profile.leadTemperature !== filters.temperature) return false;
-  }
-
-  if (filters.followStatus === "followers" && !profile.isFollower) {
-    return false;
-  }
-
-  if (filters.followStatus === "non_followers" && profile.isFollower) {
-    return false;
-  }
-
-  if (filters.category && filters.category !== "all") {
-    if (!(profile.categories || []).includes(filters.category)) {
-      return false;
+// Helper function to filter profiles based on various criteria
+function matchesFilters(profile: any, filters: any, audienceMode: string) {
+    if (audienceMode === "competitor") {
+        if (filters?.onlyNonFollowers && profile.isFollower) return false;
+        if (filters?.onlyEngaged && !profile.hasInteracted) return false;
+        if (filters?.sentiment && filters.sentiment !== 'all' && profile.sentiment !== filters.sentiment) return false;
+        if (filters?.interactionType && filters.interactionType !== 'all' && profile.interactionType !== filters.interactionType) return false;
+        return true;
     }
-  }
 
-  if (filters.operationalTag && filters.operationalTag !== "all") {
-    if (!(profile.operationalTags || []).includes(filters.operationalTag)) {
-      return false;
+    // Default filtering for profiles and contacts
+    if (filters.temperature && filters.temperature !== "all") {
+        if (profile.leadTemperature !== filters.temperature) return false;
     }
-  }
+    if (filters.followStatus === "followers" && !profile.isFollower) {
+        return false;
+    }
+    if (filters.followStatus === "non_followers" && profile.isFollower) {
+        return false;
+    }
+    if (filters.category && filters.category !== "all") {
+        if (!(profile.categories || []).includes(filters.category)) {
+        return false;
+        }
+    }
+    if (filters.operationalTag && filters.operationalTag !== "all") {
+        if (!(profile.operationalTags || []).includes(filters.operationalTag)) {
+        return false;
+        }
+    }
+    if (filters.search && String(filters.search).trim()) {
+        const term = String(filters.search).toLowerCase();
+        const haystack = [
+        profile.name,
+        profile.username,
+        ...(profile.categories || []),
+        ...(profile.interestTags || []),
+        ...(profile.operationalTags || []),
+        ...(profile.politicalEntities || []),
+        ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+        if (!haystack.includes(term)) return false;
+    }
 
-  if (filters.search && String(filters.search).trim()) {
-    const term = String(filters.search).toLowerCase();
-    const haystack = [
-      profile.name,
-      profile.username,
-      ...(profile.categories || []),
-      ...(profile.interestTags || []),
-      ...(profile.operationalTags || []),
-      ...(profile.politicalEntities || []),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    if (!haystack.includes(term)) return false;
-  }
-
-  return true;
+    return true;
 }
 
+
+// Helper to personalize messages with user data
 function applyVariables(message: string, profile: any) {
   const firstName = String(profile.name || "").split(" ")[0] || "";
   return message
@@ -55,6 +61,23 @@ function applyVariables(message: string, profile: any) {
     .replace(/\{\{nome_completo\}\}/gi, profile.name || "")
     .replace(/\{\{usuario\}\}/gi, profile.username || "");
 }
+
+
+// Helper to add context for competitor campaigns
+function generateCompetitorMessage(baseMessage: string, lead: any) {
+    let prefix = "";
+    if (lead.interactionType === "comment") {
+        prefix = "Vi que você comentou recentemente em um conteúdo 👀 ";
+    }
+    if (lead.interactionType === "like") {
+        prefix = "Vi que você curtiu um conteúdo recentemente 👍 ";
+    }
+    if (lead.interactionType === "view") {
+        prefix = "Notei que você visualizou um conteúdo recentemente 👀 ";
+    }
+    return `${prefix}${baseMessage}`;
+}
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,20 +99,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const collectionName = audienceMode === "contacts" ? "contacts" : "engagementProfiles";
+    const collectionName =
+        audienceMode === "contacts"
+            ? "contacts"
+            : audienceMode === "competitor"
+            ? "competitorLeads"
+            : "engagementProfiles";
 
     const baseSnap = await adminFirestore
       .collection(collectionName)
       .where("workspaceId", "==", workspaceId)
       .get();
 
-    const allRecipients = baseSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    }));
+    const allRecipients = baseSnap.docs.map((d) => {
+        const data = d.data() as any;
+        if (audienceMode === "competitor") {
+            return {
+                id: d.id,
+                username: data.username,
+                name: data.name || data.username,
+                hasInteracted: data.hasInteracted,
+                interactionType: data.interactionType,
+                sentiment: data.sentiment,
+                isFollower: data.isFollower,
+                workspaceId: data.workspaceId,
+            };
+        }
+        return {
+            id: d.id,
+            ...(data as any),
+        };
+    });
 
-    let recipients = allRecipients.filter((profile) =>
-      matchesFilters(profile, filters || {}),
+    const recipients = allRecipients.filter((profile) =>
+      matchesFilters(profile, filters || {}, audienceMode),
     );
 
     // segurança anti-volume exagerado
@@ -111,32 +154,53 @@ export async function POST(req: NextRequest) {
     });
 
     for (const recipient of limitedRecipients) {
-      await adminFirestore.collection("messages").add({
-        workspaceId,
-        campaignId: campaignRef.id,
-        toUser: recipient.username,
-        toPhone: recipient.phone || null,
-        toEmail: recipient.email || null,
-        channel,
-        content: applyVariables(message, recipient),
-        status: "queued",
-        createdAt: now,
-      });
+        const personalizedMessage =
+            audienceMode === "competitor"
+                ? generateCompetitorMessage(message, recipient)
+                : message;
 
-      if (audienceMode === "contacts") {
-        await adminFirestore.collection("contactHistory").add({
-          workspaceId,
-          contactId: recipient.id,
-          type: "campaign_sent",
-          title: "Campanha enviada",
-          description: `Campanha: ${name}`,
-          metadata: {
+        await adminFirestore.collection("messages").add({
+            workspaceId,
             campaignId: campaignRef.id,
+            toUser: recipient.username,
+            toPhone: recipient.phone || null,
+            toEmail: recipient.email || null,
             channel,
-          },
-          createdAt: now,
+            content: applyVariables(personalizedMessage, recipient),
+            status: "queued",
+            createdAt: now,
         });
-      }
+
+        if (audienceMode === "contacts") {
+            await adminFirestore.collection("contactHistory").add({
+                workspaceId,
+                contactId: recipient.id,
+                type: "campaign_sent",
+                title: "Campanha enviada",
+                description: `Campanha: ${name}`,
+                metadata: {
+                    campaignId: campaignRef.id,
+                    channel,
+                },
+                createdAt: now,
+            });
+        }
+        
+        if (audienceMode === "competitor") {
+            await adminFirestore.collection("contactHistory").add({
+              workspaceId,
+              contactId: recipient.id,
+              type: "campaign_sent",
+              title: "Campanha de concorrente enviada",
+              description: `Campanha: ${name}`,
+              metadata: {
+                channel,
+                competitor: true,
+                interactionType: recipient.interactionType,
+              },
+              createdAt: now,
+            });
+        }
     }
 
     return NextResponse.json({

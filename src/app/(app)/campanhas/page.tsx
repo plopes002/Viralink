@@ -18,6 +18,8 @@ import {
 } from "@/firebase/savedCampaignTemplates";
 import { useFirebase } from "@/firebase/provider";
 import type { SavedCampaignTemplate } from "@/types/savedCampaignTemplate";
+import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
+import { useContacts } from "@/hooks/useContacts";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 type FollowFilter = "all" | "followers" | "non_followers";
@@ -34,7 +36,9 @@ export default function CampanhasPage() {
   const { currentWorkspace } = useWorkspace() as any;
   const workspaceId = currentWorkspace?.id;
 
-  const { profiles, loading } = useEngagementProfiles(workspaceId);
+  const { profiles, loading: loadingProfiles } = useEngagementProfiles(workspaceId);
+  const { contacts, loading: loadingContacts } = useContacts(workspaceId);
+  const { leads: competitorLeads, loading: loadingLeads } = useCompetitorLeads(workspaceId);
   const { campaigns } = useCampaigns(workspaceId);
   const { messages } = useMessages(workspaceId);
   const { templates, loading: loadingTemplates } =
@@ -48,13 +52,21 @@ export default function CampanhasPage() {
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("instagram_dm");
   const [message, setMessage] = useState("");
-  const [temperature, setTemperature] =
-    useState<TemperatureFilter>("all");
-  const [followStatus, setFollowStatus] =
-    useState<FollowFilter>("all");
-  const [category, setCategory] = useState("all");
-  const [operationalTag, setOperationalTag] = useState("all");
-  const [search, setSearch] = useState("");
+  const [audienceMode, setAudienceMode] = useState<"profiles" | "contacts" | "competitor">("profiles");
+  
+  const [filters, setFilters] = useState({
+    temperature: "all",
+    followStatus: "all",
+    category: "all",
+    operationalTag: "all",
+    search: "",
+    // competitor filters
+    onlyNonFollowers: false,
+    onlyEngaged: false,
+    sentiment: "all",
+    interactionType: "all",
+  });
+
   const [dispatching, setDispatching] = useState(false);
 
   // AI states
@@ -68,6 +80,8 @@ export default function CampanhasPage() {
   const [templateNameToSave, setTemplateNameToSave] = useState("");
   const [templateDescriptionToSave, setTemplateDescriptionToSave] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  
+  const loading = loadingProfiles || loadingContacts || loadingLeads;
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -84,32 +98,42 @@ export default function CampanhasPage() {
   }, [profiles]);
 
   const previewRecipients = useMemo(() => {
-    return profiles.filter((profile) => {
-      if (temperature !== "all" && profile.leadTemperature !== temperature) {
+    let sourceData: any[];
+    if (audienceMode === 'contacts') {
+      sourceData = contacts;
+    } else if (audienceMode === 'competitor') {
+      sourceData = competitorLeads;
+    } else {
+      sourceData = profiles;
+    }
+  
+    return sourceData.filter((profile: any) => {
+      if (audienceMode === 'competitor') {
+        if (filters.onlyNonFollowers && profile.isFollower) return false;
+        if (filters.onlyEngaged && !profile.hasInteracted) return false;
+        if (filters.sentiment !== 'all' && profile.sentiment !== filters.sentiment) return false;
+        if (filters.interactionType !== 'all' && profile.interactionType !== filters.interactionType) return false;
+        return true;
+      }
+  
+      // Default logic for profiles and contacts
+      if (filters.temperature !== "all" && profile.leadTemperature !== filters.temperature) {
         return false;
       }
-
-      if (followStatus === "followers" && !profile.isFollower) {
+      if (filters.followStatus === "followers" && !profile.isFollower) {
         return false;
       }
-
-      if (followStatus === "non_followers" && profile.isFollower) {
+      if (filters.followStatus === "non_followers" && profile.isFollower) {
         return false;
       }
-
-      if (category !== "all" && !(profile.categories || []).includes(category)) {
+      if (filters.category !== "all" && !(profile.categories || []).includes(filters.category)) {
         return false;
       }
-
-      if (
-        operationalTag !== "all" &&
-        !(profile.operationalTags || []).includes(operationalTag)
-      ) {
+      if (filters.operationalTag !== "all" && !(profile.operationalTags || []).includes(filters.operationalTag)) {
         return false;
       }
-
-      if (search.trim()) {
-        const term = search.trim().toLowerCase();
+      if (filters.search.trim()) {
+        const term = filters.search.trim().toLowerCase();
         const haystack = [
           profile.name,
           profile.username,
@@ -121,13 +145,11 @@ export default function CampanhasPage() {
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
-
         if (!haystack.includes(term)) return false;
       }
-
       return true;
     });
-  }, [profiles, temperature, followStatus, category, operationalTag, search]);
+  }, [profiles, contacts, competitorLeads, filters, audienceMode]);
 
   async function handleDispatch() {
     if (!workspaceId) return;
@@ -148,13 +170,8 @@ export default function CampanhasPage() {
           name: name.trim(),
           channel,
           message,
-          filters: {
-            temperature,
-            followStatus,
-            category,
-            operationalTag,
-            search,
-          },
+          filters,
+          audienceMode,
         }),
       });
 
@@ -193,8 +210,8 @@ export default function CampanhasPage() {
           audienceDescription,
           tone,
           context:
-            `Filtros atuais: temperatura=${temperature}, followStatus=${followStatus}, ` +
-            `categoria=${category}, tag=${operationalTag}, busca=${search}`,
+            `Filtros atuais: temperatura=${filters.temperature}, followStatus=${filters.followStatus}, ` +
+            `categoria=${filters.category}, tag=${filters.operationalTag}, busca=${filters.search}`,
         }),
       });
 
@@ -265,11 +282,14 @@ export default function CampanhasPage() {
     setName(`${campaign.name} (cópia)`);
     setChannel(campaign.channel || "instagram_dm");
     setMessage(campaign.message || "");
-    setTemperature(campaign.audienceFilters?.temperature || "all");
-    setFollowStatus(campaign.audienceFilters?.followStatus || "all");
-    setCategory(campaign.audienceFilters?.category || "all");
-    setOperationalTag(campaign.audienceFilters?.operationalTag || "all");
-    setSearch(campaign.audienceFilters?.search || "");
+    setFilters(prev => ({
+        ...prev,
+        temperature: campaign.audienceFilters?.temperature || "all",
+        followStatus: campaign.audienceFilters?.followStatus || "all",
+        category: campaign.audienceFilters?.category || "all",
+        operationalTag: campaign.audienceFilters?.operationalTag || "all",
+        search: campaign.audienceFilters?.search || "",
+    }));
   }
 
   return (
@@ -320,8 +340,8 @@ export default function CampanhasPage() {
             Nova campanha
           </h2>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="md:col-span-2">
               <label className="block text-[11px] text-[#E5E7EB] mb-1">
                 Nome da campanha
               </label>
@@ -348,71 +368,136 @@ export default function CampanhasPage() {
               </select>
             </div>
           </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          
+          <div>
+            <label className="block text-[11px] text-[#E5E7EB] mb-1">
+              Público da campanha
+            </label>
             <select
-              value={temperature}
-              onChange={(e) =>
-                setTemperature(
-                  e.target.value as "all" | "cold" | "warm" | "hot" | "priority",
-                )
-              }
-              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                value={audienceMode}
+                onChange={(e) => setAudienceMode(e.target.value as any)}
+                className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
             >
-              <option value="all">Todas as temperaturas</option>
-              <option value="cold">Frio</option>
-              <option value="warm">Morno</option>
-              <option value="hot">Quente</option>
-              <option value="priority">Prioridade</option>
+                <option value="profiles">Perfis (Engajamento)</option>
+                <option value="contacts">Contatos (CRM)</option>
+                <option value="competitor">Leads de Concorrentes 🔥</option>
             </select>
-
-            <select
-              value={followStatus}
-              onChange={(e) =>
-                setFollowStatus(
-                  e.target.value as "all" | "followers" | "non_followers",
-                )
-              }
-              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-            >
-              <option value="all">Todos</option>
-              <option value="followers">Já seguem</option>
-              <option value="non_followers">Não seguem</option>
-            </select>
-
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-            >
-              <option value="all">Todas as categorias</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={operationalTag}
-              onChange={(e) => setOperationalTag(e.target.value)}
-              className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-            >
-              <option value="all">Todas as tags</option>
-              {tags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Busca livre..."
-              className="xl:col-span-2 rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
-            />
           </div>
+
+          {audienceMode === "competitor" ? (
+            <div className="grid gap-3 md:grid-cols-2 text-sm text-white p-3 rounded-xl border border-[#272046] bg-[#020012]">
+                <label className="flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    checked={filters.onlyNonFollowers}
+                    onChange={(e) =>
+                    setFilters({ ...filters, onlyNonFollowers: e.target.checked })
+                    }
+                />
+                Apenas quem NÃO segue você
+                </label>
+
+                <label className="flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    checked={filters.onlyEngaged}
+                    onChange={(e) =>
+                    setFilters({ ...filters, onlyEngaged: e.target.checked })
+                    }
+                />
+                Apenas quem interagiu (não só visualizou)
+                </label>
+
+                <select
+                    value={filters.sentiment}
+                    onChange={(e) =>
+                        setFilters({ ...filters, sentiment: e.target.value })
+                    }
+                    className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                    <option value="all">Todos os sentimentos</option>
+                    <option value="positive">Positivo</option>
+                    <option value="neutral">Neutro</option>
+                    <option value="negative">Negativo</option>
+                </select>
+                <select
+                    value={filters.interactionType}
+                    onChange={(e) =>
+                        setFilters({ ...filters, interactionType: e.target.value })
+                    }
+                    className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                    <option value="all">Todas as interações</option>
+                    <option value="comment">Comentário</option>
+                    <option value="like">Curtida</option>
+                    <option value="view">Visualização</option>
+                </select>
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <select
+                value={filters.temperature}
+                onChange={(e) =>
+                    setFilters({ ...filters, temperature: e.target.value })
+                }
+                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                <option value="all">Todas as temperaturas</option>
+                <option value="cold">Frio</option>
+                <option value="warm">Morno</option>
+                <option value="hot">Quente</option>
+                <option value="priority">Prioridade</option>
+                </select>
+
+                <select
+                value={filters.followStatus}
+                onChange={(e) =>
+                    setFilters({ ...filters, followStatus: e.target.value })
+                }
+                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                <option value="all">Todos</option>
+                <option value="followers">Já seguem</option>
+                <option value="non_followers">Não seguem</option>
+                </select>
+
+                <select
+                value={filters.category}
+                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                <option value="all">Todas as categorias</option>
+                {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                    {cat}
+                    </option>
+                ))}
+                </select>
+
+                <select
+                value={filters.operationalTag}
+                onChange={(e) =>
+                    setFilters({ ...filters, operationalTag: e.target.value })
+                }
+                className="rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                <option value="all">Todas as tags</option>
+                {tags.map((tag) => (
+                    <option key={tag} value={tag}>
+                    {tag}
+                    </option>
+                ))}
+                </select>
+
+                <input
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                placeholder="Busca livre..."
+                className="xl:col-span-2 rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                />
+            </div>
+          )}
+
 
           <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4 flex flex-col gap-3">
             <h3 className="text-sm font-semibold text-white">
@@ -605,13 +690,13 @@ export default function CampanhasPage() {
                         : "done",
                     )}`}
                   >
-                    {profile.leadTemperature}
+                    {profile.leadTemperature || profile.sentiment}
                   </span>
                 </div>
 
                 {(profile.operationalTags || []).length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {profile.operationalTags?.map((tag) => (
+                    {profile.operationalTags?.map((tag: any) => (
                       <span
                         key={tag}
                         className="rounded-full bg-[#111827] px-2 py-1 text-[10px] text-[#E5E7EB]"
