@@ -31,6 +31,18 @@ function getStatusClass(status?: string) {
   return "bg-amber-500/15 text-amber-400";
 }
 
+function getRiskLabel(risk?: string) {
+  if (risk === "high") return "Alto risco";
+  if (risk === "medium") return "Risco médio";
+  return "Baixo risco";
+}
+
+function getRiskClass(risk?: string) {
+  if (risk === "high") return "bg-rose-500/15 text-rose-400";
+  if (risk === "medium") return "bg-amber-500/15 text-amber-400";
+  return "bg-emerald-500/15 text-emerald-400";
+}
+
 export default function CampanhasPage() {
   const { firestore } = useFirebase();
   const { currentWorkspace } = useWorkspace() as any;
@@ -183,9 +195,16 @@ export default function CampanhasPage() {
       }
 
       alert(
-        data?.limited
-          ? `Campanha criada com limite de segurança. ${data.note}`
-          : `Campanha criada com sucesso para ${data.recipientsCount} perfil(is).`,
+        [
+          `Campanha criada com sucesso.`,
+          `Risco: ${data.riskLevel || "n/a"}`,
+          `Agendadas: ${data.scheduledCount ?? 0}`,
+          `Em revisão: ${data.reviewCount ?? 0}`,
+          `Puladas: ${data.skippedCount ?? 0}`,
+          data?.note || "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       );
 
       setName("");
@@ -303,28 +322,37 @@ export default function CampanhasPage() {
         </p>
       </header>
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
-          <p className="text-[11px] text-[#9CA3AF]">Mensagens na fila</p>
+          <p className="text-[11px] text-[#9CA3AF]">Em revisão</p>
           <p className="mt-1 text-2xl font-semibold text-white">
-            {messages.filter((m) => m.status === "queued").length}
+            {messages.filter((m) => m.status === "awaiting_review").length}
           </p>
         </div>
-      
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Agendadas</p>
+          <p className="mt-1 text-2xl font-semibold text-white">
+            {messages.filter((m) => m.status === "scheduled").length}
+          </p>
+        </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Processando</p>
           <p className="mt-1 text-2xl font-semibold text-white">
             {messages.filter((m) => m.status === "processing").length}
           </p>
         </div>
-      
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Enviadas</p>
           <p className="mt-1 text-2xl font-semibold text-white">
             {messages.filter((m) => m.status === "sent").length}
           </p>
         </div>
-      
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Puladas</p>
+          <p className="mt-1 text-2xl font-semibold text-white">
+            {messages.filter((m) => m.status === "skipped").length}
+          </p>
+        </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <p className="text-[11px] text-[#9CA3AF]">Erros</p>
           <p className="mt-1 text-2xl font-semibold text-white">
@@ -824,39 +852,70 @@ export default function CampanhasPage() {
                 (m) => m.campaignId === campaign.id,
               );
             
-              const queued = campaignMessages.filter((m) => m.status === "queued").length;
-              const processing = campaignMessages.filter((m) => m.status === "processing").length;
-              const sent = campaignMessages.filter((m) => m.status === "sent").length;
-              const error = campaignMessages.filter((m) => m.status === "error").length;
+              const awaitingReview = campaignMessages.filter(
+                (m) => m.status === "awaiting_review",
+              ).length;
+              const scheduled = campaignMessages.filter(
+                (m) => m.status === "scheduled",
+              ).length;
+              const processing = campaignMessages.filter(
+                (m) => m.status === "processing",
+              ).length;
+              const sent = campaignMessages.filter(
+                (m) => m.status === "sent",
+              ).length;
+              const skipped = campaignMessages.filter(
+                (m) => m.status === "skipped",
+              ).length;
+              const error = campaignMessages.filter(
+                (m) => m.status === "error",
+              ).length;
             
               return (
                 <div
                   key={campaign.id}
                   className="rounded-xl border border-[#272046] bg-[#020012] p-4"
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-white">
                         {campaign.name}
                       </p>
                       <p className="text-xs text-[#9CA3AF]">
-                        Canal: {campaign.channel} • Destinatários: {campaign.recipientsCount}
+                        Canal: {campaign.channel} • Público: {campaign.recipientsCount}
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span
+                          className={`text-[10px] px-3 py-1 rounded-full ${getStatusClass(
+                            campaign.status,
+                          )}`}
+                        >
+                          {campaign.status}
+                        </span>
+                        <span
+                          className={`text-[10px] px-3 py-1 rounded-full ${getRiskClass(
+                            campaign.riskLevel,
+                          )}`}
+                        >
+                          {getRiskLabel(campaign.riskLevel)}
+                        </span>
+                        {campaign.audienceMode && (
+                          <span className="text-[10px] px-3 py-1 rounded-full bg-[#111827] text-[#E5E7EB]">
+                            {campaign.audienceMode}
+                          </span>
+                        )}
+                      </div>
                     </div>
-            
-                    <span
-                      className={`text-[10px] px-3 py-1 rounded-full ${getStatusClass(
-                        campaign.status,
-                      )}`}
-                    >
-                      {campaign.status}
-                    </span>
                   </div>
             
-                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div className="mt-4 grid grid-cols-3 md:grid-cols-6 gap-2 text-center">
                     <div className="rounded-lg bg-[#111827] px-2 py-2">
-                      <p className="text-[10px] text-[#9CA3AF]">Fila</p>
-                      <p className="text-sm text-white">{queued}</p>
+                      <p className="text-[10px] text-[#9CA3AF]">Revisão</p>
+                      <p className="text-sm text-white">{awaitingReview}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#111827] px-2 py-2">
+                      <p className="text-[10px] text-[#9CA3AF]">Agendadas</p>
+                      <p className="text-sm text-white">{scheduled}</p>
                     </div>
                     <div className="rounded-lg bg-[#111827] px-2 py-2">
                       <p className="text-[10px] text-[#9CA3AF]">Proc.</p>
@@ -865,6 +924,10 @@ export default function CampanhasPage() {
                     <div className="rounded-lg bg-[#111827] px-2 py-2">
                       <p className="text-[10px] text-[#9CA3AF]">Enviadas</p>
                       <p className="text-sm text-white">{sent}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#111827] px-2 py-2">
+                      <p className="text-[10px] text-[#9CA3AF]">Puladas</p>
+                      <p className="text-sm text-white">{skipped}</p>
                     </div>
                     <div className="rounded-lg bg-[#111827] px-2 py-2">
                       <p className="text-[10px] text-[#9CA3AF]">Erros</p>
