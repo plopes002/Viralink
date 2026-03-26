@@ -891,6 +891,35 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "ProcessingQueueJob": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProcessingQueueJob",
+      "type": "object",
+      "description": "Represents a job in the background processing queue.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "engagement_profile_update",
+            "engagement_sentiment_analysis",
+            "engagement_category_suggestion",
+            "engagement_political_review"
+          ]
+        },
+        "workspaceId": { "type": "string" },
+        "engagementId": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "processing", "done", "error"]
+        },
+        "attempts": { "type": "number" },
+        "payload": { "type": "object" },
+        "errorMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "workspaceId", "status", "attempts", "createdAt", "updatedAt"]
     }
   },
   "auth": {
@@ -987,6 +1016,12 @@
         "$ref": "#/entities/EngagementProfile"
       },
       "description": "Stores consolidated engagement profiles for each user."
+    },
+    "/processingQueue/{jobId}": {
+      "schema": {
+        "$ref": "#/entities/ProcessingQueueJob"
+      },
+      "description": "Stores background jobs to be processed asynchronously."
     }
   }
 }

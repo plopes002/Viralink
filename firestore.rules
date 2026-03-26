@@ -122,5 +122,10 @@ service cloud.firestore {
       allow read: if isWorkspaceMember(resource.data.workspaceId);
       allow write: if isWorkspaceMember(request.resource.data.workspaceId);
     }
+
+    match /processingQueue/{jobId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if false; // Only backend can write
+    }
   }
 }

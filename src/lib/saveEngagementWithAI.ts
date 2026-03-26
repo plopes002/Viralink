@@ -1,63 +1,73 @@
 // src/lib/saveEngagementWithAI.ts
 import { createEngagement } from "@/firebase/engagements";
-import { updateConsolidatedEngagementProfile } from "@/lib/updateEngagementProfile";
+import { enqueueJob } from "@/firebase/processingQueue";
 import type { EngagementItem } from "@/types/engagement";
-import type { Firestore } from 'firebase/firestore';
+import type { Firestore } from "firebase/firestore";
 
 export async function saveEngagementWithAI(
   firestore: Firestore,
   payload: Omit<EngagementItem, "id" | "interactionSentiment">,
 ) {
-  let sentiment: "positive" | "neutral" | "negative" = "neutral";
+  const defaultSentiment =
+    payload.interactionType === "like" ||
+    payload.interactionType === "reaction" ||
+    payload.interactionType === "share"
+      ? "positive"
+      : "neutral";
 
-  const shouldAnalyze =
-    payload.interactionType === "comment" ||
-    payload.interactionType === "message";
-
-  if (shouldAnalyze && payload.interactionText) {
-    try {
-      const res = await fetch("/api/engagement/analyze-sentiment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: payload.interactionText,
-        }),
-      });
-
-      const data = await res.json();
-      if (data?.sentiment) {
-        sentiment = data.sentiment;
-      }
-    } catch (err) {
-      console.error("Erro sentimento:", err);
-    }
-  } else {
-    sentiment =
-      payload.interactionType === "like" ||
-      payload.interactionType === "reaction" ||
-      payload.interactionType === "share"
-        ? "positive"
-        : "neutral";
-  }
-
-  // 1️⃣ salva o engagement
-  const id = await createEngagement(firestore, {
+  const engagementId = await createEngagement(firestore, {
     ...payload,
-    interactionSentiment: sentiment,
+    interactionSentiment: defaultSentiment,
   });
 
-  // 2️⃣ 🔥 TRIGGER AUTOMÁTICO DO PERFIL CONSOLIDADO
-  try {
-    await updateConsolidatedEngagementProfile(firestore, {
-      ...payload,
-      id,
-      interactionSentiment: sentiment,
-    } as any);
-  } catch (err) {
-    console.error("[AUTO PROFILE UPDATE ERROR]", err);
+  // Fila para análise de sentimento
+  if (
+    payload.interactionType === "comment" ||
+    payload.interactionType === "message"
+  ) {
+    await enqueueJob(firestore, {
+      type: "engagement_sentiment_analysis",
+      workspaceId: payload.workspaceId,
+      engagementId,
+      payload: {
+        socialAccountId: payload.socialAccountId,
+        username: payload.username,
+      },
+    });
   }
 
-  return id;
+  // Fila para sugestão de categorias
+  await enqueueJob(firestore, {
+    type: "engagement_category_suggestion",
+    workspaceId: payload.workspaceId,
+    engagementId,
+    payload: {
+      socialAccountId: payload.socialAccountId,
+      username: payload.username,
+    },
+  });
+
+  // Fila para revisão de menções políticas
+  await enqueueJob(firestore, {
+    type: "engagement_political_review",
+    workspaceId: payload.workspaceId,
+    engagementId,
+    payload: {
+      socialAccountId: payload.socialAccountId,
+      username: payload.username,
+    },
+  });
+
+  // Fila para consolidar o perfil do usuário
+  await enqueueJob(firestore, {
+    type: "engagement_profile_update",
+    workspaceId: payload.workspaceId,
+    engagementId,
+    payload: {
+      socialAccountId: payload.socialAccountId,
+      username: payload.username,
+    },
+  });
+
+  return engagementId;
 }
