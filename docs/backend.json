@@ -813,7 +813,7 @@
         "toEmail": { "type": "string" },
         "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
         "content": { "type": "string" },
-        "status": { "type": "string", "enum": ["sent", "failed", "pending", "queued", "awaiting_review", "scheduled", "skipped", "error"] },
+        "status": { "type": "string", "enum": ["queued", "awaiting_review", "scheduled", "processing", "sent", "skipped", "error"] },
         "scheduledAt": { "type": "string", "format": "date-time" },
         "errorMessage": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },

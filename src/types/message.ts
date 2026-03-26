@@ -23,9 +23,9 @@ export interface MessageItem {
   content: string;
   status: MessageStatus;
 
-  scheduledAt?: string | null; // ISO string
-
+  scheduledAt?: string | null;
   errorMessage?: string | null;
+
   createdAt: string;
   updatedAt?: string;
 }
