@@ -19,6 +19,8 @@ import {
 } from "@/lib/metricsPeriod";
 import { generateCompetitorInsights, generateSummary } from "@/lib/competitorInsights";
 import type { CompetitorStrategyResult } from "@/types/competitorStrategy";
+import { saveCompetitorStrategyHistory } from "@/firebase/competitorStrategyHistory";
+import { useCompetitorStrategyHistory } from "@/hooks/useCompetitorStrategyHistory";
 
 
 function formatPercent(value?: number) {
@@ -129,6 +131,11 @@ export default function ConcorrentesPage() {
   const [simulating, setSimulating] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [strategyResult, setStrategyResult] = useState<CompetitorStrategyResult | null>(null);
+
+  const { history: strategyHistory } = useCompetitorStrategyHistory(
+    workspaceId,
+    selectedCompetitorId,
+  );
 
   const totalLeads = leads.length;
   const engagedLeads = leads.filter((l) => l.hasInteracted).length;
@@ -241,7 +248,7 @@ export default function ConcorrentesPage() {
   }
   
   async function handleGenerateStrategy() {
-    if (!selectedCompetitor || !primaryAccount) return;
+    if (!selectedCompetitor || !primaryAccount || !firestore) return;
   
     setStrategyLoading(true);
     try {
@@ -266,6 +273,22 @@ export default function ConcorrentesPage() {
       }
   
       setStrategyResult(data);
+
+      if (workspaceId && selectedCompetitorId) {
+        await saveCompetitorStrategyHistory(firestore, {
+          workspaceId,
+          competitorId: selectedCompetitorId,
+          periodDays,
+          summary: data.summary || "",
+          strengths: data.strengths || [],
+          weaknesses: data.weaknesses || [],
+          opportunities: data.opportunities || [],
+          recommendations: data.recommendations || [],
+          suggestedCampaignTitle: data.suggestedCampaignTitle || null,
+          suggestedCampaignMessage: data.suggestedCampaignMessage || null,
+          createdAt: new Date().toISOString(),
+        });
+      }
     } finally {
       setStrategyLoading(false);
     }
@@ -663,6 +686,41 @@ export default function ConcorrentesPage() {
               </section>
             )}
 
+            <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+              <h2 className="text-sm font-semibold text-white mb-4">
+                Histórico de análises estratégicas
+              </h2>
+
+              {strategyHistory.length === 0 && (
+                <p className="text-sm text-[#9CA3AF]">
+                  Nenhuma análise salva ainda.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {strategyHistory.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-[#272046] bg-[#020012] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-white font-medium">
+                        {item.periodDays} dias
+                      </p>
+
+                      <p className="text-xs text-[#9CA3AF]">
+                        {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+
+                    <p className="mt-2 text-xs text-[#E5E7EB]">
+                      {item.summary}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
 
           {/* métricas dos leads capturados */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -795,4 +853,29 @@ export default function ConcorrentesPage() {
       </section>
     </div>
   );
+}
+
+```
+  </change>
+  <change>
+    <file>src/types/competitorStrategyHistory.ts</file>
+    <content><![CDATA[// src/types/competitorStrategyHistory.ts
+export interface CompetitorStrategyHistoryItem {
+  id: string;
+
+  workspaceId: string;
+  competitorId: string;
+
+  periodDays: number;
+
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  recommendations: string[];
+
+  suggestedCampaignTitle?: string | null;
+  suggestedCampaignMessage?: string | null;
+
+  createdAt: string;
 }

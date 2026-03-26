@@ -1104,6 +1104,67 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["workspaceId", "reason", "createdAt"]
+    },
+    "CompetitorStrategyHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompetitorStrategyHistory",
+      "type": "object",
+      "description": "Represents a historical record of a generated competitor strategy analysis.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "competitorId": {
+          "type": "string"
+        },
+        "periodDays": {
+          "type": "number"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "strengths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weaknesses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "opportunities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedCampaignTitle": {
+          "type": "string"
+        },
+        "suggestedCampaignMessage": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "competitorId",
+        "periodDays",
+        "summary",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -1244,6 +1305,12 @@
         "$ref": "#/entities/SuppressionItem"
       },
       "description": "Stores users who should not receive automated messages."
+    },
+    "/competitorStrategyHistory/{historyId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorStrategyHistory"
+      },
+      "description": "Stores historical records of competitor strategy analyses."
     }
   }
 }
