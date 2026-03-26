@@ -18,6 +18,7 @@ import {
   FiHeart,
   FiUserCheck,
   FiSend,
+  FiBriefcase,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import { useUser } from "@/firebase/provider";
@@ -29,6 +30,7 @@ const BORDER = "#261341";
 
 const navItems = [
   { href: "/dashboard", label: "Visão geral", icon: FiHome },
+  { href: "/executivo", label: "Executivo", icon: FiBriefcase },
   { href: "/posts", label: "Posts & Agenda", icon: FiEdit3 },
   { href: "/automations", label: "Automações", icon: FiZap },
   { href: "/engajamento", label: "Engajamento", icon: FiHeart },
