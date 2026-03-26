@@ -1,3 +1,4 @@
+
 // src/lib/updateEngagementProfile.ts
 import { buildEngagementProfileFromItems } from "@/lib/engagementProfileScoring";
 import { getEngagementsByUser, upsertEngagementProfile } from "@/firebase/engagementProfiles";
@@ -16,10 +17,10 @@ export async function updateConsolidatedEngagementProfile(
   );
 
   if (allItems.length === 0) {
-      allItems.push(item);
+      allItems.push(item as any);
   }
 
-  const profile = buildEngagementProfileFromItems(allItems);
+  const profile = buildEngagementProfileFromItems(allItems as any);
   await upsertEngagementProfile(firestore, profile);
 
   return profile;

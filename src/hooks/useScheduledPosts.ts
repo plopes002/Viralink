@@ -1,3 +1,4 @@
+
 // src/hooks/useScheduledPosts.ts
 "use client";
 
@@ -40,14 +41,14 @@ interface UseScheduledPostsOptions {
 }
 
 export function useScheduledPosts({ workspaceId }: UseScheduledPostsOptions) {
-  const { firestore: db, areServicesAvailable } = useFirebase();
+  const { firestore: db } = useFirebase();
 
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!areServicesAvailable || !db || !workspaceId) {
+    if (!db || !workspaceId) {
       setPosts([]);
       setLoading(false);
       return;
@@ -102,7 +103,7 @@ export function useScheduledPosts({ workspaceId }: UseScheduledPostsOptions) {
     );
 
     return () => unsub();
-  }, [areServicesAvailable, db, workspaceId]);
+  }, [db, workspaceId]);
 
   // Mapear status "negócio" para as abas
   const mapped = useMemo(() => {

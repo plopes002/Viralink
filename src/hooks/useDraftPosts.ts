@@ -1,3 +1,4 @@
+
 // src/hooks/useDraftPosts.ts
 "use client";
 
@@ -30,14 +31,14 @@ interface UseDraftPostsOptions {
 }
 
 export function useDraftPosts({ workspaceId }: UseDraftPostsOptions) {
-  const { firestore: db, areServicesAvailable } = useFirebase();
+  const { firestore: db } = useFirebase();
 
   const [drafts, setDrafts] = useState<DraftPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!areServicesAvailable || !db || !workspaceId) {
+    if (!db || !workspaceId) {
       setDrafts([]);
       setLoading(false);
       return;
@@ -88,7 +89,7 @@ export function useDraftPosts({ workspaceId }: UseDraftPostsOptions) {
     );
 
     return () => unsub();
-  }, [areServicesAvailable, db, workspaceId]);
+  }, [db, workspaceId]);
 
   return {
     drafts,
