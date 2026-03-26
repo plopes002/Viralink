@@ -16,11 +16,13 @@ function generateMessage(base: string, lead: CompetitorLead): string {
   let prefix = "";
 
   if (lead.interactionType === "comment") {
-    prefix = "Vi que você comentou recentemente 👀 ";
+    prefix = "Vi que você comentou recentemente em um conteúdo 👀 ";
   } else if (lead.interactionType === "like") {
-    prefix = "Vi que você curtiu um conteúdo 👍 ";
+    prefix = "Vi que você curtiu um conteúdo recentemente 👍 ";
   } else if (lead.interactionType === "view") {
-    prefix = "Notei que você visualizou 👀 ";
+    prefix = "Notei que você visualizou um conteúdo recentemente 👀 ";
+  } else if (lead.interactionType === "reaction") {
+    prefix = "Vi que você reagiu a um conteúdo recentemente 👍 ";
   }
 
   return `${prefix}${base}`;

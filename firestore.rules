@@ -61,6 +61,11 @@ service cloud.firestore {
       allow read: if isWorkspaceMember(resource.data.workspaceId);
       allow write: if isWorkspaceMember(request.resource.data.workspaceId);
     }
+
+    match /competitors/{competitorId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceAdmin(request.resource.data.workspaceId);
+    }
     
     match /competitorLeads/{leadId} {
       allow read: if isWorkspaceMember(resource.data.workspaceId);
