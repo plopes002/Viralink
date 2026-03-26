@@ -152,5 +152,10 @@ service cloud.firestore {
     match /automations/{automationId} {
       allow read, write: if isWorkspaceMember(request.resource.data.workspaceId);
     }
+
+    match /suppressionList/{suppressionId} {
+        allow read: if isWorkspaceMember(resource.data.workspaceId);
+        allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
   }
 }

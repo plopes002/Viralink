@@ -9,13 +9,14 @@ export async function hasRecentSimilarMessage(params: {
   lookbackHours?: number;
 }) {
   const lookbackHours = params.lookbackHours ?? 72;
-  const since = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
+  const since = new Date(
+    Date.now() - lookbackHours * 60 * 60 * 1000,
+  ).toISOString();
 
   const snap = await adminFirestore
     .collection("messages")
     .where("workspaceId", "==", params.workspaceId)
     .where("channel", "==", params.channel)
-    .where("status", "in", ["scheduled", "processing", "sent"])
     .get();
 
   const rows = snap.docs.map((d) => d.data() as any);
@@ -25,6 +26,9 @@ export async function hasRecentSimilarMessage(params: {
       (params.toUser && m.toUser === params.toUser) ||
       (params.toPhone && m.toPhone === params.toPhone);
 
-    return sameTarget && String(m.createdAt || "") >= since;
+    const recentEnough = String(m.createdAt || "") >= since;
+    const activeStatus = ["scheduled", "processing", "sent"].includes(m.status);
+
+    return sameTarget && recentEnough && activeStatus;
   });
 }

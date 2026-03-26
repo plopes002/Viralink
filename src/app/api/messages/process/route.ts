@@ -43,19 +43,24 @@ async function refreshCampaignStatus(campaignId: string) {
   const items = snap.docs.map((d) => d.data() as any);
 
   const total = items.length;
-  const queued = items.filter((m) => m.status === "queued" || m.status === "scheduled" || m.status === "awaiting_review").length;
+  const queued = items.filter((m) => m.status === "queued").length;
+  const scheduled = items.filter((m) => m.status === "scheduled").length;
+  const review = items.filter((m) => m.status === "awaiting_review").length;
   const processing = items.filter((m) => m.status === "processing").length;
   const sent = items.filter((m) => m.status === "sent").length;
   const error = items.filter((m) => m.status === "error").length;
+  const skipped = items.filter((m) => m.status === "skipped").length;
 
   let campaignStatus: "queued" | "processing" | "done" | "error" = "queued";
 
-  if (error > 0 && sent === 0 && queued === 0 && processing === 0) {
-    campaignStatus = "error";
-  } else if (queued === 0 && processing === 0 && (sent + error) === total) {
-    campaignStatus = "done";
-  } else if (processing > 0 || sent > 0 || error > 0) {
+  if (review > 0 || scheduled > 0 || queued > 0) {
+    campaignStatus = "queued";
+  } else if (processing > 0) {
     campaignStatus = "processing";
+  } else if (sent + skipped >= total && total > 0) {
+    campaignStatus = "done";
+  } else if (error > 0 && sent === 0 && processing === 0) {
+    campaignStatus = "error";
   }
 
   await adminFirestore.collection("campaigns").doc(campaignId).update({

@@ -813,7 +813,8 @@
         "toEmail": { "type": "string" },
         "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
         "content": { "type": "string" },
-        "status": { "type": "string", "enum": ["sent", "failed", "pending", "queued", "processing", "error"] },
+        "status": { "type": "string", "enum": ["sent", "failed", "pending", "queued", "awaiting_review", "scheduled", "skipped", "error"] },
+        "scheduledAt": { "type": "string", "format": "date-time" },
         "errorMessage": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -1089,6 +1090,20 @@
           }
         }
       ]
+    },
+    "SuppressionItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SuppressionItem",
+      "type": "object",
+      "description": "Represents a user who has opted out of receiving automated messages.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "toUser": { "type": "string" },
+        "toPhone": { "type": "string" },
+        "reason": { "type": "string", "enum": ["manual", "stop_word", "sem_interesse", "bounce"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "reason", "createdAt"]
     }
   },
   "auth": {
@@ -1223,6 +1238,12 @@
         "$ref": "#/entities/AutomationRule"
       },
       "description": "Stores automation rules for the workspace."
+    },
+    "/suppressionList/{suppressionId}": {
+      "schema": {
+        "$ref": "#/entities/SuppressionItem"
+      },
+      "description": "Stores users who should not receive automated messages."
     }
   }
 }

@@ -20,6 +20,8 @@ import {
   FiSend,
   FiBriefcase,
   FiClipboard,
+  FiShield,
+  FiClock,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import { useUser } from "@/firebase/provider";
@@ -40,6 +42,8 @@ const navItems = [
   { href: "/campanhas", label: "Campanhas", icon: FiSend },
   { href: "/social-accounts", label: "Contas conectadas", icon: FiShare2 },
   { href: "/concorrentes", label: "Concorrentes", icon: FiUsers },
+  { href: "/fila", label: "Fila", icon: FiClock },
+  { href: "/revisao", label: "Revisão", icon: FiShield },
   { href: "/analytics", label: "Analytics", icon: FiBarChart2 },
   { href: "/settings", label: "Configurações", icon: FiSettings },
   { href: "/demo", label: "Modo Demo", icon: FiPlayCircle },

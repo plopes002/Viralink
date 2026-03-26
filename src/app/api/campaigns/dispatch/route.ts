@@ -6,6 +6,7 @@ import { DELIVERY_POLICIES } from '@/constants/deliveryPolicies';
 import { calculateCampaignRisk } from '@/lib/campaignRisk';
 import { hasRecentSimilarMessage } from '@/lib/messageDedup';
 import { scheduleMessageTime } from '@/lib/scheduleMessages';
+import { isSuppressed } from '@/lib/suppression';
 
 
 // Helper function to filter profiles based on various criteria
@@ -155,7 +156,6 @@ export async function POST(req: NextRequest) {
         hasNonFollowers: limitedRecipients.some(p => !p.isFollower),
     });
 
-    const initialMessageStatus = risk === 'high' ? 'awaiting_review' : 'scheduled';
     const campaignStatus = risk === 'high' ? 'draft' : 'queued';
 
 
@@ -176,15 +176,35 @@ export async function POST(req: NextRequest) {
     let messageIndex = 0;
     for (const recipient of limitedRecipients) {
         
-        const isDuplicate = await hasRecentSimilarMessage({
+        const suppressed = await isSuppressed({
             workspaceId,
-            toUser: recipient.username,
-            toPhone: recipient.phone,
-            channel,
-            lookbackHours: 72,
+            toUser: recipient.username || null,
+            toPhone: recipient.phone || null,
         });
 
-        if (isDuplicate) {
+        if (suppressed) {
+            await adminFirestore.collection("messages").add({
+                workspaceId,
+                campaignId: campaignRef.id,
+                toUser: recipient.username,
+                channel,
+                content: "Skipped due to suppression list",
+                status: "skipped",
+                createdAt: now,
+                errorMessage: "Suppression List: Recipient opted out.",
+            });
+            continue;
+        }
+
+        const duplicate = await hasRecentSimilarMessage({
+            workspaceId,
+            toUser: recipient.username || null,
+            toPhone: recipient.phone || null,
+            channel,
+            lookbackHours: audienceMode === 'competitor' ? 168 : 72,
+        });
+
+        if (duplicate) {
             await adminFirestore.collection("messages").add({
                 workspaceId,
                 campaignId: campaignRef.id,
@@ -197,6 +217,13 @@ export async function POST(req: NextRequest) {
             });
             continue;
         }
+        
+        const shouldReview =
+            risk === 'high' ||
+            (audienceMode === 'competitor' && !recipient.hasInteracted) ||
+            recipient.leadTemperature === 'cold';
+
+        const initialMessageStatus = shouldReview ? "awaiting_review" : "scheduled";
 
         const scheduledAt = scheduleMessageTime({
             channel,
@@ -217,7 +244,7 @@ export async function POST(req: NextRequest) {
             channel,
             content: applyVariables(personalizedMessage, recipient),
             status: initialMessageStatus,
-            scheduledAt,
+            scheduledAt: initialMessageStatus === 'scheduled' ? scheduledAt : null,
             createdAt: now,
             errorMessage: null,
         });

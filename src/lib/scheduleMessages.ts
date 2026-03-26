@@ -1,6 +1,24 @@
 // src/lib/scheduleMessages.ts
 import { DELIVERY_POLICIES } from "@/constants/deliveryPolicies";
-import { isQuietHours } from './deliveryGuards';
+
+function moveToAllowedWindow(date: Date, quietStart = 22, quietEnd = 8) {
+  const adjusted = new Date(date);
+  const hour = adjusted.getHours();
+
+  const inQuietHours =
+    quietStart > quietEnd
+      ? hour >= quietStart || hour < quietEnd
+      : hour >= quietStart && hour < quietEnd;
+
+  if (!inQuietHours) return adjusted;
+
+  if (hour >= quietStart) {
+    adjusted.setDate(adjusted.getDate() + 1);
+  }
+
+  adjusted.setHours(quietEnd, 0, 0, 0);
+  return adjusted;
+}
 
 export function scheduleMessageTime(params: {
   channel: "instagram_dm" | "facebook_dm" | "whatsapp";
@@ -8,28 +26,18 @@ export function scheduleMessageTime(params: {
   fromDate?: Date;
 }) {
   const { channel, index } = params;
-  const from = params.fromDate || new Date();
+  const base = params.fromDate || new Date();
   const policy = DELIVERY_POLICIES[channel];
 
-  let scheduled = new Date(from.getTime() + index * policy.minDelaySeconds * 1000);
+  const scheduled = new Date(
+    base.getTime() + index * policy.minDelaySeconds * 1000,
+  );
 
-  // Check for quiet hours and adjust if necessary
-  if (policy.quietHoursStart !== undefined && policy.quietHoursEnd !== undefined) {
-    while (isQuietHours(scheduled, policy.quietHoursStart, policy.quietHoursEnd)) {
-      // If it's in quiet hours, push it to the end of the quiet period
-      const quietEndHour = policy.quietHoursEnd;
-      const nextAvailableTime = new Date(scheduled);
-      
-      if (scheduled.getHours() >= policy.quietHoursStart) {
-        // It's tonight, so schedule for tomorrow morning
-        nextAvailableTime.setDate(nextAvailableTime.getDate() + 1);
-      }
-      
-      nextAvailableTime.setHours(quietEndHour, 0, 0, 0); // Set to start of next available slot
-      scheduled = new Date(nextAvailableTime.getTime() + (index * 15 * 1000)); // add a small jitter
-    }
-  }
+  const adjusted = moveToAllowedWindow(
+    scheduled,
+    policy.quietHoursStart,
+    policy.quietHoursEnd,
+  );
 
-
-  return scheduled.toISOString();
+  return adjusted.toISOString();
 }
