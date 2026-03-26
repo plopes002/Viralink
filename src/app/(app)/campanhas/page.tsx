@@ -45,6 +45,48 @@ function getRiskClass(risk?: string) {
   return "bg-emerald-500/15 text-emerald-400";
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+
+  try {
+    return new Date(value).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
+  }
+}
+
+function truncateText(text?: string | null, max = 120) {
+  if (!text) return "-";
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function getChannelErrorSummary(messages: any[]) {
+  const errors = messages.filter((m) => m.status === "error");
+
+  if (!errors.length) {
+    return {
+      channel: null,
+      count: 0,
+    };
+  }
+
+  const counts: Record<string, number> = {};
+
+  for (const msg of errors) {
+    counts[msg.channel] = (counts[msg.channel] || 0) + 1;
+  }
+
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const [channel, count] = sorted[0];
+
+  return { channel, count };
+}
+
 export default function CampanhasPage() {
   const { firestore } = useFirebase();
   const { currentWorkspace } = useWorkspace() as any;
@@ -951,6 +993,18 @@ export default function CampanhasPage() {
               const error = campaignMessages.filter(
                 (m) => m.status === "error",
               ).length;
+              
+              const upcomingScheduled = campaignMessages
+                .filter((m) => m.status === "scheduled" && m.scheduledAt)
+                .sort((a, b) => String(a.scheduledAt).localeCompare(String(b.scheduledAt)))
+                .slice(0, 3);
+            
+              const errorSummary = getChannelErrorSummary(campaignMessages);
+            
+              const previewMessage =
+                campaignMessages.find((m) => m.content && m.status === "sent") ||
+                campaignMessages.find((m) => m.content && m.status === "scheduled") ||
+                campaignMessages.find((m) => m.content);
             
               return (
                 <div
@@ -1013,6 +1067,55 @@ export default function CampanhasPage() {
                     <div className="rounded-lg bg-[#111827] px-2 py-2">
                       <p className="text-[10px] text-[#9CA3AF]">Erros</p>
                       <p className="text-sm text-white">{error}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    <div className="rounded-xl bg-[#111827] p-3">
+                      <p className="text-[10px] text-[#9CA3AF] mb-2">
+                        Próximos horários agendados
+                      </p>
+                  
+                      {upcomingScheduled.length === 0 ? (
+                        <p className="text-xs text-[#E5E7EB]">Nenhum horário agendado.</p>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {upcomingScheduled.map((msg) => (
+                            <p key={msg.id} className="text-xs text-[#E5E7EB]">
+                              {formatDateTime(msg.scheduledAt)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  
+                    <div className="rounded-xl bg-[#111827] p-3">
+                      <p className="text-[10px] text-[#9CA3AF] mb-2">
+                        Canal com maior erro
+                      </p>
+                  
+                      {errorSummary.channel ? (
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm text-white font-medium">
+                            {errorSummary.channel}
+                          </p>
+                          <p className="text-xs text-[#E5E7EB]">
+                            {errorSummary.count} erro(s)
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#E5E7EB]">Sem erros nesta campanha.</p>
+                      )}
+                    </div>
+                  
+                    <div className="rounded-xl bg-[#111827] p-3">
+                      <p className="text-[10px] text-[#9CA3AF] mb-2">
+                        Preview do texto final
+                      </p>
+                  
+                      <p className="text-xs text-[#E5E7EB] whitespace-pre-line">
+                        {truncateText(previewMessage?.content, 180)}
+                      </p>
                     </div>
                   </div>
 
