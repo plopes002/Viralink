@@ -116,7 +116,13 @@ export default function ContatosPage() {
     const now = new Date().toISOString();
 
     await updateContact(firestore, selectedContact.id, {
+      phone: selectedContact.phone || null,
+      email: selectedContact.email || null,
+      responsibleUser: selectedContact.responsibleUser || null,
+      city: selectedContact.city || null,
+      state: selectedContact.state || null,
       notes: selectedContact.notes || null,
+      detailedNotes: selectedContact.detailedNotes || null,
       contactStatus: selectedContact.contactStatus,
       lastContactAt: now,
       updatedAt: now,
@@ -126,16 +132,19 @@ export default function ContatosPage() {
       workspaceId,
       contactId: selectedContact.id,
       type: "manual_update",
-      title: "Contato atualizado",
+      title: "Contato atualizado manualmente",
       description: `Status: ${selectedContact.contactStatus}`,
       metadata: {
-        notes: selectedContact.notes || null,
+        phone: selectedContact.phone || null,
+        email: selectedContact.email || null,
+        responsibleUser: selectedContact.responsibleUser || null,
       },
       createdAt: now,
     });
 
     alert("Contato atualizado com sucesso.");
   }
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -323,21 +332,130 @@ export default function ContatosPage() {
               </div>
 
               <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+                <p className="text-[11px] text-[#7D8590] mb-3">Cadastro manual</p>
+              
                 <div className="grid gap-3">
                   <div>
-                    <p className="text-[11px] text-[#7D8590]">Telefone</p>
-                    <p className="text-sm text-white">
-                      {selectedContact.phone || "Não informado"}
-                    </p>
+                    <label className="block text-[11px] text-[#7D8590] mb-1">
+                      Telefone
+                    </label>
+                    <input
+                      value={selectedContact.phone || ""}
+                      onChange={(e) =>
+                        setSelectedContact({
+                          ...selectedContact,
+                          phone: e.target.value,
+                        })
+                      }
+                      placeholder="Ex.: 11999999999"
+                      className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+              
+                  <div>
+                    <label className="block text-[11px] text-[#7D8590] mb-1">
+                      E-mail
+                    </label>
+                    <input
+                      value={selectedContact.email || ""}
+                      onChange={(e) =>
+                        setSelectedContact({
+                          ...selectedContact,
+                          email: e.target.value,
+                        })
+                      }
+                      placeholder="Ex.: contato@email.com"
+                      className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                    />
                   </div>
 
                   <div>
-                    <p className="text-[11px] text-[#7D8590]">E-mail</p>
-                    <p className="text-sm text-white">
-                      {selectedContact.email || "Não informado"}
-                    </p>
+                    <label className="block text-[11px] text-[#7D8590] mb-1">
+                      Responsável
+                    </label>
+                    <input
+                      value={selectedContact.responsibleUser || ""}
+                      onChange={(e) =>
+                        setSelectedContact({
+                          ...selectedContact,
+                          responsibleUser: e.target.value,
+                        })
+                      }
+                      placeholder="Ex.: João / Equipe Norte"
+                      className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+              
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="block text-[11px] text-[#7D8590] mb-1">
+                        Cidade
+                      </label>
+                      <input
+                        value={selectedContact.city || ""}
+                        onChange={(e) =>
+                          setSelectedContact({
+                            ...selectedContact,
+                            city: e.target.value,
+                          })
+                        }
+                        placeholder="Ex.: São Paulo"
+                        className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                      />
+                    </div>
+              
+                    <div>
+                      <label className="block text-[11px] text-[#7D8590] mb-1">
+                        Estado
+                      </label>
+                      <input
+                        value={selectedContact.state || ""}
+                        onChange={(e) =>
+                          setSelectedContact({
+                            ...selectedContact,
+                            state: e.target.value,
+                          })
+                        }
+                        placeholder="Ex.: SP"
+                        className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                      />
+                    </div>
+                  </div>
+              
+                  <div>
+                    <label className="block text-[11px] text-[#7D8590] mb-1">
+                      Observações rápidas
+                    </label>
+                    <textarea
+                      value={selectedContact.notes || ""}
+                      onChange={(e) =>
+                        setSelectedContact({
+                          ...selectedContact,
+                          notes: e.target.value,
+                        })
+                      }
+                      placeholder="Anotações rápidas sobre este contato..."
+                      className="min-h-[100px] w-full rounded-2xl border border-[#272046] bg-[#020012] p-3 text-sm text-white"
+                    />
                   </div>
 
+                  <div>
+                    <label className="block text-[11px] text-[#7D8590] mb-1">
+                      Observações detalhadas
+                    </label>
+                    <textarea
+                      value={selectedContact.detailedNotes || ""}
+                      onChange={(e) =>
+                        setSelectedContact({
+                          ...selectedContact,
+                          detailedNotes: e.target.value,
+                        })
+                      }
+                      placeholder="Histórico mais detalhado, contexto político/comercial, objeções, promessas, próximos passos..."
+                      className="min-h-[160px] w-full rounded-2xl border border-[#272046] bg-[#020012] p-3 text-sm text-white"
+                    />
+                  </div>
+                  
                   <div>
                     <label className="block text-[11px] text-[#7D8590] mb-1">
                       Status do contato
@@ -358,23 +476,6 @@ export default function ContatosPage() {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] text-[#7D8590] mb-1">
-                      Observações
-                    </label>
-                    <textarea
-                      value={selectedContact.notes || ""}
-                      onChange={(e) =>
-                        setSelectedContact({
-                          ...selectedContact,
-                          notes: e.target.value,
-                        })
-                      }
-                      placeholder="Anotações sobre este contato..."
-                      className="min-h-[140px] w-full rounded-2xl border border-[#272046] bg-[#020012] p-3 text-sm text-white"
-                    />
                   </div>
                 </div>
               </div>

@@ -53,7 +53,12 @@ export interface ContactItem {
   lastContactAt?: string | null;
 
   responsibleUser?: string | null;
+
+  // novos campos mais úteis para operação
+  city?: string | null;
+  state?: string | null;
   notes?: string | null;
+  detailedNotes?: string | null;
 
   createdAt: string;
   updatedAt: string;
