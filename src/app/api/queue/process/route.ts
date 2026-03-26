@@ -83,6 +83,39 @@ async function updateConsolidatedProfile(engagement: any) {
         ...profileData,
         updatedAt: new Date().toISOString(),
     }, { merge: true });
+
+  if (
+    profileData.leadTemperature === "hot" ||
+    profileData.leadTemperature === "priority"
+  ) {
+    const now = new Date().toISOString();
+    const contactId = `${profileData.workspaceId}_${profileData.username}`;
+
+    await adminFirestore.collection("contacts").doc(contactId).set({
+        workspaceId: profileData.workspaceId,
+        profileId: profileId,
+        socialAccountId: profileData.socialAccountId || null,
+        name: profileData.name,
+        username: profileData.username,
+        avatar: profileData.avatar || null,
+        phone: profileData.phone || null,
+        email: profileData.email || null,
+        network: profileData.network || null,
+        categories: profileData.categories || [],
+        interestTags: profileData.interestTags || [],
+        customTags: profileData.customTags || [],
+        operationalTags: profileData.operationalTags || [],
+        leadTemperature: profileData.leadTemperature,
+        leadScore: profileData.leadScore,
+        lastInteractionAt: profileData.lastInteractionAt || null,
+        lastInteractionType: null,
+        lastInteractionText: null,
+        contactStatus: "novo",
+        notes: null,
+        createdAt: now,
+        updatedAt: now,
+    }, { merge: true });
+  }
 }
 
 export async function POST(req: NextRequest) {
