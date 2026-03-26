@@ -21,6 +21,7 @@ import { generateCompetitorInsights, generateSummary } from "@/lib/competitorIns
 import type { CompetitorStrategyResult } from "@/types/competitorStrategy";
 import { saveCompetitorStrategyHistory } from "@/firebase/competitorStrategyHistory";
 import { useCompetitorStrategyHistory } from "@/hooks/useCompetitorStrategyHistory";
+import { compareStrategySnapshots } from "@/lib/competitorStrategyComparison";
 
 
 function formatPercent(value?: number) {
@@ -137,6 +138,13 @@ export default function ConcorrentesPage() {
     selectedCompetitorId,
   );
 
+  const strategyComparison = useMemo(() => {
+    if (!strategyHistory || strategyHistory.length < 2) return null;
+  
+    const [current, previous] = strategyHistory;
+    return compareStrategySnapshots(current, previous);
+  }, [strategyHistory]);
+
   const totalLeads = leads.length;
   const engagedLeads = leads.filter((l) => l.hasInteracted).length;
   const notFollowers = leads.filter((l) => !l.isFollower).length;
@@ -248,7 +256,7 @@ export default function ConcorrentesPage() {
   }
   
   async function handleGenerateStrategy() {
-    if (!selectedCompetitor || !primaryAccount || !firestore) return;
+    if (!selectedCompetitor || !primaryAccount || !firestore || !selectedCompetitorId) return;
   
     setStrategyLoading(true);
     try {
@@ -276,17 +284,29 @@ export default function ConcorrentesPage() {
 
       if (workspaceId && selectedCompetitorId) {
         await saveCompetitorStrategyHistory(firestore, {
-          workspaceId,
-          competitorId: selectedCompetitorId,
-          periodDays,
-          summary: data.summary || "",
-          strengths: data.strengths || [],
-          weaknesses: data.weaknesses || [],
-          opportunities: data.opportunities || [],
-          recommendations: data.recommendations || [],
-          suggestedCampaignTitle: data.suggestedCampaignTitle || null,
-          suggestedCampaignMessage: data.suggestedCampaignMessage || null,
-          createdAt: new Date().toISOString(),
+            workspaceId,
+            competitorId: selectedCompetitorId,
+            periodDays,
+            summary: data.summary || "",
+            strengths: data.strengths || [],
+            weaknesses: data.weaknesses || [],
+            opportunities: data.opportunities || [],
+            recommendations: data.recommendations || [],
+            suggestedCampaignTitle: data.suggestedCampaignTitle || null,
+            suggestedCampaignMessage: data.suggestedCampaignMessage || null,
+            metrics: {
+                myFollowers: comparison.myAccount.followers || 0,
+                competitorFollowers: comparison.competitor.followers || 0,
+                myEngagementRate: comparison.myAccount.engagementRate || 0,
+                competitorEngagementRate: comparison.competitor.engagementRate || 0,
+                myGrowthRate: comparison.myAccount.growthRate || 0,
+                competitorGrowthRate: comparison.competitor.growthRate || 0,
+                myAvgLikes: comparison.myAccount.avgLikes || 0,
+                competitorAvgLikes: comparison.competitor.avgLikes || 0,
+                myAvgComments: comparison.myAccount.avgComments || 0,
+                competitorAvgComments: comparison.competitor.avgComments || 0,
+            },
+            createdAt: new Date().toISOString(),
         });
       }
     } finally {
@@ -686,6 +706,29 @@ export default function ConcorrentesPage() {
               </section>
             )}
 
+            {strategyComparison && (
+              <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+                <h2 className="text-sm font-semibold text-white mb-3">
+                  Comparação automática entre análises
+                </h2>
+            
+                <p className="text-sm text-white mb-3">
+                  {strategyComparison.summary}
+                </p>
+            
+                <div className="flex flex-col gap-2">
+                  {strategyComparison.insights.map((item, index) => (
+                    <div
+                      key={index}
+                      className="rounded-lg bg-[#020012] px-3 py-2 text-xs text-[#E5E7EB]"
+                    >
+                      • {item}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
               <h2 className="text-sm font-semibold text-white mb-4">
                 Histórico de análises estratégicas
@@ -856,26 +899,21 @@ export default function ConcorrentesPage() {
 }
 
 ```
-  </change>
-  <change>
-    <file>src/types/competitorStrategyHistory.ts</file>
-    <content><![CDATA[// src/types/competitorStrategyHistory.ts
-export interface CompetitorStrategyHistoryItem {
-  id: string;
+O que essa versão final tem
 
-  workspaceId: string;
-  competitorId: string;
+lista de concorrentes reais
+seleção do concorrente ativo
+comparação de métricas (minha conta X concorrente ativo)
+evolução temporal por período (7, 30, 90 dias)
+gráficos de linha (seguidores, engajamento)
+gráficos de barra (likes, comentários)
+análise de vantagens/desvantagens
+análise estratégica com IA
+histórico de análises estratégicas
+comparação automática entre análises
+captura de leads do concorrente
+importação para CRM
+campanha para leads do concorrente
 
-  periodDays: number;
-
-  summary: string;
-  strengths: string[];
-  weaknesses: string[];
-  opportunities: string[];
-  recommendations: string[];
-
-  suggestedCampaignTitle?: string | null;
-  suggestedCampaignMessage?: string | null;
-
-  createdAt: string;
-}
+Ou seja:
+É a versão completa, com tudo integrado.
