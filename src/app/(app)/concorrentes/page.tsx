@@ -17,6 +17,7 @@ import {
   filterHistoryByPeriod,
   formatVariation,
 } from "@/lib/metricsPeriod";
+import { generateCompetitorInsights, generateSummary } from "@/lib/competitorInsights";
 
 
 function formatPercent(value?: number) {
@@ -41,7 +42,7 @@ export default function ConcorrentesPage() {
 
   const [selectedCompetitorId, setSelectedCompetitorId] =
     useState<string | null>(null);
-
+    
   const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
 
   const selectedCompetitor = useMemo(
@@ -49,7 +50,7 @@ export default function ConcorrentesPage() {
       competitors.find((c) => c.id === selectedCompetitorId) || null,
     [competitors, selectedCompetitorId],
   );
-
+  
   const primaryAccount = useMemo(() => {
     return accounts.find((a) => a.isPrimary) || accounts[0] || null;
   }, [accounts]);
@@ -65,7 +66,7 @@ export default function ConcorrentesPage() {
     "competitor",
     selectedCompetitorId,
   );
-
+  
   const filteredAccountHistory = useMemo(() => {
     return filterHistoryByPeriod(accountHistory, periodDays);
   }, [accountHistory, periodDays]);
@@ -73,7 +74,7 @@ export default function ConcorrentesPage() {
   const filteredCompetitorHistory = useMemo(() => {
     return filterHistoryByPeriod(competitorHistory, periodDays);
   }, [competitorHistory, periodDays]);
-
+  
   const variations = useMemo(() => {
     return {
       myFollowers: formatVariation(
@@ -105,6 +106,7 @@ export default function ConcorrentesPage() {
       ),
     };
   }, [filteredAccountHistory, filteredCompetitorHistory]);
+
 
   useEffect(() => {
     if (!selectedCompetitorId && competitors.length > 0) {
@@ -151,6 +153,18 @@ export default function ConcorrentesPage() {
   
     return { myAccount, competitor };
   }, [primaryAccount, selectedCompetitor]);
+  
+  const insights = useMemo(() => {
+    return generateCompetitorInsights({
+      my: comparison.myAccount,
+      competitor: comparison.competitor,
+    });
+  }, [comparison]);
+
+  const summary = useMemo(() => {
+    return generateSummary(insights);
+  }, [insights]);
+
 
   async function handleSimulateCapture() {
     if (!workspaceId || !selectedCompetitorId || !firestore) return;
@@ -489,6 +503,27 @@ export default function ConcorrentesPage() {
                 competitorHistory={filteredCompetitorHistory}
               />
             </section>
+            
+            <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+              <h2 className="text-sm font-semibold text-white mb-3">
+                Análise automática
+              </h2>
+
+              <p className="text-sm text-white mb-3">
+                {summary}
+              </p>
+
+              <div className="flex flex-col gap-2">
+                {insights.map((insight, index) => (
+                  <div
+                    key={index}
+                    className="rounded-lg bg-[#020012] px-3 py-2 text-xs text-[#E5E7EB]"
+                  >
+                    • {insight}
+                  </div>
+                ))}
+              </div>
+            </div>
 
           {/* métricas dos leads capturados */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
