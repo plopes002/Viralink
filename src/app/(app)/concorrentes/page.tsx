@@ -10,6 +10,8 @@ import { importLeadToCRM } from "@/lib/importCompetitorLead";
 import { useFirebase } from "@/firebase/provider";
 import { useSocialAccounts } from "@/hooks/useSocialAccounts";
 import { useSocialMetricsHistory } from "@/hooks/useSocialMetricsHistory";
+import CompetitorComparisonChart from "@/components/charts/CompetitorComparisonChart";
+
 
 function formatPercent(value?: number) {
   if (typeof value !== "number") return "-";
@@ -330,71 +332,25 @@ export default function ConcorrentesPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
-            <h2 className="text-sm font-semibold text-white mb-4">
-                Evolução temporal lado a lado
-            </h2>
+          <section className="grid gap-4 lg:grid-cols-2">
+            <CompetitorComparisonChart
+              title="Seguidores ao longo do tempo"
+              metric="followers"
+              myLabel={comparison.myAccount.name}
+              competitorLabel={comparison.competitor.name}
+              myHistory={accountHistory}
+              competitorHistory={competitorHistory}
+            />
 
-            <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-xl bg-[#020012] p-4">
-                <p className="text-[11px] text-[#9CA3AF] mb-3">
-                    {comparison.myAccount.name}
-                </p>
-
-                <div className="flex flex-col gap-2">
-                    {accountHistory.length === 0 && (
-                    <p className="text-xs text-[#9CA3AF]">
-                        Sem histórico disponível.
-                    </p>
-                    )}
-
-                    {accountHistory.slice(-6).map((item) => (
-                    <div
-                        key={item.id}
-                        className="rounded-lg border border-[#272046] px-3 py-2"
-                    >
-                        <p className="text-[10px] text-[#7D8590]">{item.date}</p>
-                        <p className="text-xs text-white">
-                        Seguidores: {item.followers ?? "-"} • Engajamento:{" "}
-                        {typeof item.engagementRate === "number"
-                            ? `${item.engagementRate.toFixed(1)}%`
-                            : "-"}
-                        </p>
-                    </div>
-                    ))}
-                </div>
-                </div>
-
-                <div className="rounded-xl bg-[#020012] p-4">
-                <p className="text-[11px] text-[#9CA3AF] mb-3">
-                    {comparison.competitor.name}
-                </p>
-
-                <div className="flex flex-col gap-2">
-                    {competitorHistory.length === 0 && (
-                    <p className="text-xs text-[#9CA3AF]">
-                        Sem histórico disponível.
-                    </p>
-                    )}
-
-                    {competitorHistory.slice(-6).map((item) => (
-                    <div
-                        key={item.id}
-                        className="rounded-lg border border-[#272046] px-3 py-2"
-                    >
-                        <p className="text-[10px] text-[#7D8590]">{item.date}</p>
-                        <p className="text-xs text-white">
-                        Seguidores: {item.followers ?? "-"} • Engajamento:{" "}
-                        {typeof item.engagementRate === "number"
-                            ? `${item.engagementRate.toFixed(1)}%`
-                            : "-"}
-                        </p>
-                    </div>
-                    ))}
-                </div>
-                </div>
-            </div>
-          </div>
+            <CompetitorComparisonChart
+              title="Engajamento ao longo do tempo"
+              metric="engagementRate"
+              myLabel={comparison.myAccount.name}
+              competitorLabel={comparison.competitor.name}
+              myHistory={accountHistory}
+              competitorHistory={competitorHistory}
+            />
+          </section>
 
           {/* métricas dos leads capturados */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
