@@ -4,6 +4,7 @@
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useExecutiveMetrics } from "@/hooks/useExecutiveMetrics";
 import { useQueuePolling } from "@/hooks/useQueuePolling";
+import { useCompetitiveExecutiveSummary } from "@/hooks/useCompetitiveExecutiveSummary";
 
 function MetricCard({
   label,
@@ -28,6 +29,7 @@ export default function ExecutivoPage() {
   const workspaceId = currentWorkspace?.id;
 
   const { metrics, loading } = useExecutiveMetrics(workspaceId);
+  const competitiveSummary = useCompetitiveExecutiveSummary();
 
   useQueuePolling({
     enabled: !!workspaceId,
@@ -120,6 +122,147 @@ export default function ExecutivoPage() {
               value={metrics.queueErrors}
               helper="Jobs que precisam revisão"
             />
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Alertas críticos"
+              value={competitiveSummary.criticalCount}
+              helper="Situações de concorrência que exigem atenção"
+            />
+            <MetricCard
+              label="Alertas de atenção"
+              value={competitiveSummary.warningCount}
+              helper="Mudanças relevantes no cenário competitivo"
+            />
+            <MetricCard
+              label="Campanhas sugeridas"
+              value={competitiveSummary.suggestedCampaignsCount}
+              helper="Oportunidades prontas para ação"
+            />
+            <MetricCard
+              label="Ações pendentes"
+              value={
+                competitiveSummary.pendingReviewsCount +
+                competitiveSummary.campaignErrorsCount
+              }
+              helper="Itens que dependem de operador"
+            />
+          </section>
+
+          <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">
+                Prioridades competitivas
+              </h2>
+              <a
+                href="/concorrentes"
+                className="text-xs text-[#9CA3AF] hover:text-white"
+              >
+                Abrir concorrentes
+              </a>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {competitiveSummary.unreadCriticalAlerts.slice(0, 3).map((alert) => (
+                <div
+                  key={alert.id}
+                  className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-4"
+                >
+                  <p className="text-sm font-medium text-rose-300">
+                    {alert.title}
+                  </p>
+                  <p className="mt-1 text-xs text-[#E5E7EB]">
+                    {alert.description}
+                  </p>
+                </div>
+              ))}
+
+              {competitiveSummary.unreadCriticalAlerts.length === 0 && (
+                <p className="text-sm text-[#9CA3AF]">
+                  Nenhum alerta crítico de concorrente no momento.
+                </p>
+              )}
+            </div>
+          </section>
+          
+          <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">
+                Campanhas sugeridas
+              </h2>
+              <a
+                href="/campanhas"
+                className="text-xs text-[#9CA3AF] hover:text-white"
+              >
+                Abrir campanhas
+              </a>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {competitiveSummary.suggestedCampaignAlerts.slice(0, 3).map((alert: any) => (
+                <div
+                  key={alert.id}
+                  className="rounded-xl border border-[#272046] bg-[#020012] p-4"
+                >
+                  <p className="text-sm font-medium text-white">
+                    {alert.title}
+                  </p>
+                  <p className="mt-1 text-xs text-[#E5E7EB]">
+                    {alert.description}
+                  </p>
+
+                  <div className="mt-3">
+                    <a
+                      href={`/campanhas?audienceMode=competitor&competitorId=${alert.competitorId}`}
+                      className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                    >
+                      Criar campanha agora
+                    </a>
+                  </div>
+                </div>
+              ))}
+
+              {competitiveSummary.suggestedCampaignAlerts.length === 0 && (
+                <p className="text-sm text-[#9CA3AF]">
+                  Nenhuma campanha sugerida no momento.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">
+                Ações pendentes
+              </h2>
+              <a
+                href="/revisao"
+                className="text-xs text-[#9CA3AF] hover:text-white"
+              >
+                Abrir revisão
+              </a>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl bg-[#020012] p-4">
+                <p className="text-[11px] text-[#9CA3AF]">
+                  Mensagens em revisão
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-white">
+                  {competitiveSummary.pendingReviewsCount}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-[#020012] p-4">
+                <p className="text-[11px] text-[#9CA3AF]">
+                  Campanhas com erro
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-white">
+                  {competitiveSummary.campaignErrorsCount}
+                </p>
+              </div>
+            </div>
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
