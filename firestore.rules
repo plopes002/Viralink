@@ -61,6 +61,11 @@ service cloud.firestore {
       allow read: if isWorkspaceMember(resource.data.workspaceId);
       allow write: if isWorkspaceMember(request.resource.data.workspaceId);
     }
+    
+    match /competitorLeads/{leadId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
 
     match /posts/{postId} {
       // Members can read posts in their workspace
@@ -104,7 +109,6 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readBy'])
         && request.resource.data.readBy is list
         && request.resource.data.readBy.size() >= resource.data.readBy.size()
-        && request.resource.data.readBy.hasAll(resource.data.readBy)
         && request.resource.data.readBy.size() <= resource.data.readBy.size() + 1
         && (
           request.resource.data.readBy.size() == resource.data.readBy.size()

@@ -11,11 +11,15 @@ import {
 } from "react-icons/fi";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { Notification } from "@/types/notification";
-import { useUser } from "@/firebase/provider";
+import { useUser, useFirebase } from "@/firebase/provider";
 import { CompetitorAnalyticsSection } from "./components/CompetitorAnalyticsSection";
 import { useCompetitorMetrics } from "@/hooks/useCompetitorMetrics";
 import { useAccountMetrics } from "@/hooks/useAccountMetrics";
 import { CompetitorVsBrandSection } from "./components/CompetitorVsBrandSection";
+import { useCompetitorLeads } from "@/hooks/useCompetitorLeads";
+import { simulateCompetitorLeads } from "@/lib/simulateCompetitorLeads";
+import { importLeadToCRM } from "@/lib/importCompetitorLead";
+import type { CompetitorLead } from "@/types/competitorLead";
 
 // TODO: trocar por seus hooks reais de user/workspace
 function useCurrentUserAndWorkspace() {
@@ -119,6 +123,7 @@ function networkLabel(network: Competitor["network"]) {
 
 export default function CompetitorsPage() {
   const { uid, workspaceId } = useCurrentUserAndWorkspace();
+  const { firestore } = useFirebase();
 
   // TODO: filtrar concorrentes pelo workspaceId real
   const competitors = mockCompetitors;
@@ -137,6 +142,12 @@ export default function CompetitorsPage() {
     unreadCount,
     loading: loadingNotifs,
   } = useNotifications(workspaceId, uid);
+  
+  const leads = useCompetitorLeads(workspaceId);
+
+  const totalLeads = leads.length;
+  const engagedLeads = leads.filter(l => l.hasInteracted).length;
+  const notFollowerLeads = leads.filter(l => !l.isFollower).length;
 
   const competitorAlerts: Notification[] = useMemo(
     () =>
@@ -177,6 +188,18 @@ export default function CompetitorsPage() {
     clicks7d: competitorClicks7d,
     engagement7d: competitorEngagement7d,
   } = useCompetitorMetrics(selected?.id ?? null);
+  
+  const handleSimulateLeads = async () => {
+    if (workspaceId && selectedId) {
+      await simulateCompetitorLeads(firestore, workspaceId, selectedId);
+      alert('Leads de concorrentes simulados!');
+    }
+  };
+
+  const handleImportToCRM = async (lead: CompetitorLead) => {
+    await importLeadToCRM(firestore, lead);
+    alert(`@${lead.username} adicionado ao CRM.`);
+  };
 
 
   return (
@@ -193,17 +216,25 @@ export default function CompetitorsPage() {
             quando alguém disparar nas redes sociais.
           </p>
         </div>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-medium text-white"
-          style={{
-            background:
-              "linear-gradient(90deg,#7C3AED 0%,#EC4899 50%,#0EA5E9 100%)",
-          }}
-        >
-          <FiPlus size={13} />
-          Adicionar concorrente
-        </button>
+        <div className="flex gap-2">
+            <button
+            onClick={handleSimulateLeads}
+            className="bg-purple-600 px-4 py-2 rounded text-xs text-white"
+            >
+            Simular captura de leads
+            </button>
+            <button
+            type="button"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-medium text-white"
+            style={{
+                background:
+                "linear-gradient(90deg,#7C3AED 0%,#EC4899 50%,#0EA5E9 100%)",
+            }}
+            >
+            <FiPlus size={13} />
+            Adicionar concorrente
+            </button>
+        </div>
       </header>
 
       {/* KPIs */}
@@ -444,6 +475,52 @@ export default function CompetitorsPage() {
                       Curtidas + comentários / alcance
                     </p>
                   </div>
+                </div>
+              </div>
+              
+              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+                <h2 className="text-sm font-semibold text-white mb-4">
+                  Leads capturados dos concorrentes
+                </h2>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-xs text-[#9CA3AF]">Total</p>
+                    <p className="text-lg text-white">{totalLeads}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-[#9CA3AF]">Engajaram</p>
+                    <p className="text-lg text-green-400">{engagedLeads}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-[#9CA3AF]">Não seguem você</p>
+                    <p className="text-lg text-red-400">{notFollowerLeads}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {leads.map((lead) => (
+                    <div
+                      key={lead.id}
+                      className="rounded-xl border border-[#272046] p-3 flex justify-between"
+                    >
+                      <div>
+                        <p className="text-white text-sm">@{lead.username}</p>
+                        <p className="text-xs text-[#9CA3AF]">
+                          {lead.interactionType} • {lead.sentiment}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleImportToCRM(lead)}
+                        className="text-xs bg-purple-600 px-3 py-1 rounded"
+                      >
+                        Adicionar ao CRM
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
 

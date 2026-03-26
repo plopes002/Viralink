@@ -233,6 +233,24 @@
       },
       "required": ["createdAt", "followers"]
     },
+    "CompetitorLead": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompetitorLead",
+      "description": "Represents a lead captured from a competitor's audience.",
+      "type": "object",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "competitorId": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "isFollower": { "type": "boolean" },
+        "hasInteracted": { "type": "boolean" },
+        "interactionType": { "type": "string", "enum": ["like", "comment", "view"] },
+        "sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+        "extractedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "competitorId", "username", "isFollower", "hasInteracted", "extractedAt"]
+    },
     "Post": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Post",
@@ -1067,6 +1085,10 @@
         "$ref": "#/entities/CompetitorSnapshot"
       },
       "description": "Stores historical metrics snapshots for a competitor."
+    },
+    "/competitorLeads/{leadId}": {
+      "schema": { "$ref": "#/entities/CompetitorLead" },
+      "description": "Stores leads captured from competitor audiences."
     },
     "/workspaces/{workspaceId}": {
       "schema": {

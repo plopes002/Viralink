@@ -17,7 +17,7 @@ export function useProcessingQueue(workspaceId?: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!workspaceId) {
+    if (!workspaceId || !firestore) {
         setJobs([]);
         setLoading(false);
         return;
