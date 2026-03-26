@@ -8,6 +8,8 @@ import { useCampaigns } from "@/hooks/useCampaigns";
 import type { CampaignChannel } from "@/types/campaign";
 import { useMessages } from "@/hooks/useMessages";
 import { useQueuePolling } from "@/hooks/useQueuePolling";
+import { CAMPAIGN_TEMPLATE_TYPES } from "@/constants/campaignTemplateTypes";
+import type { CampaignTemplateType } from "@/types/campaignTemplate";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 type FollowFilter = "all" | "followers" | "non_followers";
@@ -32,7 +34,6 @@ export default function CampanhasPage() {
     intervalMs: 20000,
   });
 
-
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("instagram_dm");
   const [message, setMessage] = useState("");
@@ -44,6 +45,14 @@ export default function CampanhasPage() {
   const [operationalTag, setOperationalTag] = useState("all");
   const [search, setSearch] = useState("");
   const [dispatching, setDispatching] = useState(false);
+
+  // AI states
+  const [templateType, setTemplateType] =
+    useState<CampaignTemplateType>("aproximacao");
+  const [topic, setTopic] = useState("");
+  const [audienceDescription, setAudienceDescription] = useState("");
+  const [tone, setTone] = useState("profissional");
+  const [generatingTemplate, setGeneratingTemplate] = useState(false);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -151,6 +160,45 @@ export default function CampanhasPage() {
       setMessage("");
     } finally {
       setDispatching(false);
+    }
+  }
+
+  async function handleGenerateTemplate() {
+    setGeneratingTemplate(true);
+    try {
+      const res = await fetch("/api/campaigns/generate-template", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateType,
+          channel,
+          topic,
+          audienceDescription,
+          tone,
+          context:
+            `Filtros atuais: temperatura=${temperature}, followStatus=${followStatus}, ` +
+            `categoria=${category}, tag=${operationalTag}, busca=${search}`,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Erro ao gerar template.");
+        return;
+      }
+
+      if (data?.title && !name.trim()) {
+        setName(data.title);
+      }
+
+      if (data?.generatedMessage) {
+        setMessage(data.generatedMessage);
+      }
+    } finally {
+      setGeneratingTemplate(false);
     }
   }
 
@@ -294,6 +342,94 @@ export default function CampanhasPage() {
               placeholder="Busca livre..."
               className="xl:col-span-2 rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
             />
+          </div>
+
+          <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4 flex flex-col gap-3">
+            <h3 className="text-sm font-semibold text-white">
+              Gerar mensagem com IA
+            </h3>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-[11px] text-[#E5E7EB] mb-1">
+                  Tipo de campanha
+                </label>
+                <select
+                  value={templateType}
+                  onChange={(e) =>
+                    setTemplateType(e.target.value as CampaignTemplateType)
+                  }
+                  className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                  {CAMPAIGN_TEMPLATE_TYPES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-[#9CA3AF]">
+                  {
+                    CAMPAIGN_TEMPLATE_TYPES.find((item) => item.id === templateType)
+                      ?.description
+                  }
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-[#E5E7EB] mb-1">
+                  Tom de voz
+                </label>
+                <select
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                >
+                  <option value="profissional">Profissional</option>
+                  <option value="humano">Humano</option>
+                  <option value="proximo">Próximo</option>
+                  <option value="mobilizador">Mobilizador</option>
+                  <option value="convincente">Convincente</option>
+                  <option value="acolhedor">Acolhedor</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-[11px] text-[#E5E7EB] mb-1">
+                  Tema
+                </label>
+                <input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="Ex.: educação, segurança, evento..."
+                  className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-[#E5E7EB] mb-1">
+                  Descrição do público
+                </label>
+                <input
+                  value={audienceDescription}
+                  onChange={(e) => setAudienceDescription(e.target.value)}
+                  placeholder="Ex.: professores que interagiram"
+                  className="w-full rounded-xl border border-[#272046] bg-[#020012] px-3 py-2 text-sm text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleGenerateTemplate}
+                disabled={generatingTemplate}
+                className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827] disabled:opacity-60"
+              >
+                {generatingTemplate ? "Gerando..." : "Gerar mensagem com IA"}
+              </button>
+            </div>
           </div>
 
           <div>
