@@ -22,6 +22,10 @@ import type { CompetitorStrategyResult } from "@/types/competitorStrategy";
 import { saveCompetitorStrategyHistory } from "@/firebase/competitorStrategyHistory";
 import { useCompetitorStrategyHistory } from "@/hooks/useCompetitorStrategyHistory";
 import { compareStrategySnapshots } from "@/lib/competitorStrategyComparison";
+import { generateCompetitorAlerts } from "@/lib/competitorAlertsEngine";
+import { buildCompetitorAlertKey } from "@/lib/competitorAlertDedup";
+import { useCompetitorAlerts } from "@/hooks/useCompetitorAlerts";
+import { createCompetitorAlert, markCompetitorAlertAsRead } from "@/firebase/competitorAlerts";
 
 
 function formatPercent(value?: number) {
@@ -134,6 +138,11 @@ export default function ConcorrentesPage() {
   const [strategyResult, setStrategyResult] = useState<CompetitorStrategyResult | null>(null);
 
   const { history: strategyHistory } = useCompetitorStrategyHistory(
+    workspaceId,
+    selectedCompetitorId,
+  );
+
+  const { alerts: competitorAlerts } = useCompetitorAlerts(
     workspaceId,
     selectedCompetitorId,
   );
@@ -283,6 +292,23 @@ export default function ConcorrentesPage() {
       setStrategyResult(data);
 
       if (workspaceId && selectedCompetitorId) {
+        const newSnapshot = {
+          createdAt: new Date().toISOString(),
+          periodDays,
+          metrics: {
+              myFollowers: comparison.myAccount.followers || 0,
+              competitorFollowers: comparison.competitor.followers || 0,
+              myEngagementRate: comparison.myAccount.engagementRate || 0,
+              competitorEngagementRate: comparison.competitor.engagementRate || 0,
+              myGrowthRate: comparison.myAccount.growthRate || 0,
+              competitorGrowthRate: comparison.competitor.growthRate || 0,
+              myAvgLikes: comparison.myAccount.avgLikes || 0,
+              competitorAvgLikes: comparison.competitor.avgLikes || 0,
+              myAvgComments: comparison.myAccount.avgComments || 0,
+              competitorAvgComments: comparison.competitor.avgComments || 0,
+          },
+        };
+
         await saveCompetitorStrategyHistory(firestore, {
             workspaceId,
             competitorId: selectedCompetitorId,
@@ -294,20 +320,44 @@ export default function ConcorrentesPage() {
             recommendations: data.recommendations || [],
             suggestedCampaignTitle: data.suggestedCampaignTitle || null,
             suggestedCampaignMessage: data.suggestedCampaignMessage || null,
-            metrics: {
-                myFollowers: comparison.myAccount.followers || 0,
-                competitorFollowers: comparison.competitor.followers || 0,
-                myEngagementRate: comparison.myAccount.engagementRate || 0,
-                competitorEngagementRate: comparison.competitor.engagementRate || 0,
-                myGrowthRate: comparison.myAccount.growthRate || 0,
-                competitorGrowthRate: comparison.competitor.growthRate || 0,
-                myAvgLikes: comparison.myAccount.avgLikes || 0,
-                competitorAvgLikes: comparison.competitor.avgLikes || 0,
-                myAvgComments: comparison.myAccount.avgComments || 0,
-                competitorAvgComments: comparison.competitor.avgComments || 0,
-            },
-            createdAt: new Date().toISOString(),
+            metrics: newSnapshot.metrics,
+            createdAt: newSnapshot.createdAt,
         });
+
+        if (strategyHistory.length > 0) {
+          const previousSnapshot = strategyHistory[0];
+          const newAlerts = generateCompetitorAlerts({
+            current: newSnapshot,
+            previous: previousSnapshot,
+          });
+          const existingAlertKeys = new Set(competitorAlerts.map(a => a.metadata?.alertKey).filter(Boolean));
+
+          for (const alert of newAlerts) {
+            const alertKey = buildCompetitorAlertKey({
+              competitorId: selectedCompetitorId,
+              type: alert.type,
+              periodDays,
+            });
+
+            if (!existingAlertKeys.has(alertKey)) {
+              await createCompetitorAlert(firestore, {
+                workspaceId,
+                competitorId: selectedCompetitorId,
+                type: alert.type,
+                severity: alert.severity,
+                title: alert.title,
+                description: alert.description,
+                periodDays,
+                isRead: false,
+                metadata: {
+                  ...(alert.metadata || {}),
+                  alertKey,
+                },
+                createdAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
       }
     } finally {
       setStrategyLoading(false);
@@ -764,6 +814,71 @@ export default function ConcorrentesPage() {
               </div>
             </section>
 
+            <section className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-white">
+                  Alertas automáticos
+                </h2>
+                <span className="text-xs text-[#9CA3AF]">
+                  {competitorAlerts.filter((a) => !a.isRead).length} não lido(s)
+                </span>
+              </div>
+
+              {competitorAlerts.length === 0 && (
+                <p className="text-sm text-[#9CA3AF]">
+                  Nenhum alerta automático gerado ainda.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {competitorAlerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="rounded-xl border border-[#272046] bg-[#020012] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {alert.title}
+                        </p>
+                        <p className="mt-1 text-xs text-[#E5E7EB]">
+                          {alert.description}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-[10px] ${
+                          alert.severity === "critical"
+                            ? "bg-rose-500/15 text-rose-400"
+                            : alert.severity === "warning"
+                            ? "bg-amber-500/15 text-amber-400"
+                            : "bg-sky-500/15 text-sky-400"
+                        }`}
+                      >
+                        {alert.severity}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-[10px] text-[#9CA3AF]">
+                        {new Date(alert.createdAt).toLocaleDateString("pt-BR")}
+                      </p>
+
+                      {!alert.isRead && (
+                        <button
+                          type="button"
+                          onClick={() => markCompetitorAlertAsRead(firestore, alert.id)}
+                          className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+                        >
+                          Marcar como lido
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
 
           {/* métricas dos leads capturados */}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -898,7 +1013,6 @@ export default function ConcorrentesPage() {
   );
 }
 
-```
 O que essa versão final tem
 
 lista de concorrentes reais
