@@ -735,13 +735,18 @@
       "description": "Represents a message sent to a user.",
       "properties": {
         "workspaceId": { "type": "string" },
+        "campaignId": { "type": "string" },
         "toUser": { "type": "string" },
+        "toPhone": { "type": "string" },
+        "toEmail": { "type": "string" },
         "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
         "content": { "type": "string" },
-        "status": { "type": "string", "enum": ["sent", "failed", "pending"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "status": { "type": "string", "enum": ["sent", "failed", "pending", "queued", "processing", "error"] },
+        "errorMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["workspaceId", "toUser", "channel", "content", "status", "createdAt"]
+      "required": ["workspaceId", "channel", "content", "status", "createdAt"]
     },
     "EngagementProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",

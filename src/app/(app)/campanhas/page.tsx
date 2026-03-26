@@ -6,6 +6,8 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEngagementProfiles } from "@/hooks/useEngagementProfiles";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import type { CampaignChannel } from "@/types/campaign";
+import { useMessages } from "@/hooks/useMessages";
+import { useQueuePolling } from "@/hooks/useQueuePolling";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 type FollowFilter = "all" | "followers" | "non_followers";
@@ -23,6 +25,13 @@ export default function CampanhasPage() {
 
   const { profiles, loading } = useEngagementProfiles(workspaceId);
   const { campaigns } = useCampaigns(workspaceId);
+  const { messages } = useMessages(workspaceId);
+  
+  useQueuePolling({
+    enabled: !!workspaceId,
+    intervalMs: 20000,
+  });
+
 
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("instagram_dm");
@@ -155,6 +164,36 @@ export default function CampanhasPage() {
           Monte campanhas usando filtros inteligentes e dispare ações para públicos segmentados.
         </p>
       </header>
+
+      <section className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Mensagens na fila</p>
+          <p className="mt-1 text-2xl font-semibold text-white">
+            {messages.filter((m) => m.status === "queued").length}
+          </p>
+        </div>
+      
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Processando</p>
+          <p className="mt-1 text-2xl font-semibold text-white">
+            {messages.filter((m) => m.status === "processing").length}
+          </p>
+        </div>
+      
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Enviadas</p>
+          <p className="mt-1 text-2xl font-semibold text-white">
+            {messages.filter((m) => m.status === "sent").length}
+          </p>
+        </div>
+      
+        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Erros</p>
+          <p className="mt-1 text-2xl font-semibold text-white">
+            {messages.filter((m) => m.status === "error").length}
+          </p>
+        </div>
+      </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         {/* criação */}
@@ -368,31 +407,61 @@ export default function CampanhasPage() {
             </p>
           )}
 
-          {campaigns.map((campaign) => (
-            <div
-              key={campaign.id}
-              className="rounded-xl border border-[#272046] bg-[#020012] p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-white">
-                    {campaign.name}
-                  </p>
-                  <p className="text-xs text-[#9CA3AF]">
-                    Canal: {campaign.channel} • Destinatários: {campaign.recipientsCount}
-                  </p>
-                </div>
-
-                <span
-                  className={`text-[10px] px-3 py-1 rounded-full ${getStatusClass(
-                    campaign.status,
-                  )}`}
+            {campaigns.map((campaign) => {
+              const campaignMessages = messages.filter(
+                (m) => m.campaignId === campaign.id,
+              );
+            
+              const queued = campaignMessages.filter((m) => m.status === "queued").length;
+              const processing = campaignMessages.filter((m) => m.status === "processing").length;
+              const sent = campaignMessages.filter((m) => m.status === "sent").length;
+              const error = campaignMessages.filter((m) => m.status === "error").length;
+            
+              return (
+                <div
+                  key={campaign.id}
+                  className="rounded-xl border border-[#272046] bg-[#020012] p-4"
                 >
-                  {campaign.status}
-                </span>
-              </div>
-            </div>
-          ))}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        {campaign.name}
+                      </p>
+                      <p className="text-xs text-[#9CA3AF]">
+                        Canal: {campaign.channel} • Destinatários: {campaign.recipientsCount}
+                      </p>
+                    </div>
+            
+                    <span
+                      className={`text-[10px] px-3 py-1 rounded-full ${getStatusClass(
+                        campaign.status,
+                      )}`}
+                    >
+                      {campaign.status}
+                    </span>
+                  </div>
+            
+                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                    <div className="rounded-lg bg-[#111827] px-2 py-2">
+                      <p className="text-[10px] text-[#9CA3AF]">Fila</p>
+                      <p className="text-sm text-white">{queued}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#111827] px-2 py-2">
+                      <p className="text-[10px] text-[#9CA3AF]">Proc.</p>
+                      <p className="text-sm text-white">{processing}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#111827] px-2 py-2">
+                      <p className="text-[10px] text-[#9CA3AF]">Enviadas</p>
+                      <p className="text-sm text-white">{sent}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#111827] px-2 py-2">
+                      <p className="text-[10px] text-[#9CA3AF]">Erros</p>
+                      <p className="text-sm text-white">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </section>
     </div>
