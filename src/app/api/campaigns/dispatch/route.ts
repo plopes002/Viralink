@@ -4,6 +4,7 @@ import { adminFirestore } from "@/lib/firebaseAdmin";
 import { scheduleMessageTime } from "@/lib/scheduleMessages";
 import { hasRecentSimilarMessage } from "@/lib/messageDedup";
 import { isSuppressed } from "@/lib/suppression";
+import { getMasterScopeWorkspaceIds, getLinkedChildrenWithScopes } from "@/lib/multiAccountScope";
 
 type AudienceMode = "profiles" | "contacts" | "competitor";
 type CampaignChannel = "instagram_dm" | "facebook_dm" | "whatsapp";
@@ -26,7 +27,7 @@ function generateCompetitorMessage(baseMessage: string, lead: any) {
   } else if (lead.interactionType === "view") {
     prefix = "Notei que você visualizou um conteúdo recentemente 👀 ";
   } else if (lead.interactionType === "reaction") {
-    prefix = "Vi que você reagiu recentemente a um conteúdo 👀 ";
+    prefix = "Vi que você reagiu a um conteúdo recentemente 👍 ";
   }
 
   return `${prefix}${baseMessage}`;
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
 
     const {
       workspaceId,
+      includeChildWorkspaces = false,
       name,
       channel,
       message,
@@ -182,6 +184,7 @@ export async function POST(req: NextRequest) {
       audienceMode = "profiles",
     }: {
       workspaceId?: string;
+      includeChildWorkspaces?: boolean;
       name?: string;
       channel?: CampaignChannel;
       message?: string;
@@ -198,6 +201,18 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    
+    let workspaceIds: string[] = [workspaceId];
+
+    if (includeChildWorkspaces) {
+      const links = await getLinkedChildrenWithScopes(workspaceId);
+      workspaceIds = [
+        workspaceId,
+        ...links
+          .filter((l) => l.scopes?.campaigns)
+          .map((l) => l.childWorkspaceId),
+      ];
+    }
 
     const collectionName =
       audienceMode === "contacts"
@@ -206,38 +221,22 @@ export async function POST(req: NextRequest) {
         ? "competitorLeads"
         : "engagementProfiles";
 
-    const baseSnap = await adminFirestore
-      .collection(collectionName)
-      .where("workspaceId", "==", workspaceId)
-      .get();
+    const allDocsArrays = await Promise.all(
+      workspaceIds.map(async (wid) => {
+        const snap = await adminFirestore
+          .collection(collectionName)
+          .where("workspaceId", "==", wid)
+          .get();
 
-    const allRecipients = baseSnap.docs.map((d) => {
-      const data = d.data() as any;
-
-      if (audienceMode === "competitor") {
-        return {
+        return snap.docs.map((d) => ({
           id: d.id,
-          competitorId: data.competitorId || null,
-          username: data.username || null,
-          name: data.name || data.username || "Lead concorrente",
-          hasInteracted: !!data.hasInteracted,
-          interactionType: data.interactionType || null,
-          sentiment: data.sentiment || "neutral",
-          isFollower: !!data.isFollower,
-          workspaceId: data.workspaceId,
-          leadTemperature: "warm",
-          categories: ["concorrente"],
-          operationalTags: ["lead-concorrente"],
-          phone: data.phone || null,
-          email: data.email || null,
-        };
-      }
+          ...(d.data() as any),
+        }));
+      }),
+    );
 
-      return {
-        id: d.id,
-        ...(data as any),
-      };
-    });
+    const allRecipients = allDocsArrays.flat();
+
 
     const recipients = allRecipients.filter((recipient) => {
       if (!matchesCommonFilters(recipient, filters)) return false;
@@ -290,14 +289,14 @@ export async function POST(req: NextRequest) {
       const recipient = limitedRecipients[index];
 
       const suppressed = await isSuppressed({
-        workspaceId,
+        workspaceId: recipient.workspaceId, // Use recipient's workspaceId
         toUser: recipient.username || null,
         toPhone: recipient.phone || null,
       });
 
       if (suppressed) {
         await adminFirestore.collection("messages").add({
-          workspaceId,
+          workspaceId: recipient.workspaceId,
           campaignId: campaignRef.id,
           toUser: recipient.username || null,
           toPhone: recipient.phone || null,
@@ -315,7 +314,7 @@ export async function POST(req: NextRequest) {
       }
 
       const duplicate = await hasRecentSimilarMessage({
-        workspaceId,
+        workspaceId: recipient.workspaceId,
         toUser: recipient.username || null,
         toPhone: recipient.phone || null,
         channel,
@@ -324,7 +323,7 @@ export async function POST(req: NextRequest) {
 
       if (duplicate) {
         await adminFirestore.collection("messages").add({
-          workspaceId,
+          workspaceId: recipient.workspaceId,
           campaignId: campaignRef.id,
           toUser: recipient.username || null,
           toPhone: recipient.phone || null,
@@ -356,7 +355,7 @@ export async function POST(req: NextRequest) {
 
       if (review) {
         await adminFirestore.collection("messages").add({
-          workspaceId,
+          workspaceId: recipient.workspaceId,
           campaignId: campaignRef.id,
           toUser: recipient.username || null,
           toPhone: recipient.phone || null,
@@ -378,7 +377,7 @@ export async function POST(req: NextRequest) {
         });
 
         await adminFirestore.collection("messages").add({
-          workspaceId,
+          workspaceId: recipient.workspaceId,
           campaignId: campaignRef.id,
           toUser: recipient.username || null,
           toPhone: recipient.phone || null,
@@ -396,7 +395,7 @@ export async function POST(req: NextRequest) {
 
       if (audienceMode === "contacts") {
         await adminFirestore.collection("contactHistory").add({
-          workspaceId,
+          workspaceId: recipient.workspaceId,
           contactId: recipient.id,
           type: "campaign_sent",
           title: "Campanha enviada",
@@ -412,7 +411,7 @@ export async function POST(req: NextRequest) {
 
       if (audienceMode === "competitor") {
         await adminFirestore.collection("contactHistory").add({
-          workspaceId,
+          workspaceId: recipient.workspaceId,
           contactId: recipient.id,
           type: "campaign_sent",
           title: "Campanha de concorrente enviada",

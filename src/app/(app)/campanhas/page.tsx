@@ -131,6 +131,7 @@ export default function CampanhasPage() {
   const [templateDescriptionToSave, setTemplateDescriptionToSave] =
     useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [includeChildWorkspaces, setIncludeChildWorkspaces] = useState(false);
   
   const loading = loadingProfiles || loadingContacts || loadingLeads;
   
@@ -367,6 +368,7 @@ export default function CampanhasPage() {
         },
         body: JSON.stringify({
           workspaceId,
+          includeChildWorkspaces,
           name: name.trim(),
           channel,
           message,
@@ -469,6 +471,15 @@ export default function CampanhasPage() {
           <h2 className="text-sm font-semibold text-white">
             Nova campanha
           </h2>
+          
+           <label className="flex items-center gap-2 text-sm text-white">
+            <input
+              type="checkbox"
+              checked={includeChildWorkspaces}
+              onChange={(e) => setIncludeChildWorkspaces(e.target.checked)}
+            />
+            Incluir contas parceiras/filhas nesta campanha
+          </label>
 
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
