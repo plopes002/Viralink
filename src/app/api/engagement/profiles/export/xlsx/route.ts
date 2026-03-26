@@ -1,9 +1,8 @@
-
+// src/app/api/engagement/profiles/export/xlsx/route.ts
 import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import * as XLSX from "xlsx";
-import type { EngagementProfile } from "@/types/engagementProfile";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,30 +22,28 @@ export async function GET(req: NextRequest) {
       .get();
 
     const rows = snap.docs.map((d) => {
-      const item = d.data() as EngagementProfile;
+      const item = d.data() as any;
       return {
         Nome: item.name || "",
         Usuario: item.username || "",
-        Segue: item.isFollower ? "Sim" : "Não",
-        Rede: item.network || "",
+        SeguePerfil: item.isFollower ? "Sim" : "Não",
+        Score: item.leadScore || 0,
+        Temperatura: item.leadTemperature || "",
+        Interacoes: item.totalInteractions || 0,
+        Comentarios: item.totalComments || 0,
+        Mensagens: item.totalMessages || 0,
         Telefone: item.phone || "",
         Email: item.email || "",
-        Score: item.leadScore || 0,
-        Temperatura: item.leadTemperature || "cold",
-        'Total Interações': item.totalInteractions,
-        'Total Comentários': item.totalComments,
-        'Total Mensagens': item.totalMessages,
         Categorias: (item.categories || []).join(", "),
-        'Tags Operacionais': (item.operationalTags || []).join(", "),
-        'Entidades Políticas': (item.politicalEntities || []).join(", "),
-        'Primeira Interação': item.firstInteractionAt || "",
-        'Última Interação': item.lastInteractionAt || "",
+        TagsOperacionais: (item.operationalTags || []).join(", "),
+        EntidadesPoliticas: (item.politicalEntities || []).join(", "),
+        UltimaInteracao: item.lastInteractionAt || "",
       };
     });
 
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Perfis Consolidados");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Perfis");
 
     const buffer = XLSX.write(workbook, {
       type: "buffer",
@@ -59,7 +56,7 @@ export async function GET(req: NextRequest) {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition":
-          'attachment; filename="perfis_consolidados.xlsx"',
+          'attachment; filename="perfis-consolidados.xlsx"',
       },
     });
   } catch (err) {

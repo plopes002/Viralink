@@ -1,5 +1,32 @@
 {
   "entities": {
+    "Campaign": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Campaign",
+      "type": "object",
+      "description": "Represents a marketing or communication campaign targeting a specific audience.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
+        "message": { "type": "string" },
+        "audienceFilters": {
+          "type": "object",
+          "properties": {
+            "temperature": { "type": "string", "enum": ["cold", "warm", "hot", "priority", "all"] },
+            "followStatus": { "type": "string", "enum": ["followers", "non_followers", "all"] },
+            "category": { "type": "string" },
+            "operationalTag": { "type": "string" },
+            "search": { "type": "string" }
+          }
+        },
+        "recipientsCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "queued", "processing", "done", "error"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "channel", "message", "audienceFilters", "recipientsCount", "status", "createdAt", "updatedAt"]
+    },
     "ContactCategory": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ContactCategory",
@@ -929,6 +956,10 @@
     ]
   },
   "firestore": {
+    "/campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/Campaign" },
+      "description": "Stores marketing and communication campaigns."
+    },
     "/contactCategories/{categoryId}": {
       "schema": { "$ref": "#/entities/ContactCategory" },
       "description": "Stores user-defined contact categories for a workspace."

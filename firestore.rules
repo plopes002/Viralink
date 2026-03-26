@@ -19,6 +19,11 @@ service cloud.firestore {
       return isWorkspaceMember(workspaceId) && membership.data.role in ['admin', 'owner'];
     }
 
+    match /campaigns/{campaignId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
+
     match /workspaces/{workspaceId} {
       allow read: if isWorkspaceMember(workspaceId);
       // Only owner can update workspace settings, and cannot change owner

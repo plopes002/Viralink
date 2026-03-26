@@ -1,9 +1,8 @@
-
+// src/app/api/engagement/profiles/export/pdf/route.ts
 import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import type { EngagementProfile } from "@/types/engagementProfile";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,15 +19,13 @@ export async function GET(req: NextRequest) {
     const snap = await adminFirestore
       .collection("engagementProfiles")
       .where("workspaceId", "==", workspaceId)
-      .orderBy("leadScore", "desc")
       .get();
 
-    const items = snap.docs.map((d) => d.data() as EngagementProfile);
+    const items = snap.docs.map((d) => d.data() as any);
 
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([595, 842]);
     const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
 
     let y = 800;
 
@@ -36,14 +33,16 @@ export async function GET(req: NextRequest) {
       x: 40,
       y,
       size: 16,
-      font: boldFont,
+      font,
       color: rgb(0.1, 0.1, 0.1),
     });
 
     y -= 30;
 
-    for (const item of items.slice(0, 35)) {
-      const line = `(${item.leadScore}) ${item.name} (@${item.username}) - ${item.leadTemperature}`;
+    for (const item of items.slice(0, 28)) {
+      const line = `${item.name || ""} | @${item.username || ""} | score ${
+        item.leadScore || 0
+      } | ${item.leadTemperature || ""}`;
 
       page.drawText(line.slice(0, 100), {
         x: 40,
@@ -64,7 +63,8 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": 'attachment; filename="perfis_consolidados.pdf"',
+        "Content-Disposition":
+          'attachment; filename="perfis-consolidados.pdf"',
       },
     });
   } catch (err) {
