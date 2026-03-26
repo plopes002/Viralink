@@ -10,6 +10,14 @@ export type ContactStatus =
   | "convertido"
   | "sem_interesse";
 
+export type ContactSource =
+  | "manual"
+  | "automatic"
+  | "campaign"
+  | "import"
+  | "competitor"
+  | "engagement";
+
 export interface ContactItem {
   id: string;
   workspaceId: string;
@@ -39,6 +47,12 @@ export interface ContactItem {
   lastInteractionText?: string | null;
 
   contactStatus: ContactStatus;
+  contactSource: ContactSource;
+
+  firstContactAt?: string | null;
+  lastContactAt?: string | null;
+
+  responsibleUser?: string | null;
   notes?: string | null;
 
   createdAt: string;

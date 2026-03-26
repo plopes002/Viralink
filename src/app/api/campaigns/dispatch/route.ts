@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       channel,
       message,
       filters,
+      audienceMode = "profiles",
     } = body || {};
 
     if (!workspaceId || !name || !channel || !message) {
@@ -75,17 +76,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const profilesSnap = await adminFirestore
-      .collection("engagementProfiles")
+    const collectionName = audienceMode === "contacts" ? "contacts" : "engagementProfiles";
+
+    const baseSnap = await adminFirestore
+      .collection(collectionName)
       .where("workspaceId", "==", workspaceId)
       .get();
 
-    const allProfiles = profilesSnap.docs.map((d) => ({
+    const allRecipients = baseSnap.docs.map((d) => ({
       id: d.id,
       ...(d.data() as any),
     }));
 
-    let recipients = allProfiles.filter((profile) =>
+    let recipients = allRecipients.filter((profile) =>
       matchesFilters(profile, filters || {}),
     );
 
@@ -119,6 +122,21 @@ export async function POST(req: NextRequest) {
         status: "queued",
         createdAt: now,
       });
+
+      if (audienceMode === "contacts") {
+        await adminFirestore.collection("contactHistory").add({
+          workspaceId,
+          contactId: recipient.id,
+          type: "campaign_sent",
+          title: "Campanha enviada",
+          description: `Campanha: ${name}`,
+          metadata: {
+            campaignId: campaignRef.id,
+            channel,
+          },
+          createdAt: now,
+        });
+      }
     }
 
     return NextResponse.json({

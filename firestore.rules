@@ -20,13 +20,15 @@ service cloud.firestore {
     }
 
     match /contacts/{contactId} {
-      allow read: if isWorkspaceMember(resource.data.workspaceId);
-      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+      allow read, write: if isWorkspaceMember(resource.data.workspaceId);
+    }
+
+    match /contactHistory/{historyId} {
+      allow read, write: if isWorkspaceMember(resource.data.workspaceId);
     }
 
     match /campaigns/{campaignId} {
-      allow read: if isWorkspaceMember(resource.data.workspaceId);
-      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+      allow read, write: if isWorkspaceMember(request.resource.data.workspaceId);
     }
 
     match /workspaces/{workspaceId} {

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import { buildEngagementProfileFromItems } from "@/lib/engagementProfileScoring";
 import { calculateLeadScore } from "@/lib/leadScoring";
+import { importProfileToContact } from "@/lib/importProfileToContact";
 
 async function getPendingJobs(limit = 10) {
   const snap = await adminFirestore
@@ -83,38 +84,17 @@ async function updateConsolidatedProfile(engagement: any) {
         ...profileData,
         updatedAt: new Date().toISOString(),
     }, { merge: true });
-
+    
   if (
     profileData.leadTemperature === "hot" ||
     profileData.leadTemperature === "priority"
   ) {
-    const now = new Date().toISOString();
-    const contactId = `${profileData.workspaceId}_${profileData.username}`;
-
-    await adminFirestore.collection("contacts").doc(contactId).set({
-        workspaceId: profileData.workspaceId,
-        profileId: profileId,
-        socialAccountId: profileData.socialAccountId || null,
-        name: profileData.name,
-        username: profileData.username,
-        avatar: profileData.avatar || null,
-        phone: profileData.phone || null,
-        email: profileData.email || null,
-        network: profileData.network || null,
-        categories: profileData.categories || [],
-        interestTags: profileData.interestTags || [],
-        customTags: profileData.customTags || [],
-        operationalTags: profileData.operationalTags || [],
-        leadTemperature: profileData.leadTemperature,
-        leadScore: profileData.leadScore,
-        lastInteractionAt: profileData.lastInteractionAt || null,
-        lastInteractionType: null,
-        lastInteractionText: null,
-        contactStatus: "novo",
-        notes: null,
-        createdAt: now,
-        updatedAt: now,
-    }, { merge: true });
+    await importProfileToContact(adminFirestore, {
+      id: profileId,
+      ...profileData,
+      createdAt: new Date().toISOString(), // This is not ideal but needed for type match
+      updatedAt: new Date().toISOString(), // This is not ideal but needed for type match
+    } as any, "automatic");
   }
 }
 

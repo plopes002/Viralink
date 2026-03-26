@@ -7,6 +7,8 @@ import { useContacts } from "@/hooks/useContacts";
 import { updateContact } from "@/firebase/contacts";
 import type { ContactItem, ContactStatus } from "@/types/contact";
 import { useFirebase } from "@/firebase/provider";
+import { useContactHistory } from "@/hooks/useContactHistory";
+import { createContactHistory } from "@/firebase/contactHistory";
 
 type TemperatureFilter = "all" | "cold" | "warm" | "hot" | "priority";
 
@@ -42,6 +44,10 @@ export default function ContatosPage() {
   const { contacts, loading } = useContacts(workspaceId);
 
   const [selectedContact, setSelectedContact] = useState<ContactItem | null>(null);
+  const { items: historyItems } = useContactHistory(
+    workspaceId,
+    selectedContact?.id,
+  );
   const [search, setSearch] = useState("");
   const [temperatureFilter, setTemperatureFilter] =
     useState<TemperatureFilter>("all");
@@ -81,24 +87,51 @@ export default function ContatosPage() {
     });
   }, [contacts, search, temperatureFilter, statusFilter]);
 
-  function openWhatsApp(contact: ContactItem) {
-    if (!contact.phone) return;
+  async function openWhatsApp(contact: ContactItem) {
+    if (!contact.phone || !workspaceId || !firestore) return;
 
     const digits = contact.phone.replace(/\D/g, "");
     const text = encodeURIComponent(
       `Olá ${contact.name.split(" ")[0]}! Tudo bem? Estou entrando em contato para continuarmos nossa conversa 😊`,
     );
 
+    await createContactHistory(firestore, {
+      workspaceId,
+      contactId: contact.id,
+      type: "whatsapp_opened",
+      title: "WhatsApp aberto",
+      description: "Abertura manual de conversa pelo CRM.",
+      metadata: {
+        phone: contact.phone,
+      },
+      createdAt: new Date().toISOString(),
+    });
+
     window.open(`https://wa.me/${digits}?text=${text}`, "_blank");
   }
 
   async function saveNotesAndStatus() {
-    if (!selectedContact || !firestore) return;
+    if (!selectedContact || !workspaceId || !firestore) return;
+
+    const now = new Date().toISOString();
 
     await updateContact(firestore, selectedContact.id, {
       notes: selectedContact.notes || null,
       contactStatus: selectedContact.contactStatus,
-      updatedAt: new Date().toISOString(),
+      lastContactAt: now,
+      updatedAt: now,
+    });
+
+    await createContactHistory(firestore, {
+      workspaceId,
+      contactId: selectedContact.id,
+      type: "manual_update",
+      title: "Contato atualizado",
+      description: `Status: ${selectedContact.contactStatus}`,
+      metadata: {
+        notes: selectedContact.notes || null,
+      },
+      createdAt: now,
     });
 
     alert("Contato atualizado com sucesso.");
@@ -106,11 +139,28 @@ export default function ContatosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold text-white">Contatos</h1>
-        <p className="text-sm text-[#9CA3AF]">
-          CRM básico para organizar a base, acompanhar status e atuar por WhatsApp ou campanha.
-        </p>
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Contatos</h1>
+          <p className="text-sm text-[#9CA3AF]">
+            CRM básico para organizar a base, acompanhar status e atuar por WhatsApp ou campanha.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <a
+            href={`/api/contacts/export/xlsx?workspaceId=${workspaceId}`}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827]"
+          >
+            Exportar XLSX
+          </a>
+
+          <a
+            href={`/api/contacts/export/pdf?workspaceId=${workspaceId}`}
+            className="rounded-xl border border-[#272046] px-4 py-2 text-sm text-white hover:bg-[#111827]"
+          >
+            Exportar PDF
+          </a>
+        </div>
       </header>
 
       <section className="grid gap-3 md:grid-cols-3">
@@ -346,6 +396,31 @@ export default function ContatosPage() {
                   </div>
                 </div>
               )}
+              
+              <div className="rounded-2xl border border-[#272046] bg-[#020012] p-4">
+                <p className="text-[11px] text-[#7D8590] mb-3">Histórico do contato</p>
+
+                <div className="flex flex-col gap-3 max-h-[220px] overflow-auto pr-1">
+                  {historyItems.length === 0 && (
+                    <p className="text-xs text-[#9CA3AF]">
+                      Nenhum histórico registrado ainda.
+                    </p>
+                  )}
+
+                  {historyItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-[#272046] bg-[#111827] p-3"
+                    >
+                      <p className="text-xs font-medium text-white">{item.title}</p>
+                      {item.description && (
+                        <p className="mt-1 text-[11px] text-[#C7CAD1]">{item.description}</p>
+                      )}
+                      <p className="mt-2 text-[10px] text-[#7D8590]">{item.createdAt}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               <div className="flex flex-col gap-2">
                 {selectedContact.phone && (

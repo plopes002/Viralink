@@ -25,11 +25,31 @@
         "lastInteractionType": { "type": "string" },
         "lastInteractionText": { "type": "string" },
         "contactStatus": { "type": "string", "enum": ["novo", "em_contato", "respondeu", "qualificado", "aguardando", "convertido", "sem_interesse"] },
+        "contactSource": { "type": "string", "enum": ["manual", "automatic", "campaign", "import", "competitor", "engagement"] },
+        "firstContactAt": { "type": "string", "format": "date-time" },
+        "lastContactAt": { "type": "string", "format": "date-time" },
+        "responsibleUser": { "type": "string" },
         "notes": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["workspaceId", "name", "contactStatus", "createdAt", "updatedAt"]
+      "required": ["workspaceId", "name", "contactStatus", "contactSource", "createdAt", "updatedAt"]
+    },
+    "ContactHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContactHistory",
+      "type": "object",
+      "description": "Represents an event in a contact's lifecycle.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "contactId": { "type": "string" },
+        "type": { "type": "string", "enum": ["created", "status_changed", "note_added", "campaign_sent", "message_sent", "whatsapp_opened", "profile_imported", "manual_update"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "contactId", "type", "title", "createdAt"]
     },
     "Campaign": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1018,6 +1038,12 @@
         "$ref": "#/entities/Contact"
       },
       "description": "Stores operational CRM contact records for a workspace."
+    },
+    "/contactHistory/{historyId}": {
+      "schema": {
+        "$ref": "#/entities/ContactHistory"
+      },
+      "description": "Stores the event history for a contact."
     },
     "/campaigns/{campaignId}": {
       "schema": { "$ref": "#/entities/Campaign" },
