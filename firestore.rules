@@ -148,5 +148,9 @@ service cloud.firestore {
       allow read: if isWorkspaceMember(resource.data.workspaceId);
       allow write: if false; // Only backend can write
     }
+    
+    match /automations/{automationId} {
+      allow read, write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
   }
 }

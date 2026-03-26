@@ -6,13 +6,16 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSocialAccounts } from "@/hooks/useSocialAccounts";
 import { useAutomations } from "@/hooks/useAutomations";
 import type {
+  AutomationRule,
   AutomationChannel,
-  AutomationTriggerType,
+  SocialAccountAutomationRule,
+  CompetitorLeadAutomationRule
 } from "@/types/automation";
 import { createAutomation } from "@/firebase/automations";
 import { useFirebase } from "@/firebase/provider";
+import { addDoc, collection } from "firebase/firestore";
 
-const TRIGGERS: { id: AutomationTriggerType; label: string }[] = [
+const TRIGGERS: { id: SocialAccountAutomationRule['trigger']; label: string }[] = [
   { id: "new_follower", label: "Novo seguidor" },
   { id: "new_comment", label: "Novo comentário" },
   { id: "new_message", label: "Nova mensagem" },
@@ -38,8 +41,8 @@ export default function AutomationsPage() {
 
   // estado do novo formulário
   const [name, setName] = useState("");
-  const [triggerType, setTriggerType] =
-    useState<AutomationTriggerType>("new_follower");
+  const [trigger, setTrigger] =
+    useState<SocialAccountAutomationRule['trigger']>("new_follower");
   const [network, setNetwork] = useState<"instagram" | "facebook" | "whatsapp">(
     "instagram",
   );
@@ -78,7 +81,7 @@ export default function AutomationsPage() {
         workspaceId,
         name: name.trim(),
         active: true,
-        triggerType,
+        trigger,
         network,
         socialAccountId,
         actionChannel,
@@ -86,7 +89,7 @@ export default function AutomationsPage() {
         conditions: containsKeyword
           ? { containsKeyword }
           : undefined,
-      });
+      } as any); // Type assertion needed due to union type
 
       // limpa form
       setName("");
@@ -101,6 +104,34 @@ export default function AutomationsPage() {
     }
   };
 
+  const handleCreateCompetitorAutomation = async () => {
+      if (!workspaceId || !firestore) return;
+      try {
+        await addDoc(collection(firestore, "automations"), {
+          workspaceId,
+          name: "Captura concorrente - engajados",
+          trigger: "competitor_lead",
+          conditions: {
+            onlyNonFollowers: true,
+            onlyEngaged: true,
+          },
+          action: {
+            type: "send_message",
+            message:
+              "Queria te mostrar algo que pode te interessar bastante sobre esse tema.",
+          },
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        alert("Automação de concorrente criada com sucesso!");
+      } catch (error) {
+        console.error("Erro ao criar automação de concorrente", error);
+        alert("Falha ao criar automação.");
+      }
+    };
+
+
   const getNetworkLabel = (net: string) => {
     if (net === "instagram") return "Instagram";
     if (net === "facebook") return "Facebook";
@@ -108,7 +139,7 @@ export default function AutomationsPage() {
     return net;
   };
 
-  const getTriggerLabel = (t: AutomationTriggerType) =>
+  const getTriggerLabel = (t: SocialAccountAutomationRule['trigger']) =>
     TRIGGERS.find((tr) => tr.id === t)?.label || t;
 
   const getChannelLabel = (c: AutomationChannel) =>
@@ -132,14 +163,24 @@ export default function AutomationsPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenForm}
-          className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4]
-                     text-[12px] font-medium text-white px-4 py-2 hover:opacity-90 transition"
-        >
-          Nova automação
-        </button>
+        <div className="flex gap-2">
+            <button
+            type="button"
+            onClick={handleCreateCompetitorAutomation}
+            className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500
+                        text-[12px] font-medium text-white px-4 py-2 hover:opacity-90 transition"
+            >
+            Criar automação de concorrente
+            </button>
+            <button
+            type="button"
+            onClick={handleOpenForm}
+            className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4]
+                        text-[12px] font-medium text-white px-4 py-2 hover:opacity-90 transition"
+            >
+            Nova automação social
+            </button>
+        </div>
       </header>
 
       {/* Lista de automações */}
@@ -150,57 +191,87 @@ export default function AutomationsPage() {
 
         {!loading && automations.length === 0 && (
           <p className="text-xs text-[#9CA3AF]">
-            Nenhuma automação criada ainda. Clique em{" "}
-            <span className="font-semibold">“Nova automação”</span> para começar.
+            Nenhuma automação criada ainda.
           </p>
         )}
 
         {!loading &&
-          automations.map((a) => (
-            <div
-              key={a.id}
-              className="rounded-2xl border border-[#272046] bg-[#050016] px-4 py-3 flex items-center justify-between gap-4"
-            >
-              <div className="flex flex-col">
-                <span className="text-[12px] text-white font-medium">
-                  {a.name}
-                </span>
-                <span className="text-[10px] text-[#9CA3AF]">
-                  Disparo: {getTriggerLabel(a.triggerType)} • Rede:{" "}
-                  {getNetworkLabel(a.network)} • Conta:{" "}
-                  {getAccountLabel(a.socialAccountId)}
-                </span>
-                <span className="text-[10px] text-[#9CA3AF]">
-                  Ação: {getChannelLabel(a.actionChannel)} • Template:{" "}
-                  {a.messageTemplateId}
-                </span>
-                {a.conditions?.containsKeyword && (
-                  <span className="text-[10px] text-[#9CA3AF]">
-                    Condição: comentário/mensagem contendo{" "}
-                    <span className="font-medium">
-                      “{a.conditions.containsKeyword}”
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span
-                  className={`text-[10px] px-3 py-1 rounded-full ${
-                    a.active
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-zinc-500/15 text-zinc-300"
-                  }`}
+          automations.map((a) => {
+            if (a.trigger === 'competitor_lead') {
+              const rule = a as CompetitorLeadAutomationRule;
+              return (
+                <div
+                  key={a.id}
+                  className="rounded-2xl border border-[#272046] bg-[#050016] px-4 py-3 flex items-center justify-between gap-4"
                 >
-                  {a.active ? "Ativa" : "Pausada"}
-                </span>
+                  <div className="flex flex-col">
+                    <span className="text-[12px] text-white font-medium">
+                      {rule.name}
+                    </span>
+                    <span className="text-[10px] text-[#9CA3AF]">
+                      Disparo: Lead de Concorrente • Ação: {rule.action.type}
+                    </span>
+                  </div>
+                  <span
+                      className={`text-[10px] px-3 py-1 rounded-full ${
+                        a.active
+                          ? "bg-emerald-500/15 text-emerald-400"
+                          : "bg-zinc-500/15 text-zinc-300"
+                      }`}
+                    >
+                      {a.active ? "Ativa" : "Pausada"}
+                    </span>
+                </div>
+              )
+            }
+            
+            const rule = a as SocialAccountAutomationRule;
+            return (
+                <div
+                key={a.id}
+                className="rounded-2xl border border-[#272046] bg-[#050016] px-4 py-3 flex items-center justify-between gap-4"
+                >
+                <div className="flex flex-col">
+                    <span className="text-[12px] text-white font-medium">
+                    {rule.name}
+                    </span>
+                    <span className="text-[10px] text-[#9CA3AF]">
+                    Disparo: {getTriggerLabel(rule.trigger)} • Rede:{" "}
+                    {getNetworkLabel(rule.network)} • Conta:{" "}
+                    {getAccountLabel(rule.socialAccountId)}
+                    </span>
+                    <span className="text-[10px] text-[#9CA3AF]">
+                    Ação: {getChannelLabel(rule.actionChannel)} • Template:{" "}
+                    {rule.messageTemplateId}
+                    </span>
+                    {rule.conditions?.containsKeyword && (
+                    <span className="text-[10px] text-[#9CA3AF]">
+                        Condição: comentário/mensagem contendo{" "}
+                        <span className="font-medium">
+                        “{rule.conditions.containsKeyword}”
+                        </span>
+                    </span>
+                    )}
+                </div>
 
-                <button className="text-[11px] text-[#E5E7EB] hover:text-white">
-                  Editar
-                </button>
-              </div>
-            </div>
-          ))}
+                <div className="flex items-center gap-3">
+                    <span
+                    className={`text-[10px] px-3 py-1 rounded-full ${
+                        a.active
+                        ? "bg-emerald-500/15 text-emerald-400"
+                        : "bg-zinc-500/15 text-zinc-300"
+                    }`}
+                    >
+                    {a.active ? "Ativa" : "Pausada"}
+                    </span>
+
+                    <button className="text-[11px] text-[#E5E7EB] hover:text-white">
+                    Editar
+                    </button>
+                </div>
+                </div>
+            )
+        })}
       </div>
 
       {/* Form de criação simples */}
@@ -209,7 +280,7 @@ export default function AutomationsPage() {
           <div className="w-full max-w-lg rounded-2xl border border-[#272046] bg-[#020012] p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-semibold text-white">
-                Nova automação
+                Nova automação social
               </h2>
               <button
                 type="button"
@@ -239,9 +310,9 @@ export default function AutomationsPage() {
                   Disparo
                 </label>
                 <select
-                  value={triggerType}
+                  value={trigger}
                   onChange={(e) =>
-                    setTriggerType(e.target.value as AutomationTriggerType)
+                    setTrigger(e.target.value as SocialAccountAutomationRule['trigger'])
                   }
                   className="w-full rounded-xl border border-[#272046] bg-[#050016]
                              text-[12px] text-[#E5E7EB] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#7C3AED]"

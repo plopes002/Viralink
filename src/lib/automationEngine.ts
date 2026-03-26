@@ -1,81 +1,61 @@
 // src/lib/automationEngine.ts
-import 'server-only';
-import { adminFirestore } from "@/lib/firebaseAdmin";
-import type { InternalSocialEvent } from "@/types/internalSocialEvent";
-import type { AutomationRule } from "@/types/automation";
-import type { MessageTemplate } from "@/types/messageTemplate";
-import { dispatchMessageForAutomation } from "@/lib/dispatcher";
+import { collection, getDocs, query, where, Firestore } from "firebase/firestore";
+import { importLeadToCRM } from "./importCompetitorLead";
+import type { CompetitorLead } from "@/types/competitorLead";
+import type { AutomationRule, CompetitorLeadAutomationRule } from "@/types/automation";
 
-export async function runAutomationsForEvent(event: InternalSocialEvent) {
-  console.log("[runAutomationsForEvent] evento:", event.type, event.network);
+function matchConditions(conditions: CompetitorLeadAutomationRule['conditions'], lead: CompetitorLead): boolean {
+  if (conditions.onlyNonFollowers && lead.isFollower) return false;
+  if (conditions.onlyEngaged && !lead.hasInteracted) return false;
+  if (conditions.sentiment && lead.sentiment !== conditions.sentiment) return false;
+  if (conditions.interactionType && lead.interactionType !== conditions.interactionType) return false;
+  return true;
+}
 
-  const automationsSnap = await adminFirestore
-    .collection("automations")
-    .where("workspaceId", "==", event.workspaceId)
-    .where("socialAccountId", "==", event.socialAccountId)
-    .where("network", "==", event.network)
-    .where("active", "==", true)
-    .get();
+function generateMessage(base: string, lead: CompetitorLead): string {
+  let prefix = "";
 
-  if (automationsSnap.empty) {
-    console.log("[runAutomationsForEvent] nenhuma automação encontrada.");
-    return;
+  if (lead.interactionType === "comment") {
+    prefix = "Vi que você comentou recentemente 👀 ";
+  } else if (lead.interactionType === "like") {
+    prefix = "Vi que você curtiu um conteúdo 👍 ";
+  } else if (lead.interactionType === "view") {
+    prefix = "Notei que você visualizou 👀 ";
   }
 
-  const automations: AutomationRule[] = automationsSnap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as any),
-  }));
+  return `${prefix}${base}`;
+}
 
-  const matching = automations.filter((a) => matchAutomation(a, event));
-
-  if (!matching.length) {
-    console.log("[runAutomationsForEvent] nenhuma automação casou com o evento.");
-    return;
+async function executeAction(firestore: Firestore, rule: CompetitorLeadAutomationRule, lead: CompetitorLead) {
+  if (rule.action.type === "add_to_crm") {
+    await importLeadToCRM(firestore, lead);
   }
 
-  console.log(
-    `[runAutomationsForEvent] ${matching.length} automações serão processadas.`,
-  );
-
-  for (const automation of matching) {
-    const tplSnap = await adminFirestore
-      .collection("messageTemplates")
-      .doc(automation.messageTemplateId)
-      .get();
-
-    if (!tplSnap.exists) {
-      console.warn(
-        `[runAutomationsForEvent] template ${automation.messageTemplateId} não encontrado.`,
-      );
-      continue;
-    }
-
-    const template = {
-      id: tplSnap.id,
-      ...(tplSnap.data() as any),
-    } as MessageTemplate;
-
-    await dispatchMessageForAutomation(automation, template, event);
+  if (rule.action.type === "send_message" && rule.action.message) {
+    const msg = generateMessage(rule.action.message, lead);
+    console.log("Mensagem automática enviada (placeholder):", msg);
+    // Future integration with messaging service goes here
   }
 }
 
-function matchAutomation(automation: AutomationRule, event: InternalSocialEvent): boolean {
-    // 1) tipo do evento
-    if (automation.triggerType !== event.type) {
-        return false;
+export async function processCompetitorLead(firestore: Firestore, lead: CompetitorLead) {
+  const q = query(
+    collection(firestore, "automations"),
+    where("workspaceId", "==", lead.workspaceId),
+    where("trigger", "==", "competitor_lead"),
+    where("active", "==", true)
+  );
+
+  const snap = await getDocs(q);
+  if (snap.empty) {
+    return;
+  }
+
+  for (const doc of snap.docs) {
+    const rule = { id: doc.id, ...doc.data() } as CompetitorLeadAutomationRule;
+
+    if (matchConditions(rule.conditions, lead)) {
+      await executeAction(firestore, rule, lead);
     }
-
-    // 2) condição de palavra-chave (se houver)
-    if (automation.conditions?.containsKeyword) {
-        const kw = automation.conditions.containsKeyword.toLowerCase();
-        const txt = (event.text || "").toLowerCase();
-        if (!txt.includes(kw)) {
-            return false;
-        }
-    }
-
-    // 3) Outras condições (minFollowers, etc.) podem entrar aqui no futuro
-
-    return true;
+  }
 }

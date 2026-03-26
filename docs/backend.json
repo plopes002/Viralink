@@ -1045,6 +1045,50 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["workspaceId", "name", "templateType", "channel", "message", "isFavorite", "createdAt", "updatedAt"]
+    },
+    "AutomationRule": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AutomationRule",
+      "type": "object",
+      "description": "Represents an automation rule for triggering actions based on social events or competitor leads.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "active": { "type": "boolean" },
+        "trigger": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "active", "trigger", "createdAt", "updatedAt"],
+      "oneOf": [
+        {
+          "properties": {
+            "trigger": { "const": "new_follower" }
+          }
+        },
+        {
+          "properties": {
+            "trigger": { "const": "competitor_lead" },
+            "conditions": {
+              "type": "object",
+              "properties": {
+                "onlyNonFollowers": { "type": "boolean" },
+                "onlyEngaged": { "type": "boolean" },
+                "sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+                "interactionType": { "type": "string", "enum": ["like", "comment", "view"] }
+              }
+            },
+            "action": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["send_message", "add_to_crm"] },
+                "message": { "type": "string" }
+              },
+              "required": ["type"]
+            }
+          }
+        }
+      ]
     }
   },
   "auth": {
@@ -1173,6 +1217,12 @@
         "$ref": "#/entities/SavedCampaignTemplate"
       },
       "description": "Stores reusable campaign message templates for a workspace."
+    },
+    "/automations/{automationId}": {
+      "schema": {
+        "$ref": "#/entities/AutomationRule"
+      },
+      "description": "Stores automation rules for the workspace."
     }
   }
 }
