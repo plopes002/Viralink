@@ -2,17 +2,14 @@
 "use client";
 
 import { useMemo } from "react";
-import { useWorkspace } from "@/hooks/useWorkspace";
-import { useCompetitorAlerts } from "@/hooks/useCompetitorAlerts";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { useMessages } from "@/hooks/useMessages";
+import { useCompetitorAlerts } from "@/hooks/useCompetitorAlerts";
 
 export function useCompetitiveExecutiveSummary(
+  workspaceId?: string,
   competitorId?: string | null,
 ) {
-  const { currentWorkspace } = useWorkspace() as any;
-  const workspaceId = currentWorkspace?.id;
-
   const { alerts = [] } = useCompetitorAlerts(workspaceId, competitorId);
   const { campaigns = [] } = useCampaigns(workspaceId);
   const { messages = [] } = useMessages(workspaceId);
@@ -42,6 +39,7 @@ export function useCompetitiveExecutiveSummary(
       suggestedCampaignAlerts,
       pendingReviews,
       campaignsWithError,
+
       criticalCount: unreadCriticalAlerts.length,
       warningCount: unreadWarningAlerts.length,
       suggestedCampaignsCount: suggestedCampaignAlerts.length,
