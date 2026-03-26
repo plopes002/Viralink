@@ -1,5 +1,36 @@
 {
   "entities": {
+    "Contact": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Contact",
+      "type": "object",
+      "description": "Represents a CRM contact, which is an operational record derived from an engagement profile.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "profileId": { "type": "string" },
+        "socialAccountId": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "avatar": { "type": "string", "format": "uri" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "network": { "type": "string", "enum": ["instagram", "facebook", "whatsapp", null] },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "interestTags": { "type": "array", "items": { "type": "string" } },
+        "customTags": { "type": "array", "items": { "type": "string" } },
+        "operationalTags": { "type": "array", "items": { "type": "string" } },
+        "leadTemperature": { "type": "string", "enum": ["cold", "warm", "hot", "priority"] },
+        "leadScore": { "type": "number" },
+        "lastInteractionAt": { "type": "string", "format": "date-time" },
+        "lastInteractionType": { "type": "string" },
+        "lastInteractionText": { "type": "string" },
+        "contactStatus": { "type": "string", "enum": ["novo", "em_contato", "respondeu", "qualificado", "aguardando", "convertido", "sem_interesse"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "contactStatus", "createdAt", "updatedAt"]
+    },
     "Campaign": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Campaign",
@@ -952,6 +983,27 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["type", "workspaceId", "status", "attempts", "createdAt", "updatedAt"]
+    },
+    "SavedCampaignTemplate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SavedCampaignTemplate",
+      "type": "object",
+      "description": "Represents a reusable message template for campaigns.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "templateType": { "type": "string", "enum": ["aproximacao", "recuperacao", "mobilizacao", "convite", "conversao", "critica_escuta"] },
+        "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
+        "tone": { "type": "string" },
+        "topic": { "type": "string" },
+        "audienceDescription": { "type": "string" },
+        "message": { "type": "string" },
+        "isFavorite": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "templateType", "channel", "message", "isFavorite", "createdAt", "updatedAt"]
     }
   },
   "auth": {
@@ -961,6 +1013,12 @@
     ]
   },
   "firestore": {
+    "/contacts/{contactId}": {
+      "schema": {
+        "$ref": "#/entities/Contact"
+      },
+      "description": "Stores operational CRM contact records for a workspace."
+    },
     "/campaigns/{campaignId}": {
       "schema": { "$ref": "#/entities/Campaign" },
       "description": "Stores marketing and communication campaigns."
@@ -1058,6 +1116,12 @@
         "$ref": "#/entities/ProcessingQueueJob"
       },
       "description": "Stores background jobs to be processed asynchronously."
+    },
+    "/savedCampaignTemplates/{templateId}": {
+      "schema": {
+        "$ref": "#/entities/SavedCampaignTemplate"
+      },
+      "description": "Stores reusable campaign message templates for a workspace."
     }
   }
 }

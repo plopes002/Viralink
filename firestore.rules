@@ -19,6 +19,11 @@ service cloud.firestore {
       return isWorkspaceMember(workspaceId) && membership.data.role in ['admin', 'owner'];
     }
 
+    match /contacts/{contactId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow write: if isWorkspaceMember(request.resource.data.workspaceId);
+    }
+
     match /campaigns/{campaignId} {
       allow read: if isWorkspaceMember(resource.data.workspaceId);
       allow write: if isWorkspaceMember(request.resource.data.workspaceId);

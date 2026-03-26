@@ -19,6 +19,7 @@ import {
   FiUserCheck,
   FiSend,
   FiBriefcase,
+  FiClipboard,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import { useUser } from "@/firebase/provider";
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/automations", label: "Automações", icon: FiZap },
   { href: "/engajamento", label: "Engajamento", icon: FiHeart },
   { href: "/perfis", label: "Perfis Consolidados", icon: FiUserCheck },
+  { href: "/contatos", label: "Contatos (CRM)", icon: FiClipboard },
   { href: "/campanhas", label: "Campanhas", icon: FiSend },
   { href: "/social-accounts", label: "Contas conectadas", icon: FiShare2 },
   { href: "/concorrentes", label: "Concorrentes", icon: FiUsers },
