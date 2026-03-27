@@ -163,7 +163,7 @@ export default function SocialAccountsPage() {
               <div className="mt-auto flex flex-col gap-2">
                 {isInstagram ? (
                    <a
-                    href={isConnected ? '#' : (workspaceId ? `/api/auth/instagram/start?workspaceId=${workspaceId}` : '#')}
+                    href={isConnected ? '#' : (workspaceId ? `/api/auth/facebook/start?workspaceId=${workspaceId}` : '#')}
                     onClick={(e) => {
                         if (isConnected) {
                             e.preventDefault();
