@@ -17,7 +17,7 @@ const NETWORKS: NetworkCardInfo[] = [
     network: "instagram",
     label: "Instagram",
     description:
-      "Conecte um perfil profissional para monitorar engajamento, mensagens e seguidores.",
+      "Conecte um perfil para monitorar engajamento, mensagens e seguidores.",
     connectLabel: "Conectar Instagram",
   },
   {
@@ -81,12 +81,9 @@ export default function SocialAccountsPage() {
     };
   };
 
-  const handleConnectClick = (network: SocialNetwork) => {
-    // Aqui futuramente você pluga OAuth / API real da rede
-    // Por enquanto, só avisa:
+  const handleOtherConnectClick = (network: SocialNetwork) => {
     alert(
-      `Fluxo de conexão para ${network.toUpperCase()} ainda não implementado aqui. ` +
-        `Depois vamos abrir popup/redirect da API oficial ou do conector que você escolher.`,
+      `Fluxo de conexão para ${network.toUpperCase()} ainda não implementado.`
     );
   };
 
@@ -128,11 +125,9 @@ export default function SocialAccountsPage() {
               : status.status === "expired"
               ? "Renovar conexão"
               : n.connectLabel;
-
-          const onPrimaryClick =
-            status.status === "connected"
-              ? () => handleManageClick(n.network)
-              : () => handleConnectClick(n.network);
+          
+          const isInstagram = n.network === 'instagram';
+          const isConnected = status.status === 'connected';
 
           return (
             <div
@@ -166,21 +161,37 @@ export default function SocialAccountsPage() {
               </div>
 
               <div className="mt-auto flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={onPrimaryClick}
-                  className="w-full rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4]
-                             text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
-                >
-                  {primaryLabel}
-                </button>
+                {isInstagram ? (
+                   <a
+                    href={isConnected ? '#' : (workspaceId ? `/api/auth/instagram/start?workspaceId=${workspaceId}` : '#')}
+                    onClick={(e) => {
+                        if (isConnected) {
+                            e.preventDefault();
+                            handleManageClick('instagram');
+                        } else if (!workspaceId) {
+                            e.preventDefault();
+                            alert("Workspace não disponível.");
+                        }
+                    }}
+                    className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                  >
+                    {primaryLabel}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOtherConnectClick(n.network)}
+                    className="w-full rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                  >
+                    {primaryLabel}
+                  </button>
+                )}
 
-                {status.status === "connected" && (
+                {isConnected && (
                   <button
                     type="button"
                     onClick={() => handleManageClick(n.network)}
-                    className="w-full rounded-xl border border-[#272046]
-                               text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
+                    className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
                   >
                     Ver detalhes da integração
                   </button>

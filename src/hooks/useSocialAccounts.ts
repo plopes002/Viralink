@@ -33,7 +33,6 @@ export function useSocialAccounts(workspaceId?: string) {
       (snap) => {
         const docs: SocialAccount[] = snap.docs.map((d) => ({
           id: d.id,
-          name: d.data().displayName, // The DB uses displayName. I'll map it to name.
           ...(d.data() as any),
         }));
         docs.sort((a, b) => Number(Boolean(b.isPrimary)) - Number(Boolean(a.isPrimary)));

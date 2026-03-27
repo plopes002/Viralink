@@ -1,5 +1,59 @@
 {
   "entities": {
+    "Contact": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Contact",
+      "type": "object",
+      "description": "Represents a CRM contact, which is an operational record derived from an engagement profile.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "profileId": { "type": "string" },
+        "socialAccountId": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "avatar": { "type": "string", "format": "uri" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "network": { "type": "string", "enum": ["instagram", "facebook", "whatsapp", null] },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "interestTags": { "type": "array", "items": { "type": "string" } },
+        "customTags": { "type": "array", "items": { "type": "string" } },
+        "operationalTags": { "type": "array", "items": { "type": "string" } },
+        "leadTemperature": { "type": "string", "enum": ["cold", "warm", "hot", "priority"] },
+        "leadScore": { "type": "number" },
+        "lastInteractionAt": { "type": "string", "format": "date-time" },
+        "lastInteractionType": { "type": "string" },
+        "lastInteractionText": { "type": "string" },
+        "contactStatus": { "type": "string", "enum": ["novo", "em_contato", "respondeu", "qualificado", "aguardando", "convertido", "sem_interesse"] },
+        "contactSource": { "type": "string", "enum": ["manual", "automatic", "campaign", "import", "competitor", "engagement"] },
+        "firstContactAt": { "type": "string", "format": "date-time" },
+        "lastContactAt": { "type": "string", "format": "date-time" },
+        "responsibleUser": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "notes": { "type": "string" },
+        "detailedNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "contactStatus", "contactSource", "createdAt", "updatedAt"]
+    },
+    "ContactHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContactHistory",
+      "type": "object",
+      "description": "Represents an event in a contact's lifecycle.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "contactId": { "type": "string" },
+        "type": { "type": "string", "enum": ["created", "status_changed", "note_added", "campaign_sent", "message_sent", "whatsapp_opened", "profile_imported", "manual_update"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "contactId", "type", "title", "createdAt"]
+    },
     "Campaign": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Campaign",
@@ -178,6 +232,24 @@
         }
       },
       "required": ["createdAt", "followers"]
+    },
+    "CompetitorLead": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompetitorLead",
+      "description": "Represents a lead captured from a competitor's audience.",
+      "type": "object",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "competitorId": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "isFollower": { "type": "boolean" },
+        "hasInteracted": { "type": "boolean" },
+        "interactionType": { "type": "string", "enum": ["like", "comment", "view"] },
+        "sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+        "extractedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "competitorId", "username", "isFollower", "hasInteracted", "extractedAt"]
     },
     "Post": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -565,49 +637,31 @@
       "type": "object",
       "description": "Represents a social media account connected to the system, storing display information but NOT sensitive tokens.",
       "properties": {
-        "workspaceId": {
-          "type": "string",
-          "description": "ID of the workspace the social account belongs to."
-        },
-        "provider": {
-          "type": "string",
-          "enum": [
-            "instagram",
-            "facebook",
-            "whatsapp"
-          ],
-          "description": "Social media provider."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Display name of the social account."
-        },
-        "username": {
-          "type": "string",
-          "description": "Username of the social account."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "URL of the social account's avatar (profile picture).",
-          "format": "uri"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp of when the social account was connected.",
-          "format": "date-time"
-        },
-        "connected": {
-          "type": "boolean",
-          "description": "Indicates whether the social account is currently connected."
-        }
+        "workspaceId": { "type": "string", "description": "ID of the workspace the social account belongs to." },
+        "network": { "type": "string", "enum": ["instagram", "facebook", "whatsapp"], "description": "Social media provider." },
+        "name": { "type": "string", "description": "Display name of the social account." },
+        "username": { "type": "string", "description": "Username of the social account." },
+        "accountId": { "type": "string", "description": "Unique identifier for the account on the social network." },
+        "avatarUrl": { "type": "string", "format": "uri", "description": "URL of the social account's avatar." },
+        "status": { "type": "string", "enum": ["connected", "expired", "disconnected"], "description": "Connection status." },
+        "isPrimary": { "type": "boolean", "description": "Whether this is the primary account for comparisons." },
+        "followers": { "type": "number" },
+        "engagementRate": { "type": "number" },
+        "growthRate": { "type": "number" },
+        "avgLikes": { "type": "number" },
+        "avgComments": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
         "workspaceId",
-        "provider",
-        "displayName",
+        "network",
+        "name",
         "username",
+        "accountId",
+        "status",
         "createdAt",
-        "connected"
+        "updatedAt"
       ]
     },
     "Notification": {
@@ -741,7 +795,8 @@
         "toEmail": { "type": "string" },
         "channel": { "type": "string", "enum": ["instagram_dm", "facebook_dm", "whatsapp"] },
         "content": { "type": "string" },
-        "status": { "type": "string", "enum": ["sent", "failed", "pending", "queued", "processing", "error"] },
+        "status": { "type": "string", "enum": ["queued", "awaiting_review", "scheduled", "processing", "sent", "skipped", "error"] },
+        "scheduledAt": { "type": "string", "format": "date-time" },
         "errorMessage": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -973,6 +1028,125 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["workspaceId", "name", "templateType", "channel", "message", "isFavorite", "createdAt", "updatedAt"]
+    },
+    "AutomationRule": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AutomationRule",
+      "type": "object",
+      "description": "Represents an automation rule for triggering actions based on social events or competitor leads.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "active": { "type": "boolean" },
+        "trigger": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "name", "active", "trigger", "createdAt", "updatedAt"],
+      "oneOf": [
+        {
+          "properties": {
+            "trigger": { "const": "new_follower" }
+          }
+        },
+        {
+          "properties": {
+            "trigger": { "const": "competitor_lead" },
+            "conditions": {
+              "type": "object",
+              "properties": {
+                "onlyNonFollowers": { "type": "boolean" },
+                "onlyEngaged": { "type": "boolean" },
+                "sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+                "interactionType": { "type": "string", "enum": ["like", "comment", "view"] }
+              }
+            },
+            "action": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["send_message", "add_to_crm"] },
+                "message": { "type": "string" }
+              },
+              "required": ["type"]
+            }
+          }
+        }
+      ]
+    },
+    "SuppressionItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SuppressionItem",
+      "type": "object",
+      "description": "Represents a user who has opted out of receiving automated messages.",
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "toUser": { "type": "string" },
+        "toPhone": { "type": "string" },
+        "reason": { "type": "string", "enum": ["manual", "stop_word", "sem_interesse", "bounce"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workspaceId", "reason", "createdAt"]
+    },
+    "CompetitorStrategyHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompetitorStrategyHistory",
+      "type": "object",
+      "description": "Represents a historical record of a generated competitor strategy analysis.",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "competitorId": {
+          "type": "string"
+        },
+        "periodDays": {
+          "type": "number"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "strengths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weaknesses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "opportunities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedCampaignTitle": {
+          "type": "string"
+        },
+        "suggestedCampaignMessage": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "competitorId",
+        "periodDays",
+        "summary",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -982,6 +1156,18 @@
     ]
   },
   "firestore": {
+    "/contacts/{contactId}": {
+      "schema": {
+        "$ref": "#/entities/Contact"
+      },
+      "description": "Stores operational CRM contact records for a workspace."
+    },
+    "/contactHistory/{historyId}": {
+      "schema": {
+        "$ref": "#/entities/ContactHistory"
+      },
+      "description": "Stores the event history for a contact."
+    },
     "/campaigns/{campaignId}": {
       "schema": { "$ref": "#/entities/Campaign" },
       "description": "Stores marketing and communication campaigns."
@@ -1001,6 +1187,10 @@
         "$ref": "#/entities/CompetitorSnapshot"
       },
       "description": "Stores historical metrics snapshots for a competitor."
+    },
+    "/competitorLeads/{leadId}": {
+      "schema": { "$ref": "#/entities/CompetitorLead" },
+      "description": "Stores leads captured from competitor audiences."
     },
     "/workspaces/{workspaceId}": {
       "schema": {
@@ -1085,6 +1275,24 @@
         "$ref": "#/entities/SavedCampaignTemplate"
       },
       "description": "Stores reusable campaign message templates for a workspace."
+    },
+    "/automations/{automationId}": {
+      "schema": {
+        "$ref": "#/entities/AutomationRule"
+      },
+      "description": "Stores automation rules for the workspace."
+    },
+    "/suppressionList/{suppressionId}": {
+      "schema": {
+        "$ref": "#/entities/SuppressionItem"
+      },
+      "description": "Stores users who should not receive automated messages."
+    },
+    "/competitorStrategyHistory/{historyId}": {
+      "schema": {
+        "$ref": "#/entities/CompetitorStrategyHistory"
+      },
+      "description": "Stores historical records of competitor strategy analyses."
     }
   }
 }
