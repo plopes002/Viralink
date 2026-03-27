@@ -12,7 +12,16 @@ export function GET(req: NextRequest) {
   const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID;
   const INSTAGRAM_REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI;
   
-  // Scopes for Instagram Basic Display API
+  if (!INSTAGRAM_APP_ID || !INSTAGRAM_REDIRECT_URI) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: 'Variáveis de ambiente do Instagram não configuradas.',
+      },
+      { status: 500 }
+    );
+  }
+  
   const INSTAGRAM_SCOPES = 'user_profile,user_media';
 
   const stateData = {
@@ -24,7 +33,7 @@ export function GET(req: NextRequest) {
   const authUrl =
     'https://api.instagram.com/oauth/authorize' +
     `?client_id=${INSTAGRAM_APP_ID}` +
-    `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI!)}` +
+    `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI)}` +
     `&response_type=code` +
     `&scope=${encodeURIComponent(INSTAGRAM_SCOPES)}` +
     `&state=${encodeURIComponent(state)}`;

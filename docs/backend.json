@@ -637,49 +637,31 @@
       "type": "object",
       "description": "Represents a social media account connected to the system, storing display information but NOT sensitive tokens.",
       "properties": {
-        "workspaceId": {
-          "type": "string",
-          "description": "ID of the workspace the social account belongs to."
-        },
-        "provider": {
-          "type": "string",
-          "enum": [
-            "instagram",
-            "facebook",
-            "whatsapp"
-          ],
-          "description": "Social media provider."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Display name of the social account."
-        },
-        "username": {
-          "type": "string",
-          "description": "Username of the social account."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "URL of the social account's avatar (profile picture).",
-          "format": "uri"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp of when the social account was connected.",
-          "format": "date-time"
-        },
-        "connected": {
-          "type": "boolean",
-          "description": "Indicates whether the social account is currently connected."
-        }
+        "workspaceId": { "type": "string", "description": "ID of the workspace the social account belongs to." },
+        "network": { "type": "string", "enum": ["instagram", "facebook", "whatsapp"], "description": "Social media provider." },
+        "name": { "type": "string", "description": "Display name of the social account." },
+        "username": { "type": "string", "description": "Username of the social account." },
+        "accountId": { "type": "string", "description": "Unique identifier for the account on the social network." },
+        "avatarUrl": { "type": "string", "format": "uri", "description": "URL of the social account's avatar." },
+        "status": { "type": "string", "enum": ["connected", "expired", "disconnected"], "description": "Connection status." },
+        "isPrimary": { "type": "boolean", "description": "Whether this is the primary account for comparisons." },
+        "followers": { "type": "number" },
+        "engagementRate": { "type": "number" },
+        "growthRate": { "type": "number" },
+        "avgLikes": { "type": "number" },
+        "avgComments": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
         "workspaceId",
-        "provider",
-        "displayName",
+        "network",
+        "name",
         "username",
+        "accountId",
+        "status",
         "createdAt",
-        "connected"
+        "updatedAt"
       ]
     },
     "Notification": {

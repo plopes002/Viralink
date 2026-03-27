@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 3) Exchange code for token
     const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -56,7 +55,6 @@ export async function GET(req: NextRequest) {
 
     const shortLivedToken = tokenData.access_token;
     
-    // 4) Fetch user profile
     const meRes = await fetch(
       `https://graph.instagram.com/me?fields=id,username&access_token=${encodeURIComponent(shortLivedToken)}`
     );
@@ -66,7 +64,6 @@ export async function GET(req: NextRequest) {
         throw new Error(meData.error.message || 'Profile fetch failed');
     }
 
-    // 5) Save to Firestore
     const now = new Date().toISOString();
     const accountQuery = await adminFirestore.collection('socialAccounts')
       .where('workspaceId', '==', workspaceId)
@@ -91,6 +88,7 @@ export async function GET(req: NextRequest) {
         await docRef.update({
             status: 'connected',
             username: meData.username,
+            name: meData.username,
             updatedAt: now,
         });
     }
