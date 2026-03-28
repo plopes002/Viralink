@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { EngagementChart } from "../components/EngagementChart";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useScheduledPosts } from "@/hooks/useScheduledPosts";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -21,9 +22,57 @@ type InstagramHistoryItem = {
   mediaCount: number;
 };
 
+function formatNetwork(network?: string) {
+  if (!network) return "Rede";
+  if (network === "instagram") return "Instagram";
+  if (network === "facebook") return "Facebook";
+  if (network === "whatsapp") return "WhatsApp";
+  return network;
+}
+
+function formatScheduledDate(date?: Date) {
+  if (!date) return "Sem data";
+
+  const scheduled = new Date(date);
+  const now = new Date();
+
+  const isToday =
+    scheduled.getDate() === now.getDate() &&
+    scheduled.getMonth() === now.getMonth() &&
+    scheduled.getFullYear() === now.getFullYear();
+
+  const tomorrow = new Date();
+  tomorrow.setDate(now.getDate() + 1);
+
+  const isTomorrow =
+    scheduled.getDate() === tomorrow.getDate() &&
+    scheduled.getMonth() === tomorrow.getMonth() &&
+    scheduled.getFullYear() === tomorrow.getFullYear();
+
+  const time = scheduled.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (isToday) return `Hoje • ${time}`;
+  if (isTomorrow) return `Amanhã • ${time}`;
+
+  return scheduled.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function DashboardPage() {
   const { currentWorkspace } = useWorkspace();
   const workspaceId = currentWorkspace?.id ?? null;
+
+  const {
+    posts: scheduledPosts,
+    loading: loadingScheduledPosts,
+  } = useScheduledPosts(workspaceId || undefined);
 
   const [insights, setInsights] = useState<InstagramInsights | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
@@ -255,21 +304,22 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <UpcomingPostItem
-            rede="Instagram"
-            horario="Hoje • 18:30"
-            titulo="Campanha de lançamento do pacote premium"
-          />
-          <UpcomingPostItem
-            rede="Facebook"
-            horario="Amanhã • 10:00"
-            titulo="Depoimento de cliente + bastidores"
-          />
-          <UpcomingPostItem
-            rede="WhatsApp"
-            horario="Amanhã • 15:45"
-            titulo="Lembrete de agendamento e CTA para resposta"
-          />
+          {loadingScheduledPosts ? (
+            <p className="text-[11px] text-[#9CA3AF]">Carregando posts agendados...</p>
+          ) : scheduledPosts.length === 0 ? (
+            <p className="text-[11px] text-[#9CA3AF]">
+              Nenhum post agendado encontrado.
+            </p>
+          ) : (
+            scheduledPosts.map((post) => (
+              <UpcomingPostItem
+                key={post.id}
+                rede={formatNetwork(post.networks?.[0])}
+                horario={formatScheduledDate(post.runAt?.toDate())}
+                titulo={post.title || post.content?.text || "Post agendado"}
+              />
+            ))
+          )}
         </motion.div>
       </div>
 

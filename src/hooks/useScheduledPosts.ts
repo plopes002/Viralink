@@ -1,54 +1,34 @@
-
 // src/hooks/useScheduledPosts.ts
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   collection,
   onSnapshot,
   orderBy,
   query,
   where,
+  Timestamp,
 } from "firebase/firestore";
 import { useFirebase } from "@/firebase/provider";
 
-export type ScheduledStatus =
-  | "pending"
-  | "processing"
-  | "sent"
-  | "failed";
-
-export interface ScheduledPost {
+export type ScheduledPostItem = {
   id: string;
   workspaceId: string;
-  ownerId: string;
-  networks: string[];
-  content: {
-    text: string;
-    mediaType: "image" | "video" | "none";
-    mediaUrl?: string | null;
-  };
-  timeZone: string;
-  runAt: Date;
-  status: ScheduledStatus;
-  lastError?: string | null;
-  createdAt?: Date | null;
-  updatedAt?: Date | null;
-}
+  networks?: string[];
+  title?: string;
+  content?: { text: string };
+  runAt?: Timestamp;
+  status?: string;
+};
 
-interface UseScheduledPostsOptions {
-  workspaceId: string | null;
-}
-
-export function useScheduledPosts({ workspaceId }: UseScheduledPostsOptions) {
-  const { firestore: db } = useFirebase();
-
-  const [posts, setPosts] = useState<ScheduledPost[]>([]);
+export function useScheduledPosts(workspaceId?: string) {
+  const { firestore } = useFirebase();
+  const [posts, setPosts] = useState<ScheduledPostItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!db || !workspaceId) {
+    if (!workspaceId || !firestore) {
       setPosts([]);
       setLoading(false);
       return;
@@ -56,74 +36,42 @@ export function useScheduledPosts({ workspaceId }: UseScheduledPostsOptions) {
 
     setLoading(true);
 
-    const ref = collection(db, "scheduledPosts");
-
+    const colRef = collection(firestore, "scheduledPosts");
     const q = query(
-      ref,
+      colRef,
       where("workspaceId", "==", workspaceId),
-      orderBy("runAt", "desc"),
+      orderBy("runAt", "asc")
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const items: ScheduledPost[] = snap.docs.map((doc) => {
-          const data = doc.data() as any;
-          return {
-            id: doc.id,
-            workspaceId: data.workspaceId,
-            ownerId: data.ownerId,
-            networks: data.networks ?? [],
-            content: {
-              text: data.content?.text ?? "",
-              mediaType: data.content?.mediaType ?? "none",
-              mediaUrl: data.content?.mediaUrl ?? null,
-            },
-            timeZone: data.timeZone ?? "America/Sao_Paulo",
-            runAt: data.runAt?.toDate ? data.runAt.toDate() : new Date(),
-            status: data.status ?? "pending",
-            lastError: data.lastError ?? null,
-            createdAt: data.createdAt?.toDate
-              ? data.createdAt.toDate()
-              : null,
-            updatedAt: data.updatedAt?.toDate
-              ? data.updatedAt.toDate()
-              : null,
-          };
-        });
+        const now = new Date();
 
-        setPosts(items);
+        const docs = snap.docs
+          .map((d) => ({
+            id: d.id,
+            ...(d.data() as any),
+          }))
+          .filter((item) => {
+            if (!item.runAt) return false;
+            const scheduledDate = item.runAt.toDate(); // Convert Firestore Timestamp to JS Date
+            return scheduledDate >= now;
+          })
+          .slice(0, 3);
+
+        setPosts(docs as ScheduledPostItem[]);
         setLoading(false);
       },
       (err) => {
-        console.error("[useScheduledPosts] erro:", err);
-        setError(err as Error);
+        console.error("[useScheduledPosts] erro ao escutar posts agendados:", err);
+        setPosts([]);
         setLoading(false);
-      },
+      }
     );
 
     return () => unsub();
-  }, [db, workspaceId]);
+  }, [workspaceId, firestore]);
 
-  // Mapear status "negócio" para as abas
-  const mapped = useMemo(() => {
-    return posts.map((p) => {
-      let boardStatus: "publicado" | "agendado" | "rascunho" | "erro" =
-        "agendado";
-
-      if (p.status === "sent") boardStatus = "publicado";
-      else if (p.status === "failed") boardStatus = "erro";
-      else if (p.status === "pending" || p.status === "processing")
-        boardStatus = "agendado";
-
-      return { ...p, boardStatus };
-    });
-  }, [posts]);
-
-  return {
-    posts: mapped,
-    rawPosts: posts,
-    loading,
-    error,
-  };
+  return { posts, loading };
 }
