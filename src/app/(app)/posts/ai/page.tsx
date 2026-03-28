@@ -13,8 +13,8 @@ import {
   FiSave,
 } from "react-icons/fi";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useUser } from "@/firebase/provider";
-import { usePostActions } from "@/firebase/posts";
+import { useUser, useFirebase } from "@/firebase/provider";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { generateImage } from "@/ai/flows/generate-image-flow";
 import { uploadBase64ImageToStorage } from "@/lib/upload-helper";
 import { generateSocialMediaPost } from "@/ai/flows/generate-social-media-post";
@@ -38,8 +38,7 @@ export default function CreatePostAIPage() {
   const router = useRouter();
   const { currentWorkspace } = useWorkspace();
   const { user: currentUser } = useUser();
-  const { createPost } = usePostActions();
-  //const { storage } = useFirebase();
+  const { firestore, storage } = useFirebase();
 
   const workspaceId = currentWorkspace?.id;
   const ownerId = currentUser?.uid;
@@ -188,8 +187,8 @@ export default function CreatePostAIPage() {
   }
 
   async function handleSaveDraft() {
-    if (!workspaceId || !ownerId) {
-       alert("Workspace ou usuário não identificado. Faça login novamente.");
+    if (!workspaceId || !ownerId || !firestore) {
+      alert("Workspace, usuário ou conexão não identificados. Faça login novamente.");
       return;
     }
     if (!generatedText && !mediaUrl) {
@@ -199,16 +198,22 @@ export default function CreatePostAIPage() {
 
     setSaving(true);
     try {
-      await createPost({
+      const draftRef = collection(firestore, 'draftPosts');
+      await addDoc(draftRef, {
         workspaceId,
         ownerId,
-        text: generatedText || "",
-        mediaType: mediaType,
-        mediaUrl,
         networks,
-        status: "draft",
-        aiToneId: toneId,
-        aiObjectiveId: objectiveId,
+        content: {
+          text: generatedText || "",
+          mediaType: mediaType,
+          mediaUrl: mediaUrl,
+        },
+        aiConfig: {
+          toneId: toneId,
+          objectiveId: objectiveId,
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
       alert("Rascunho salvo com sucesso!");
       router.push("/posts");

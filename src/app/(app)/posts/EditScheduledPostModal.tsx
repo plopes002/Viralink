@@ -14,6 +14,45 @@ interface EditScheduledPostModalProps {
   onClose: () => void;
 }
 
+function toSafeDate(value: any): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value?.toDate === "function") {
+    const parsed = value.toDate();
+    return parsed instanceof Date && !Number.isNaN(parsed.getTime())
+      ? parsed
+      : null;
+  }
+
+  if (typeof value?.seconds === "number") {
+    const parsed = new Date(value.seconds * 1000);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function getLocalDateInputValue(value: any) {
+  const date = toSafeDate(value);
+  if (!date) return "";
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function getLocalTimeInputValue(value: any) {
+  const date = toSafeDate(value);
+  if (!date) return "";
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function EditScheduledPostModal({
   post,
   isOpen,
@@ -30,30 +69,20 @@ export function EditScheduledPostModal({
   useEffect(() => {
     if (!post || !isOpen) return;
 
-    setText(post.content.text ?? "");
+    setText(post.content?.text ?? "");
     setNetworks(post.networks ?? []);
     setTimeZone(post.timeZone ?? "America/Sao_Paulo");
 
-    // Preenche date/time a partir de runAt no fuso da própria conta
-    const runAt = post.runAt;
-    const tz = post.timeZone ?? "America/Sao_Paulo";
+    const safeDate = toSafeDate(post.runAt);
 
-    const dateStr = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(runAt); // formato YYYY-MM-DD por causa do locale sv-SE
+    if (!safeDate) {
+      setDate("");
+      setTime("");
+      return;
+    }
 
-    const timeStr = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: tz,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(runAt);
-
-    setDate(dateStr);
-    setTime(timeStr);
+    setDate(getLocalDateInputValue(safeDate));
+    setTime(getLocalTimeInputValue(safeDate));
   }, [post, isOpen]);
 
   if (!isOpen || !post) return null;
@@ -62,7 +91,7 @@ export function EditScheduledPostModal({
     setNetworks((prev) =>
       prev.includes(network)
         ? prev.filter((n) => n !== network)
-        : [...prev, network],
+        : [...prev, network]
     );
   };
 
@@ -91,7 +120,10 @@ export function EditScheduledPostModal({
     }
   };
 
-  const runAtLabel = formatRunAtWithTimezone(post.runAt, post.timeZone).full;
+  const runAtLabel = formatRunAtWithTimezone(
+    post.runAt,
+    post.timeZone ?? "America/Sao_Paulo"
+  ).full;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -116,7 +148,6 @@ export function EditScheduledPostModal({
         </div>
 
         <div className="space-y-3">
-          {/* texto */}
           <div>
             <label className="text-[11px] text-[#E5E7EB] block mb-1">
               Texto do post
@@ -130,7 +161,6 @@ export function EditScheduledPostModal({
             />
           </div>
 
-          {/* redes */}
           <div>
             <label className="text-[11px] text-[#E5E7EB] block mb-1">
               Redes selecionadas
@@ -160,7 +190,6 @@ export function EditScheduledPostModal({
             </div>
           </div>
 
-          {/* data e hora */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] text-[#E5E7EB] block mb-1">
@@ -186,7 +215,6 @@ export function EditScheduledPostModal({
             </div>
           </div>
 
-          {/* fuso (pode evoluir pra um select de timezones depois) */}
           <div>
             <label className="text-[11px] text-[#E5E7EB] block mb-1">
               Fuso horário
@@ -239,3 +267,4 @@ export function EditScheduledPostModal({
     </div>
   );
 }
+

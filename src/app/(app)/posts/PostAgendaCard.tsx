@@ -1,6 +1,7 @@
 // src/app/(app)/posts/PostAgendaCard.tsx
 "use client";
 
+import type { ReactNode } from "react";
 import {
   FiInstagram,
   FiFacebook,
@@ -19,43 +20,55 @@ import {
   getTimeZoneLabel,
 } from "@/lib/scheduleFormatting";
 
-const iconByNetwork: Record<string, JSX.Element> = {
+const iconByNetwork: Record<string, ReactNode> = {
   instagram: <FiInstagram className="h-3.5 w-3.5 text-pink-400" />,
   facebook: <FiFacebook className="h-3.5 w-3.5 text-blue-400" />,
   whatsapp: <FiMessageCircle className="h-3.5 w-3.5 text-emerald-400" />,
 };
 
+type PostCardItem = ScheduledPost & { boardStatus: string };
+
 interface Props {
-  post: ScheduledPost & { boardStatus: string };
-  onEdit: (post: ScheduledPost & { boardStatus: string }) => void;
-  onDuplicate: (post: ScheduledPost & { boardStatus: string }) => void;
-  onCancel: (post: ScheduledPost & { boardStatus: string }) => void;
+  post: PostCardItem;
+  onEdit: (post: PostCardItem) => void;
+  onDuplicate: (post: PostCardItem) => void;
+  onCancel: (post: PostCardItem) => void;
 }
 
-export function PostAgendaCard({ post, onEdit, onDuplicate, onCancel }: Props) {
+export function PostAgendaCard({
+  post,
+  onEdit,
+  onDuplicate,
+  onCancel,
+}: Props) {
+  const safeRunAt =
+    post.runAt && typeof (post.runAt as any).toDate === "function"
+      ? (post.runAt as any).toDate()
+      : post.runAt ?? null;
+
   const { full } = formatRunAtWithTimezone(post.runAt, post.timeZone);
   const tzLabel = getTimeZoneLabel(post.timeZone);
   const statusChip = getStatusChip(post);
 
   const hasMedia =
-    post.content.mediaType !== "none" && !!post.content.mediaUrl;
+    post.content?.mediaType &&
+    post.content.mediaType !== "none" &&
+    !!post.content.mediaUrl;
 
   return (
     <div className="rounded-2xl border border-[#1F1134] bg-[#050017] px-4 py-3 flex flex-col gap-3 hover:border-[#7C3AED]/70 transition">
-      {/* Linha principal: texto + status + ações rápidas */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <p className="text-[13px] font-medium text-white line-clamp-1">
-              {post.content.text || "Post sem texto (mídia apenas)"}
+              {post.content?.text || "Post sem texto (mídia apenas)"}
             </p>
             {statusChip}
           </div>
 
-          {/* redes + horário */}
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#9CA3AF]">
             <div className="flex items-center gap-1 flex-wrap">
-              {post.networks.map((network) => (
+              {(post.networks ?? []).map((network) => (
                 <span
                   key={network}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#111827] border border-[#272046]"
@@ -75,7 +88,6 @@ export function PostAgendaCard({ post, onEdit, onDuplicate, onCancel }: Props) {
             </span>
           </div>
 
-          {/* erro, se tiver */}
           {post.status === "failed" && post.lastError && (
             <div className="mt-1 flex items-center gap-1 text-amber-300 text-[11px]">
               <FiAlertTriangle className="h-3.5 w-3.5" />
@@ -86,12 +98,10 @@ export function PostAgendaCard({ post, onEdit, onDuplicate, onCancel }: Props) {
           )}
         </div>
 
-        {/* ações rápidas */}
         <div className="flex flex-col items-end gap-1 text-[10px]">
-          {/* preview mini de mídia */}
           {hasMedia && (
             <div className="flex items-center gap-1 mb-1 text-[#E5E7EB]">
-              {post.content.mediaType === "image" ? (
+              {post.content?.mediaType === "image" ? (
                 <FiImage className="h-3.5 w-3.5 text-sky-400" />
               ) : (
                 <FiVideo className="h-3.5 w-3.5 text-violet-400" />
@@ -109,6 +119,7 @@ export function PostAgendaCard({ post, onEdit, onDuplicate, onCancel }: Props) {
             >
               <FiEdit2 className="h-3.5 w-3.5" />
             </button>
+
             <button
               type="button"
               onClick={() => onDuplicate(post)}
@@ -117,6 +128,7 @@ export function PostAgendaCard({ post, onEdit, onDuplicate, onCancel }: Props) {
             >
               <FiCopy className="h-3.5 w-3.5" />
             </button>
+
             {post.status !== "sent" && post.status !== "failed" && (
               <button
                 type="button"
@@ -138,7 +150,7 @@ export function PostAgendaCard({ post, onEdit, onDuplicate, onCancel }: Props) {
   );
 }
 
-function getStatusChip(post: ScheduledPost & { boardStatus: string }) {
+function getStatusChip(post: PostCardItem) {
   if (post.status === "sent") {
     return (
       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">
@@ -164,7 +176,6 @@ function getStatusChip(post: ScheduledPost & { boardStatus: string }) {
     );
   }
 
-  // pending / cancelado (vamos tratar cancel no futuro se quiser)
   return (
     <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/40">
       Agendado

@@ -12,9 +12,11 @@ import {
   FiVideo,
 } from "react-icons/fi";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useUser } from "@/firebase/provider";
-import { usePostActions } from "@/firebase/posts";
+import { useUser, useFirebase } from "@/firebase/provider";
 import type { PostNetwork } from "@/types/post";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { toUtcDateFromLocalInput } from "@/lib/timezone";
+
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -23,7 +25,7 @@ export default function CreatePostManualPage() {
   const router = useRouter();
   const { currentWorkspace } = useWorkspace();
   const { user: currentUser } = useUser();
-  const { createPost } = usePostActions();
+  const { firestore } = useFirebase();
 
   const workspaceId = currentWorkspace?.id;
   const ownerId = currentUser?.uid;
@@ -52,41 +54,65 @@ export default function CreatePostManualPage() {
   }
 
   async function handleSave(status: "draft" | "scheduled") {
-    if (!workspaceId || !ownerId) {
-      alert("Workspace ou usuário não identificado. Faça login novamente.");
+    if (!workspaceId || !ownerId || !firestore) {
+      alert("Workspace, usuário ou conexão não identificados. Faça login novamente.");
       return;
     }
     if (!text.trim() && !mediaUrl) {
       alert("Adicione texto ou uma mídia antes de salvar.");
       return;
     }
-    if (status === "scheduled" && (!date || !time)) {
-      alert("Para agendar, você precisa definir a data e a hora.");
-      return;
-    }
 
     setSaving(true);
+
     try {
-      let scheduledAt: string | null = null;
-      if (status === "scheduled" && date && time) {
-        // Assume date is 'YYYY-MM-DD' and time is 'HH:mm'
-        scheduledAt = new Date(`${date}T${time}:00`).toISOString();
+      if (status === 'draft') {
+        const draftRef = collection(firestore, 'draftPosts');
+        await addDoc(draftRef, {
+          workspaceId,
+          ownerId,
+          title,
+          networks,
+          content: {
+            text,
+            mediaType,
+            mediaUrl: mediaUrl ?? null,
+          },
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        alert("Rascunho salvo com sucesso!");
+      } else { // scheduled
+        if (!date || !time) {
+          alert("Para agendar, você precisa definir a data e a hora.");
+          setSaving(false);
+          return;
+        }
+
+        const runAt = toUtcDateFromLocalInput(date, time, currentWorkspace?.timeZone ?? 'America/Sao_Paulo');
+
+        const scheduledRef = collection(firestore, 'scheduledPosts');
+        await addDoc(scheduledRef, {
+          workspaceId,
+          ownerId,
+          title,
+          networks,
+          content: {
+            text,
+            mediaType,
+            mediaUrl: mediaUrl ?? null,
+          },
+          timeZone: currentWorkspace?.timeZone ?? "America/Sao_Paulo",
+          runAt: runAt,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        alert("Post agendado com sucesso!");
       }
 
-      await createPost({
-        workspaceId,
-        ownerId,
-        title,
-        text,
-        mediaType,
-        mediaUrl,
-        networks,
-        status,
-        scheduledAt,
-      });
-
-      alert(`Post salvo como ${status === 'draft' ? 'rascunho' : 'agendado'}!`);
       router.push("/posts");
+
     } catch (err) {
       console.error("[CreatePostManualPage] erro ao salvar post:", err);
       alert("Ocorreu um erro ao salvar o post.");

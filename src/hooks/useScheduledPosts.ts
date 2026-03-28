@@ -11,20 +11,20 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { useFirebase } from "@/firebase/provider";
+import type { ScheduledPost as ScheduledPostType } from "@/domain/posts/postTypes";
 
-export type ScheduledPostItem = {
+export type ScheduledPost = ScheduledPostType & {
   id: string;
-  workspaceId: string;
-  networks?: string[];
-  title?: string;
-  content?: { text: string };
-  runAt?: Timestamp;
-  status?: string;
+  boardStatus: "publicado" | "agendado" | "rascunho" | "erro";
 };
 
-export function useScheduledPosts(workspaceId?: string) {
+interface UseScheduledPostsOptions {
+  workspaceId?: string | null;
+}
+
+export function useScheduledPosts({ workspaceId }: UseScheduledPostsOptions) {
   const { firestore } = useFirebase();
-  const [posts, setPosts] = useState<ScheduledPostItem[]>([]);
+  const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function useScheduledPosts(workspaceId?: string) {
     const q = query(
       colRef,
       where("workspaceId", "==", workspaceId),
-      orderBy("runAt", "asc")
+      orderBy("runAt", "desc")
     );
 
     const unsub = onSnapshot(
@@ -48,23 +48,33 @@ export function useScheduledPosts(workspaceId?: string) {
       (snap) => {
         const now = new Date();
 
-        const docs = snap.docs
-          .map((d) => ({
+        const docs: ScheduledPost[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+        
+          const status = data.status ?? "pending";
+        
+          let boardStatus: ScheduledPost["boardStatus"] = "agendado";
+        
+          if (status === "sent") {
+            boardStatus = "publicado";
+          } else if (status === "failed") {
+            boardStatus = "erro";
+          } else if (status === "pending" || status === "processing") {
+             boardStatus = "agendado";
+          }
+        
+          return {
             id: d.id,
-            ...(d.data() as any),
-          }))
-          .filter((item) => {
-            if (!item.runAt) return false;
-            const scheduledDate = item.runAt.toDate(); // Convert Firestore Timestamp to JS Date
-            return scheduledDate >= now;
-          })
-          .slice(0, 3);
-
-        setPosts(docs as ScheduledPostItem[]);
+            ...(data as ScheduledPostType),
+            boardStatus,
+          };
+        });
+        
+        setPosts(docs);
         setLoading(false);
       },
       (err) => {
-        console.error("[useScheduledPosts] erro ao escutar posts agendados:", err);
+        console.error("[useScheduledPosts] erro ao carregar posts agendados:", err);
         setPosts([]);
         setLoading(false);
       }

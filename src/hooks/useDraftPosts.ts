@@ -1,11 +1,10 @@
-
 // src/hooks/useDraftPosts.ts
 "use client";
 
 import { useEffect, useState } from "react";
 import {
   collection,
-  onSnapshot,
+  getDocs,
   orderBy,
   query,
   where,
@@ -38,25 +37,31 @@ export function useDraftPosts({ workspaceId }: UseDraftPostsOptions) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!db || !workspaceId) {
-      setDrafts([]);
-      setLoading(false);
-      return;
-    }
+    let cancelled = false;
 
-    setLoading(true);
+    async function load() {
+      if (!db || !workspaceId) {
+        setDrafts([]);
+        setLoading(false);
+        return;
+      }
 
-    const ref = collection(db, "draftPosts");
+      setLoading(true);
+      setError(null);
 
-    const q = query(
-      ref,
-      where("workspaceId", "==", workspaceId),
-      orderBy("createdAt", "desc"),
-    );
+      try {
+        const ref = collection(db, "draftPosts");
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
+        const q = query(
+          ref,
+          where("workspaceId", "==", workspaceId),
+          orderBy("createdAt", "desc")
+        );
+
+        const snap = await getDocs(q);
+
+        if (cancelled) return;
+
         const items: DraftPost[] = snap.docs.map((doc) => {
           const data = doc.data() as any;
           return {
@@ -79,16 +84,24 @@ export function useDraftPosts({ workspaceId }: UseDraftPostsOptions) {
         });
 
         setDrafts(items);
-        setLoading(false);
-      },
-      (err) => {
+      } catch (err) {
         console.error("[useDraftPosts] erro:", err);
-        setError(err as Error);
-        setLoading(false);
-      },
-    );
+        if (!cancelled) {
+          setError(err as Error);
+          setDrafts([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
 
-    return () => unsub();
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [db, workspaceId]);
 
   return {

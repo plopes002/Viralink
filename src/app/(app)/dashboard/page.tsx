@@ -30,10 +30,10 @@ function formatNetwork(network?: string) {
   return network;
 }
 
-function formatScheduledDate(date?: Date) {
+function formatScheduledDate(date?: any) {
   if (!date) return "Sem data";
 
-  const scheduled = new Date(date);
+  const scheduled = date.toDate ? date.toDate() : new Date(date);
   const now = new Date();
 
   const isToday =
@@ -315,7 +315,7 @@ export default function DashboardPage() {
               <UpcomingPostItem
                 key={post.id}
                 rede={formatNetwork(post.networks?.[0])}
-                horario={formatScheduledDate(post.runAt?.toDate())}
+                horario={formatScheduledDate(post.runAt)}
                 titulo={post.title || post.content?.text || "Post agendado"}
               />
             ))
@@ -551,3 +551,4 @@ function CompetitorsChart() {
     </motion.div>
   );
 }
+
