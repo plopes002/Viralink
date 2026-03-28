@@ -1,12 +1,8 @@
-
+// src/ai/flows/political-review-flow.ts
 'use server';
 
 /**
  * @fileOverview An AI agent to detect political mentions in text.
- *
- * - politicalReviewFlow - A function that handles the political review process.
- * - PoliticalReviewInput - The input type for the politicalReviewFlow function.
- * - PoliticalReviewOutput - The return type for the politicalReviewFlow function.
  */
 
 import { ai } from '@/ai/genkit';
@@ -15,16 +11,17 @@ import { z } from 'genkit';
 const PoliticalReviewInputSchema = z.object({
   text: z.string().describe('The text to be analyzed for political content.'),
 });
-export type PoliticalReviewInput = z.infer<typeof PoliticalReviewInputSchema>;
 
-export const PoliticalReviewOutputSchema = z.object({
+const PoliticalReviewOutputSchema = z.object({
   hasPoliticalMention: z.boolean(),
   flags: z.array(z.string()),
   entities: z.array(z.string()),
   excerpt: z.string().nullable(),
   summary: z.string().nullable(),
 });
-export type PoliticalReviewOutput = z.infer<typeof PoliticalReviewOutputSchema>;
+
+type PoliticalReviewInput = z.infer<typeof PoliticalReviewInputSchema>;
+type PoliticalReviewOutput = z.infer<typeof PoliticalReviewOutputSchema>;
 
 const FALLBACK_ENTITIES = [
   "pt", "pl", "psdb", "psol", "mdb", "união brasil", "uniao brasil",
@@ -47,12 +44,6 @@ function fallbackPoliticalReview(text: string): PoliticalReviewOutput {
       ? "Texto com menções políticas detectadas. Revisão manual recomendada."
       : "Sem menções políticas claras.",
   };
-}
-
-export async function politicalReviewFlow(
-  input: PoliticalReviewInput
-): Promise<PoliticalReviewOutput> {
-  return flow(input);
 }
 
 const prompt = ai.definePrompt({
@@ -122,3 +113,9 @@ const flow = ai.defineFlow(
     }
   }
 );
+
+export async function politicalReviewFlow(
+  input: PoliticalReviewInput
+): Promise<PoliticalReviewOutput> {
+  return flow(input);
+}

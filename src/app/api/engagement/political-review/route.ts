@@ -1,7 +1,7 @@
 // src/app/api/engagement/political-review/route.ts
 import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
-import { politicalReviewFlow, PoliticalReviewOutput } from "@/ai/flows/political-review-flow";
+import { politicalReviewFlow } from "@/ai/flows/political-review-flow";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     console.error("[political-review api] erro:", err);
-    const fallback: PoliticalReviewOutput = {
+    const fallback = {
       hasPoliticalMention: false,
       flags: [],
       entities: [],
