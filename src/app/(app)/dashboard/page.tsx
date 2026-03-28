@@ -4,38 +4,185 @@
 import { motion } from "framer-motion";
 import { EngagementChart } from "../components/EngagementChart";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
 
+type InstagramInsights = {
+  username?: string;
+  followers_count?: number;
+  media_count?: number;
+};
+
+type InstagramHistoryItem = {
+  dateKey: string;
+  followersCount: number;
+  mediaCount: number;
+};
+
 export default function DashboardPage() {
   const { currentWorkspace } = useWorkspace();
-  const [insights, setInsights] = useState<any>(null);
+  const workspaceId = currentWorkspace?.id ?? null;
+
+  const [insights, setInsights] = useState<InstagramInsights | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [history, setHistory] = useState<InstagramHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  const lastLoadedWorkspaceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    async function load() {
-      if (!currentWorkspace?.id) return;
+    if (!workspaceId) {
+      setInsights(null);
+      setLoadingInsights(false);
+      setInsightsError("Workspace não disponível.");
+      return;
+    }
 
+    if (lastLoadedWorkspaceIdRef.current === workspaceId) {
+      return;
+    }
+
+    lastLoadedWorkspaceIdRef.current = workspaceId;
+
+    const controller = new AbortController();
+
+    async function load() {
       setLoadingInsights(true);
+      setInsightsError(null);
+
       try {
-        const res = await fetch(`/api/instagram/insights?workspaceId=${currentWorkspace.id}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.ok) {
-            setInsights(json.data);
+        const res = await fetch(
+          `/api/instagram/insights?workspaceId=${encodeURIComponent(workspaceId)}`,
+          {
+            method: "GET",
+            signal: controller.signal,
+            headers: {
+              Accept: "application/json",
+            },
+            cache: "no-store",
           }
+        );
+
+        const contentType = res.headers.get("content-type") || "";
+        const isJson = contentType.includes("application/json");
+
+        if (!res.ok) {
+          if (isJson) {
+            const errorJson = await res.json().catch(() => null);
+            throw new Error(
+              errorJson?.message ||
+                errorJson?.error ||
+                `Erro ao carregar insights (${res.status})`
+            );
+          }
+
+          const errorText = await res.text().catch(() => "");
+          throw new Error(
+            errorText?.trim() || `Erro ao carregar insights (${res.status})`
+          );
         }
-      } catch (err) {
+
+        if (!isJson) {
+          const raw = await res.text().catch(() => "");
+          throw new Error(
+            raw?.trim() || "A API retornou uma resposta inválida (não JSON)."
+          );
+        }
+
+        const json = await res.json();
+
+        if (!json?.ok) {
+          throw new Error(json?.message || "A API retornou erro ao buscar insights.");
+        }
+
+        setInsights(json.data ?? null);
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+
         console.error("Failed to load instagram insights", err);
+        setInsights(null);
+        setInsightsError(err?.message || "Erro inesperado ao carregar insights.");
       } finally {
-        setLoadingInsights(false);
+        if (!controller.signal.aborted) {
+          setLoadingInsights(false);
+        }
       }
     }
 
     load();
-  }, [currentWorkspace]);
+
+    return () => {
+      controller.abort();
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setHistory([]);
+      setLoadingHistory(false);
+      return;
+    }
+  
+    const controller = new AbortController();
+  
+    async function loadHistory() {
+      setLoadingHistory(true);
+  
+      try {
+        const res = await fetch(
+          `/api/instagram/history?workspaceId=${encodeURIComponent(workspaceId)}`,
+          {
+            method: "GET",
+            signal: controller.signal,
+            headers: {
+              Accept: "application/json",
+            },
+            cache: "no-store",
+          }
+        );
+  
+        const json = await res.json();
+  
+        if (!json?.ok) {
+          throw new Error(json?.message || "Erro ao carregar histórico.");
+        }
+  
+        setHistory(json.data ?? []);
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        console.error("Failed to load instagram history", err);
+        setHistory([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingHistory(false);
+        }
+      }
+    }
+  
+    loadHistory();
+  
+    return () => controller.abort();
+  }, [workspaceId]);
+
+  const followersValue = useMemo(() => {
+    if (loadingInsights) return "...";
+    if (!insights?.followers_count && insights?.followers_count !== 0) return "N/A";
+    return insights.followers_count.toLocaleString("pt-BR");
+  }, [insights, loadingInsights]);
+
+  const mediaCountValue = useMemo(() => {
+    if (loadingInsights) return "...";
+    if (!insights?.media_count && insights?.media_count !== 0) return "N/A";
+    return String(insights.media_count);
+  }, [insights, loadingInsights]);
+
+  const usernameValue = useMemo(() => {
+    if (loadingInsights) return "Carregando...";
+    return insights?.username || "Conta não encontrada";
+  }, [insights, loadingInsights]);
 
   return (
     <section className="mt-4 space-y-6">
@@ -59,10 +206,26 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {insightsError && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {insightsError}
+        </div>
+      )}
+
       {/* Cards principais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Seguidores" value={loadingInsights ? '...' : insights?.followers_count ?? 'N/A'} diff={insights?.username || ''} tone="neutral" />
-        <StatCard label="Publicações" value={loadingInsights ? '...' : insights?.media_count ?? 'N/A'} diff="total" tone="neutral" />
+        <StatCard
+          label="Seguidores"
+          value={followersValue}
+          diff={usernameValue}
+          tone="neutral"
+        />
+        <StatCard
+          label="Publicações"
+          value={mediaCountValue}
+          diff="total"
+          tone="neutral"
+        />
         <StatCard label="Mensagens respondidas" value="94%" diff="+6%" tone="up" />
         <StatCard
           label="Concorrentes monitorados"
@@ -112,7 +275,7 @@ export default function DashboardPage() {
 
       {/* Linha 2: Crescimento seguidores x cliques + Concorrentes */}
       <div className="grid lg:grid-cols-[1.4fr,0.9fr] gap-4">
-        <FollowersClicksChart />
+        <FollowersHistoryChart history={history} loading={loadingHistory} />
         <CompetitorsChart />
       </div>
     </section>
@@ -168,14 +331,25 @@ function UpcomingPostItem({
   );
 }
 
-/* NOVO: gráfico de crescimento seguidores x cliques */
-function FollowersClicksChart() {
-  const followers = [1200, 1340, 1500, 1600, 1780, 1900, 2100];
-  const clicks = [180, 210, 240, 230, 280, 320, 310];
-  const days = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+function FollowersHistoryChart({
+  history,
+  loading,
+}: {
+  history: { dateKey: string; followersCount: number }[];
+  loading: boolean;
+}) {
+  const days =
+    history.length > 0
+      ? history.map((item) => {
+          const [, month, day] = item.dateKey.split("-");
+          return `${day}/${month}`;
+        })
+      : ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
-  const maxFollowers = Math.max(...followers);
-  const maxClicks = Math.max(...clicks);
+  const followers =
+    history.length > 0 ? history.map((item) => item.followersCount) : [0, 0, 0, 0, 0, 0, 0];
+
+  const maxFollowers = Math.max(...followers, 1);
 
   return (
     <motion.div
@@ -187,104 +361,83 @@ function FollowersClicksChart() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-sm font-semibold text-white">
-            Crescimento de seguidores x cliques
+            Crescimento de seguidores
           </h2>
           <p className="text-[11px] text-[#9CA3AF]">
-            Comparativo entre novos seguidores e cliques em links.
+            Histórico real de seguidores capturado pelo sistema.
           </p>
         </div>
         <div className="flex items-center gap-3 text-[10px] text-[#CBD5E1]">
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-[#7C3AED]" /> Seguidores
           </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-[#0EA5E9]" /> Cliques
-          </span>
         </div>
       </div>
 
       <div className="h-40 rounded-2xl bg-gradient-to-b from-[#1F1033] to-[#050012] border border-[#261341]/60 px-3 pt-3 pb-4">
-        <svg
-          viewBox="0 0 300 120"
-          className="w-full h-full overflow-visible"
-          preserveAspectRatio="none"
-        >
-          {/* linha seguidores */}
-          <polyline
-            fill="none"
-            stroke="#7C3AED"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            points={followers
-              .map(
-                (v, i) =>
-                  `${(i / (followers.length - 1 || 1)) * 300},${
-                    120 - (v / maxFollowers) * 100
-                  }`,
-              )
-              .join(" ")}
-          />
-          {/* pontos seguidores */}
-          {followers.map((v, i) => (
-            <circle
-              key={`f-${i}`}
-              cx={(i / (followers.length - 1 || 1)) * 300}
-              cy={120 - (v / maxFollowers) * 100}
-              r="3.5"
-              fill="#7C3AED"
-              stroke="#F9FAFB"
-              strokeWidth="1"
-            />
-          ))}
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-[#9CA3AF]">
+            Carregando histórico...
+          </div>
+        ) : history.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-xs text-[#9CA3AF]">
+            Ainda não há histórico suficiente. Abra o dashboard nos próximos dias
+            para formar a curva real.
+          </div>
+        ) : (
+          <>
+            <svg
+              viewBox="0 0 300 120"
+              className="w-full h-full overflow-visible"
+              preserveAspectRatio="none"
+            >
+              <polyline
+                fill="none"
+                stroke="#7C3AED"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={followers
+                  .map(
+                    (v, i) =>
+                      `${(i / (followers.length - 1 || 1)) * 300},${
+                        120 - (v / maxFollowers) * 100
+                      }`
+                  )
+                  .join(" ")}
+              />
+              {followers.map((v, i) => (
+                <circle
+                  key={`f-${i}`}
+                  cx={(i / (followers.length - 1 || 1)) * 300}
+                  cy={120 - (v / maxFollowers) * 100}
+                  r="3.5"
+                  fill="#7C3AED"
+                  stroke="#F9FAFB"
+                  strokeWidth="1"
+                />
+              ))}
+            </svg>
 
-          {/* linha cliques */}
-          <polyline
-            fill="none"
-            stroke="#0EA5E9"
-            strokeWidth="2.5"
-            strokeDasharray="4 4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            points={clicks
-              .map(
-                (v, i) =>
-                  `${(i / (clicks.length - 1 || 1)) * 300},${
-                    120 - (v / maxClicks) * 100
-                  }`,
-              )
-              .join(" ")}
-          />
-          {/* pontos cliques */}
-          {clicks.map((v, i) => (
-            <circle
-              key={`c-${i}`}
-              cx={(i / (clicks.length - 1 || 1)) * 300}
-              cy={120 - (v / maxClicks) * 100}
-              r="3"
-              fill="#050012"
-              stroke="#0EA5E9"
-              strokeWidth="1"
-            />
-          ))}
-        </svg>
-
-        <div className="mt-2 flex justify-between text-[10px] text-[#9CA3AF] px-1">
-          {days.map((d) => (
-            <span key={d}>{d}</span>
-          ))}
-        </div>
+            <div className="mt-2 flex justify-between text-[10px] text-[#9CA3AF] px-1">
+              {days.map((d) => (
+                <span key={d}>{d}</span>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <p className="mt-2 text-[11px] text-[#CBD5E1]">
-        Em geral, o aumento de seguidores acompanha o volume de cliques,
-        indicando boa qualidade dos conteúdos.
+        O gráfico passa a refletir dados reais conforme o sistema vai capturando
+        snapshots do Instagram.
       </p>
     </motion.div>
   );
 }
 
-/* NOVO: gráfico de concorrentes */
+
+/* gráfico de concorrentes */
 function CompetitorsChart() {
   const competitors = [
     { name: "Você", score: 82, color: "#7C3AED" },

@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
       status: 'connected' as const,
       followers: igProfileData.followers_count || 0,
       isPrimary,
-      accessToken: userAccessToken, // SAVING THE TOKEN
+      accessToken: pageAccessToken || userAccessToken,
       pageAccessToken: pageAccessToken || null,
       updatedAt: now,
     };

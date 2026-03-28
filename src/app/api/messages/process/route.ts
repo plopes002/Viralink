@@ -63,7 +63,15 @@ async function refreshCampaignStatus(campaignId: string) {
     campaignStatus = "error";
   }
 
-  await adminFirestore.collection("campaigns").doc(campaignId).update({
+  const campaignRef = adminFirestore.collection("campaigns").doc(campaignId);
+  const campaignDoc = await campaignRef.get();
+
+  if (!campaignDoc.exists) {
+    console.warn("[messages process] campanha não encontrada:", campaignId);
+    return;
+  }
+
+  await campaignRef.update({
     status: campaignStatus,
     updatedAt: new Date().toISOString(),
   });
@@ -72,6 +80,7 @@ async function refreshCampaignStatus(campaignId: string) {
 export async function POST(req: NextRequest) {
   try {
     const now = new Date().toISOString();
+
     const snap = await adminFirestore
       .collection("messages")
       .where("status", "==", "scheduled")
@@ -112,6 +121,11 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date().toISOString(),
         });
       } catch (err: any) {
+        console.error("[messages process] erro ao enviar mensagem:", {
+          messageId: docSnap.id,
+          error: err?.message || err,
+        });
+
         await docSnap.ref.update({
           status: "error",
           errorMessage: err?.message || "Erro ao enviar mensagem.",
@@ -125,18 +139,29 @@ export async function POST(req: NextRequest) {
     }
 
     for (const campaignId of touchedCampaigns) {
-      await refreshCampaignStatus(campaignId);
+      try {
+        await refreshCampaignStatus(campaignId);
+      } catch (err: any) {
+        console.error("[messages process] erro ao atualizar campanha:", {
+          campaignId,
+          error: err?.message || err,
+        });
+      }
     }
 
     return NextResponse.json({
       ok: true,
       processed: docs.length,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[messages process] erro:", err);
+
     return NextResponse.json(
-      { error: "Erro ao processar mensagens." },
-      { status: 500 },
+      {
+        ok: false,
+        error: err?.message || "Erro ao processar mensagens.",
+      },
+      { status: 500 }
     );
   }
 }
