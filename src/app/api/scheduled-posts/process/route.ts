@@ -2,6 +2,7 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
+import { publishImageToInstagram } from "@/lib/instagramPublishing";
 
 type ScheduledPostDoc = {
   workspaceId: string;
@@ -43,33 +44,43 @@ function getRunAtDate(runAt: any): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/**
- * Placeholder de publicação real.
- * Aqui depois vamos trocar por integração oficial:
- * - Instagram Graph API
- * - Facebook Graph API
- * - WhatsApp Cloud API
- */
-async function publishToNetwork(post: ScheduledPostDoc, network: string) {
-  const text = post.content?.text?.trim() ?? "";
-  const mediaType = post.content?.mediaType ?? "none";
-  const mediaUrl = post.content?.mediaUrl ?? null;
+async function publishToInstagram(post: ScheduledPostDoc) {
+  const socialSnap = await adminFirestore
+    .collection("socialAccounts")
+    .where("workspaceId", "==", post.workspaceId)
+    .where("network", "==", "instagram")
+    .where("status", "==", "connected")
+    .limit(1)
+    .get();
 
-  if (!text && mediaType === "none") {
-    throw new Error(`Post sem conteúdo para publicar em ${network}.`);
+  if (socialSnap.empty) {
+    throw new Error("Conta Instagram conectada não encontrada.");
   }
 
-  console.log("[scheduled-posts/process] publish placeholder", {
-    network,
-    text,
-    mediaType,
-    mediaUrl,
-  });
+  const social = socialSnap.docs[0].data() as any;
 
-  return {
-    ok: true,
-    network,
-  };
+  const igUserId = social.accountId;
+  const accessToken = social.pageAccessToken || social.accessToken || "";
+  const caption = post.content?.text?.trim() || "";
+  const mediaType = post.content?.mediaType || "none";
+  const imageUrl = post.content?.mediaUrl || "";
+
+  if (!imageUrl) {
+    throw new Error("mediaUrl ausente para publicação no Instagram.");
+  }
+
+  if (mediaType !== "image") {
+    throw new Error(
+      "Neste primeiro passo, só imagem única está habilitada para Instagram."
+    );
+  }
+
+  return publishImageToInstagram({
+    igUserId,
+    accessToken,
+    caption,
+    imageUrl,
+  });
 }
 
 async function processPost(docId: string, data: ScheduledPostDoc) {
@@ -88,14 +99,25 @@ async function processPost(docId: string, data: ScheduledPostDoc) {
       throw new Error("Nenhuma rede configurada no agendamento.");
     }
 
+    const publishResults: Array<{ network: string; mediaId?: string }> = [];
+
     for (const network of networks) {
-      await publishToNetwork(data, network);
+      if (network !== "instagram") {
+        throw new Error(`Rede ainda não implementada: ${network}`);
+      }
+
+      const result = await publishToInstagram(data);
+      publishResults.push({
+        network,
+        mediaId: result?.mediaId,
+      });
     }
 
     await ref.update({
       status: "sent",
       lastError: null,
       sentAt: new Date().toISOString(),
+      publishResults,
       updatedAt: new Date().toISOString(),
     });
 

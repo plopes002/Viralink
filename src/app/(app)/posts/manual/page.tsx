@@ -1,309 +1,652 @@
-// app/(app)/posts/manual/page.tsx
+// src/app/(app)/posts/manual/page.tsx
 "use client";
 
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from "firebase/storage";
 import {
   FiArrowLeft,
   FiCalendar,
-  FiClock,
-  FiSave,
   FiImage,
+  FiPaperclip,
+  FiSave,
   FiVideo,
+  FiX,
 } from "react-icons/fi";
+import { useFirebase, useUser } from "@/firebase/provider";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useUser, useFirebase } from "@/firebase/provider";
-import type { PostNetwork } from "@/types/post";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { toUtcDateFromLocalInput } from "@/lib/timezone";
 
+type MediaType = "image" | "video" | "none";
 
-const CARD = "#0B001F";
-const BORDER = "#261341";
+const AVAILABLE_NETWORKS = [
+  { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" },
+  { id: "whatsapp", label: "WhatsApp" },
+];
 
-export default function CreatePostManualPage() {
+const MAX_IMAGE_MB = 8;
+const MAX_VIDEO_MB = 100;
+
+function getTomorrowDateInput() {
+  const now = new Date();
+  now.setDate(now.getDate() + 1);
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function fileSizeInMb(file: File) {
+  return file.size / (1024 * 1024);
+}
+
+function isImage(file: File) {
+  return file.type.startsWith("image/");
+}
+
+function isVideo(file: File) {
+  return file.type.startsWith("video/");
+}
+
+async function compressImage(
+  file: File,
+  maxWidth = 1600,
+  quality = 0.82
+): Promise<File> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+
+  let { width, height } = image;
+
+  if (width > maxWidth) {
+    const ratio = maxWidth / width;
+    width = maxWidth;
+    height = Math.round(height * ratio);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Não foi possível processar a imagem.");
+  }
+
+  ctx.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", quality);
+  });
+
+  if (!blob) {
+    throw new Error("Falha ao comprimir a imagem.");
+  }
+
+  const compressedName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+
+  return new File([blob], compressedName, {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
+export default function ManualPostPage() {
   const router = useRouter();
+  const { firestore: db } = useFirebase();
   const { currentWorkspace } = useWorkspace();
   const { user: currentUser } = useUser();
-  const { firestore } = useFirebase();
 
-  const workspaceId = currentWorkspace?.id;
-  const ownerId = currentUser?.uid;
+  const workspaceId = currentWorkspace?.id ?? null;
+  const ownerId = currentUser?.uid ?? null;
+  const sessionReady = !!db && !!workspaceId && !!ownerId;
 
-  const [networks, setNetworks] = useState<PostNetwork[]>(["instagram"]);
-  const [title, setTitle] = useState("");
   const [text, setText] = useState("");
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [networks, setNetworks] = useState<string[]>(["instagram"]);
+  const [mediaType, setMediaType] = useState<MediaType>("image");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [date, setDate] = useState(getTomorrowDateInput());
+  const [time, setTime] = useState("10:00");
+  const [timeZone, setTimeZone] = useState("America/Sao_Paulo");
 
-  const [mediaType, setMediaType] = useState<"image" | "video" | "none">("none");
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  function toggleNetwork(network: PostNetwork) {
+  const isBusy = savingDraft || savingSchedule || uploading;
+
+  const canSubmit = useMemo(() => {
+    if (!sessionReady) return false;
+    if (!networks.length) return false;
+    if (!text.trim() && mediaType === "none") return false;
+    if (mediaType !== "none" && !selectedFile) return false;
+    return true;
+  }, [sessionReady, networks, text, mediaType, selectedFile]);
+
+  const toggleNetwork = (networkId: string) => {
     setNetworks((prev) =>
-      prev.includes(network)
-        ? prev.filter((n) => n !== network)
-        : [...prev, network]
+      prev.includes(networkId)
+        ? prev.filter((item) => item !== networkId)
+        : [...prev, networkId]
     );
-  }
+  };
 
-  function handleBack() {
-    router.push("/posts");
-  }
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+  };
 
-  async function handleSave(status: "draft" | "scheduled") {
-    if (!workspaceId || !ownerId || !firestore) {
-      alert("Workspace, usuário ou conexão não identificados. Faça login novamente.");
+  const handleChangeMediaType = (value: MediaType) => {
+    setMediaType(value);
+    setError(null);
+    clearSelectedFile();
+  };
+
+  const handleFileChange = async (file: File | null) => {
+    setError(null);
+
+    if (!file) {
+      clearSelectedFile();
       return;
     }
-    if (!text.trim() && !mediaUrl) {
-      alert("Adicione texto ou uma mídia antes de salvar.");
-      return;
-    }
-
-    setSaving(true);
 
     try {
-      if (status === 'draft') {
-        const draftRef = collection(firestore, 'draftPosts');
-        await addDoc(draftRef, {
-          workspaceId,
-          ownerId,
-          title,
-          networks,
-          content: {
-            text,
-            mediaType,
-            mediaUrl: mediaUrl ?? null,
-          },
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        alert("Rascunho salvo com sucesso!");
-      } else { // scheduled
-        if (!date || !time) {
-          alert("Para agendar, você precisa definir a data e a hora.");
-          setSaving(false);
-          return;
+      if (mediaType === "image") {
+        if (!isImage(file)) {
+          throw new Error("Selecione um arquivo de imagem válido.");
         }
 
-        const runAt = toUtcDateFromLocalInput(date, time, currentWorkspace?.timeZone ?? 'America/Sao_Paulo');
+        if (fileSizeInMb(file) > MAX_IMAGE_MB) {
+          throw new Error(`A imagem deve ter no máximo ${MAX_IMAGE_MB} MB.`);
+        }
 
-        const scheduledRef = collection(firestore, 'scheduledPosts');
-        await addDoc(scheduledRef, {
-          workspaceId,
-          ownerId,
-          title,
-          networks,
-          content: {
-            text,
-            mediaType,
-            mediaUrl: mediaUrl ?? null,
-          },
-          timeZone: currentWorkspace?.timeZone ?? "America/Sao_Paulo",
-          runAt: runAt,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        alert("Post agendado com sucesso!");
+        const compressed = await compressImage(file);
+
+        setSelectedFile(compressed);
+
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(URL.createObjectURL(compressed));
+        return;
       }
 
-      router.push("/posts");
+      if (mediaType === "video") {
+        if (!isVideo(file)) {
+          throw new Error("Selecione um arquivo de vídeo válido.");
+        }
 
-    } catch (err) {
-      console.error("[CreatePostManualPage] erro ao salvar post:", err);
-      alert("Ocorreu um erro ao salvar o post.");
+        if (fileSizeInMb(file) > MAX_VIDEO_MB) {
+          throw new Error(`O vídeo deve ter no máximo ${MAX_VIDEO_MB} MB.`);
+        }
+
+        setSelectedFile(file);
+
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(URL.createObjectURL(file));
+        return;
+      }
+
+      clearSelectedFile();
+    } catch (err: any) {
+      clearSelectedFile();
+      setError(err?.message || "Erro ao preparar arquivo.");
+    }
+  };
+
+  async function uploadMediaIfNeeded() {
+    if (mediaType === "none") {
+      return null;
+    }
+
+    if (!selectedFile || !workspaceId || !ownerId) {
+      throw new Error("Selecione um arquivo antes de continuar.");
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const storage = getStorage();
+      const timestamp = Date.now();
+      const safeName = sanitizeFileName(selectedFile.name);
+      const storagePath = `post-media/${workspaceId}/${ownerId}/${timestamp}-${safeName}`;
+      const storageRef = ref(storage, storagePath);
+
+      const task = uploadBytesResumable(storageRef, selectedFile);
+
+      await new Promise<void>((resolve, reject) => {
+        task.on(
+          "state_changed",
+          (snapshot) => {
+            const progress =
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(Math.round(progress));
+          },
+          reject,
+          () => resolve()
+        );
+      });
+
+      const downloadURL = await getDownloadURL(task.snapshot.ref);
+      setUploadProgress(100);
+      return downloadURL;
     } finally {
-      setSaving(false);
+      setUploading(false);
     }
   }
 
+  const buildContent = async () => {
+    const uploadedMediaUrl = await uploadMediaIfNeeded();
+
+    return {
+      text: text.trim(),
+      mediaType,
+      mediaUrl: mediaType === "none" ? null : uploadedMediaUrl,
+    };
+  };
+
+  const handleSaveDraft = async () => {
+    if (!sessionReady) {
+      setError("Sessão ainda carregando. Aguarde alguns segundos e tente novamente.");
+      return;
+    }
+
+    if (!canSubmit) {
+      setError("Preencha os campos obrigatórios antes de salvar.");
+      return;
+    }
+
+    setError(null);
+    setSavingDraft(true);
+
+    try {
+      const content = await buildContent();
+
+      await addDoc(collection(db!, "draftPosts"), {
+        workspaceId,
+        ownerId,
+        networks,
+        content,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      router.push("/posts");
+    } catch (err: any) {
+      console.error("[ManualPostPage] erro ao salvar rascunho:", err);
+      setError(err?.message || "Erro ao salvar rascunho.");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!sessionReady) {
+      setError("Sessão ainda carregando. Aguarde alguns segundos e tente novamente.");
+      return;
+    }
+
+    if (!canSubmit) {
+      setError("Preencha os campos obrigatórios antes de agendar.");
+      return;
+    }
+
+    if (!date || !time) {
+      setError("Informe data e horário do agendamento.");
+      return;
+    }
+
+    setError(null);
+    setSavingSchedule(true);
+
+    try {
+      const content = await buildContent();
+      const runAtUtc = toUtcDateFromLocalInput(date, time, timeZone);
+
+      await addDoc(collection(db!, "scheduledPosts"), {
+        workspaceId,
+        ownerId,
+        networks,
+        content,
+        timeZone,
+        runAt: runAtUtc,
+        status: "pending",
+        lastError: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      router.push("/posts");
+    } catch (err: any) {
+      console.error("[ManualPostPage] erro ao agendar post:", err);
+      setError(err?.message || "Erro ao agendar post.");
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
   return (
-    <section className="mt-4 space-y-6">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+    <section className="mt-4 flex flex-col gap-4">
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <button
-            onClick={handleBack}
-            className="inline-flex items-center gap-2 text-[11px] text-[#9CA3AF] mb-2 hover:text-[#E5E7EB]"
+            type="button"
+            onClick={() => router.push("/posts")}
+            className="inline-flex items-center gap-2 text-xs text-[#9CA3AF] hover:text-white mb-2"
           >
-            <FiArrowLeft size={12} />
+            <FiArrowLeft className="h-4 w-4" />
             Voltar para Posts & Agenda
           </button>
+
           <h1 className="text-2xl md:text-3xl font-semibold text-white">
             Novo post manual
           </h1>
-          <p className="text-xs md:text-sm text-[#9CA3AF] mt-1 max-w-2xl">
-            Crie um post do zero, selecione uma ou mais redes, anexe imagem ou
-            vídeo e escolha se quer publicar agora ou agendar.
+          <p className="text-xs md:text-sm text-[#9CA3AF] mt-1">
+            Selecione redes, envie imagem ou vídeo e escolha salvar ou agendar.
           </p>
         </div>
       </header>
 
-      <div
-        className="rounded-2xl p-4 md:p-5 space-y-4"
-        style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-      >
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-[#CBD5E1]">
-            Redes para publicação
-          </label>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            {(["instagram", "facebook", "whatsapp"] as PostNetwork[]).map((network) => (
-              <button
-                key={network}
-                type="button"
-                onClick={() => toggleNetwork(network)}
-                className={`px-3 py-1.5 rounded-full border transition ${
-                  networks.includes(network)
-                    ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                    : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-                }`}
-              >
-                {network.charAt(0).toUpperCase() + network.slice(1)}
-              </button>
-            ))}
-          </div>
+      {!sessionReady && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          Carregando sessão, workspace e permissões...
         </div>
+      )}
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-[#CBD5E1]">
-            Título interno (opcional)
-          </label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ex.: Post de oferta relâmpago - 15/03"
-            className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-          />
+      {error && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {error}
         </div>
+      )}
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-[#CBD5E1]">
-            Texto / legenda da postagem *
+      <div className="rounded-2xl border border-[#261341] bg-[#0B001F] p-4 md:p-5 space-y-4">
+        <div>
+          <label className="text-[11px] text-[#E5E7EB] block mb-1">
+            Texto do post
           </label>
           <textarea
+            rows={6}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="Escreva aqui a legenda completa que será publicada nas redes selecionadas."
-            className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
+            className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[13px] text-[#E5E7EB] px-3 py-3 outline-none focus:ring-1 focus:ring-[#7C3AED]"
+            placeholder="Escreva a legenda completa que será publicada nas redes selecionadas."
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-[#CBD5E1]">Mídia</label>
-          <div className="flex flex-wrap gap-2 text-[11px] mb-1">
-             <button
-              type="button"
-              onClick={() => setMediaType("none")}
-              className={`px-3 py-1.5 rounded-full border transition ${
-                mediaType === "none"
-                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-              }`}
-            >
-              Sem mídia
-            </button>
-            <button
-              type="button"
-              onClick={() => setMediaType("image")}
-              className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
-                mediaType === "image"
-                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-              }`}
-            >
-              <FiImage size={12} /> Imagem
-            </button>
-            <button
-              type="button"
-              onClick={() => setMediaType("video")}
-              className={`px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1 ${
-                mediaType === "video"
-                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-              }`}
-            >
-              <FiVideo size={12} /> Vídeo
-            </button>
+        <div>
+          <label className="text-[11px] text-[#E5E7EB] block mb-2">
+            Redes selecionadas
+          </label>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            {AVAILABLE_NETWORKS.map((network) => {
+              const active = networks.includes(network.id);
+
+              return (
+                <button
+                  key={network.id}
+                  type="button"
+                  onClick={() => toggleNetwork(network.id)}
+                  className={`px-3 py-1 rounded-full border transition ${
+                    active
+                      ? "border-[#7C3AED] bg-[#7C3AED]/20 text-white"
+                      : "border-[#272046] text-[#E5E7EB]/80 hover:bg-[#111827]"
+                  }`}
+                >
+                  {network.label}
+                </button>
+              );
+            })}
           </div>
-          {mediaType !== 'none' && (
-             <input
-              type="text"
-              value={mediaUrl ?? ''}
-              onChange={(e) => setMediaUrl(e.target.value)}
-              placeholder="https://url_da_imagem_ou_video"
-              className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-            />
-          )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px] text-[#CBD5E1]">Publicação</span>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setIsScheduling(false)}
-              className={`px-3 py-1.5 rounded-full border transition ${
-                !isScheduling
-                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-              }`}
-            >
-              Salvar como Rascunho
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsScheduling(true)}
-              className={`px-3 py-1.5 rounded-full border transition ${
-                isScheduling
-                  ? "border-[#7C3AED] text-white bg-[#7C3AED]/20"
-                  : "border-[#312356] text-[#CBD5E1] hover:bg-white/5"
-              }`}
-            >
-              Agendar Publicação
-            </button>
-          </div>
-          {isScheduling && (
-            <div className="flex flex-wrap gap-3 mt-1 text-[11px]">
-              <div className="flex items-center gap-2">
-                <FiCalendar size={12} className="text-[#9CA3AF]" />
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-[11px] rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <FiClock size={12} className="text-[#9CA3AF]" />
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="bg-[#050017] border border-[#312356] text-[#E5E7EB] text-[11px] rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#7C3AED]"
-                />
-              </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="text-[11px] text-[#E5E7EB] block mb-2">
+              Tipo de mídia
+            </label>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              {[
+                { id: "none", label: "Sem mídia" },
+                { id: "image", label: "Imagem" },
+                { id: "video", label: "Vídeo" },
+              ].map((item) => {
+                const active = mediaType === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleChangeMediaType(item.id as MediaType)}
+                    className={`px-3 py-1 rounded-full border transition ${
+                      active
+                        ? "border-[#7C3AED] bg-[#7C3AED]/20 text-white"
+                        : "border-[#272046] text-[#E5E7EB]/80 hover:bg-[#111827]"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] text-[#E5E7EB] block mb-1">
+              Arquivo de mídia
+            </label>
+            <label className="flex items-center gap-2 w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-2 cursor-pointer hover:border-[#7C3AED] transition">
+              <FiPaperclip className="h-4 w-4 text-[#9CA3AF]" />
+              <span className="truncate">
+                {mediaType === "none"
+                  ? "Nenhuma mídia selecionada"
+                  : selectedFile?.name || "Clique para escolher um arquivo"}
+              </span>
+              <input
+                type="file"
+                accept={
+                  mediaType === "image"
+                    ? "image/*"
+                    : mediaType === "video"
+                    ? "video/*"
+                    : undefined
+                }
+                disabled={mediaType === "none"}
+                onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+            </label>
+
+            <p className="text-[10px] text-[#9CA3AF] mt-1">
+              Imagem: até {MAX_IMAGE_MB} MB. Vídeo: até {MAX_VIDEO_MB} MB.
+            </p>
+          </div>
+        </div>
+
+        {previewUrl && mediaType === "image" && (
+          <div className="rounded-2xl border border-[#261341] bg-[#120426] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] text-white font-medium">Preview da imagem</p>
+              <button
+                type="button"
+                onClick={clearSelectedFile}
+                className="inline-flex items-center gap-1 text-[11px] text-[#FCA5A5] hover:text-white"
+              >
+                <FiX className="h-3.5 w-3.5" />
+                Remover
+              </button>
+            </div>
+            <img
+              src={previewUrl}
+              alt="Preview da imagem"
+              className="max-h-72 rounded-xl border border-[#272046] object-contain"
+            />
+          </div>
+        )}
+
+        {previewUrl && mediaType === "video" && (
+          <div className="rounded-2xl border border-[#261341] bg-[#120426] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] text-white font-medium">Preview do vídeo</p>
+              <button
+                type="button"
+                onClick={clearSelectedFile}
+                className="inline-flex items-center gap-1 text-[11px] text-[#FCA5A5] hover:text-white"
+              >
+                <FiX className="h-3.5 w-3.5" />
+                Remover
+              </button>
+            </div>
+            <video
+              src={previewUrl}
+              controls
+              className="max-h-72 rounded-xl border border-[#272046]"
+            />
+          </div>
+        )}
+
+        {uploading && (
+          <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3">
+            <div className="flex items-center justify-between text-[11px] text-sky-200 mb-2">
+              <span>Enviando mídia...</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-[#120426] overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${uploadProgress}%`,
+                  background:
+                    "linear-gradient(90deg,#7C3AED 0%,#EC4899 50%,#0EA5E9 100%)",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <label className="text-[11px] text-[#E5E7EB] block mb-1">
+              Data
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-2 outline-none focus:ring-1 focus:ring-[#7C3AED]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-[#E5E7EB] block mb-1">
+              Horário
+            </label>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-2 outline-none focus:ring-1 focus:ring-[#7C3AED]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-[#E5E7EB] block mb-1">
+              Fuso horário
+            </label>
+            <select
+              value={timeZone}
+              onChange={(e) => setTimeZone(e.target.value)}
+              className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-2 outline-none focus:ring-1 focus:ring-[#7C3AED]"
+            >
+              <option value="America/Sao_Paulo">Horário de Brasília</option>
+              <option value="America/Manaus">Horário de Manaus</option>
+              <option value="America/Boa_Vista">Horário de Boa Vista</option>
+              <option value="America/Porto_Velho">Horário de Porto Velho</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#261341] bg-[#120426] px-4 py-3 text-[11px] text-[#CBD5E1]">
+          <div className="flex items-center gap-2 mb-1">
+            <FiCalendar className="h-4 w-4 text-[#0EA5E9]" />
+            <span className="font-medium text-white">Resumo</span>
+          </div>
+          <p>
+            Redes: <span className="text-white">{networks.join(", ") || "nenhuma"}</span>
+          </p>
+          <p>
+            Mídia: <span className="text-white">{mediaType === "none" ? "sem mídia" : mediaType}</span>
+          </p>
+          <p>
+            Arquivo: <span className="text-white">{selectedFile?.name || "—"}</span>
+          </p>
+          {selectedFile && (
+            <p>
+              Tamanho:{" "}
+              <span className="text-white">
+                {fileSizeInMb(selectedFile).toFixed(2)} MB
+              </span>
+            </p>
           )}
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
           <button
             type="button"
-            onClick={() => handleSave(isScheduling ? 'scheduled' : 'draft')}
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white shadow-lg disabled:opacity-50"
+            onClick={handleSaveDraft}
+            disabled={!canSubmit || isBusy}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#312356] text-[#E5E7EB] hover:bg-white/5 transition disabled:opacity-50"
+          >
+            <FiSave className="h-4 w-4" />
+            {savingDraft ? "Salvando..." : "Salvar rascunho"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSchedule}
+            disabled={!canSubmit || isBusy}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-white font-medium disabled:opacity-50"
             style={{
               background:
-                "linear-gradient(90deg, #7C3AED 0%, #C026D3 50%, #0EA5E9 100%)",
+                "linear-gradient(90deg,#7C3AED 0%,#EC4899 50%,#0EA5E9 100%)",
             }}
           >
-            <FiSave size={14} />
-            {saving ? 'Salvando...' : (isScheduling ? 'Agendar Post' : 'Salvar Rascunho')}
+            {mediaType === "video" ? (
+              <FiVideo className="h-4 w-4" />
+            ) : (
+              <FiImage className="h-4 w-4" />
+            )}
+            {savingSchedule
+              ? "Agendando..."
+              : uploading
+              ? "Enviando mídia..."
+              : "Agendar publicação"}
           </button>
         </div>
       </div>
