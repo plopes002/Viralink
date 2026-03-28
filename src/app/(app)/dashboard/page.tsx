@@ -3,11 +3,40 @@
 
 import { motion } from "framer-motion";
 import { EngagementChart } from "../components/EngagementChart";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useEffect, useState } from "react";
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
 
 export default function DashboardPage() {
+  const { currentWorkspace } = useWorkspace();
+  const [insights, setInsights] = useState<any>(null);
+  const [loadingInsights, setLoadingInsights] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (!currentWorkspace?.id) return;
+
+      setLoadingInsights(true);
+      try {
+        const res = await fetch(`/api/instagram/insights?workspaceId=${currentWorkspace.id}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok) {
+            setInsights(json.data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load instagram insights", err);
+      } finally {
+        setLoadingInsights(false);
+      }
+    }
+
+    load();
+  }, [currentWorkspace]);
+
   return (
     <section className="mt-4 space-y-6">
       {/* Cabeçalho */}
@@ -32,9 +61,9 @@ export default function DashboardPage() {
 
       {/* Cards principais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Interações hoje" value="3.482" diff="+18%" tone="up" />
+        <StatCard label="Seguidores" value={loadingInsights ? '...' : insights?.followers_count ?? 'N/A'} diff={insights?.username || ''} tone="neutral" />
+        <StatCard label="Publicações" value={loadingInsights ? '...' : insights?.media_count ?? 'N/A'} diff="total" tone="neutral" />
         <StatCard label="Mensagens respondidas" value="94%" diff="+6%" tone="up" />
-        <StatCard label="Posts agendados" value="27" diff="+9" tone="up" />
         <StatCard
           label="Concorrentes monitorados"
           value="3"

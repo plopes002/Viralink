@@ -18,4 +18,6 @@ export interface SocialAccount {
   createdAt: string;
   updatedAt: string;
   avatarUrl?: string | null;
+  accessToken?: string | null;
+  pageAccessToken?: string | null;
 }

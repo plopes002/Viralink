@@ -1,3 +1,4 @@
+// src/app/api/auth/facebook/callback/route.ts
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminFirestore } from '@/lib/firebaseAdmin';
@@ -38,8 +39,8 @@ type AccountsResponse = {
 type InstagramProfileResponse = {
   username?: string;
   id?: string;
-  user_id?: string;
-  account_type?: string;
+  name?: string;
+  followers_count?: number;
   media_count?: number;
   error?: {
     message: string;
@@ -68,17 +69,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  const cookieStore = cookies();
+  if (!state) {
+    redirectUrl.searchParams.set('error', 'missing_state');
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  const cookieStore = await cookies();
   const savedNonce = cookieStore.get('fb_oauth_nonce')?.value;
 
   let stateData: { workspaceId: string; nonce: string };
+
   try {
-    stateData = JSON.parse(Buffer.from(state!, 'base64').toString('utf8'));
-  } catch (e) {
+    stateData = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+  } catch {
     redirectUrl.searchParams.set('error', 'invalid_state');
     return NextResponse.redirect(redirectUrl);
   }
-  
+
   if (!savedNonce || !stateData.nonce || savedNonce !== stateData.nonce) {
     redirectUrl.searchParams.set('error', 'state_mismatch');
     return NextResponse.redirect(redirectUrl);
@@ -86,8 +93,12 @@ export async function GET(request: NextRequest) {
 
   const { workspaceId } = stateData;
 
+  if (!workspaceId) {
+    redirectUrl.searchParams.set('error', 'missing_workspace');
+    return NextResponse.redirect(redirectUrl);
+  }
+
   try {
-    // 1) troca code por user access token
     const tokenUrl =
       'https://graph.facebook.com/v20.0/oauth/access_token' +
       `?client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
@@ -99,12 +110,13 @@ export async function GET(request: NextRequest) {
     const tokenData = (await tokenRes.json()) as OAuthTokenResponse;
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      throw new Error(tokenData.error?.message || 'Failed to exchange code for token');
+      throw new Error(
+        tokenData.error?.message || 'Failed to exchange code for token'
+      );
     }
 
     const userAccessToken = tokenData.access_token;
 
-    // 2) lista páginas e traz instagram_business_account
     const accountsUrl =
       'https://graph.facebook.com/v20.0/me/accounts' +
       `?fields=id,name,access_token,instagram_business_account` +
@@ -118,65 +130,93 @@ export async function GET(request: NextRequest) {
     }
 
     const pages = accountsData.data ?? [];
-    const pageWithInstagram = pages.find((p) => p.instagram_business_account?.id);
+    const pageWithInstagram = pages.find(
+      (p) => p.instagram_business_account?.id
+    );
 
     if (!pageWithInstagram?.instagram_business_account?.id) {
-      throw new Error('No Instagram Business Account linked to any of your Facebook Pages.');
+      throw new Error(
+        'No Instagram Business Account linked to any of your Facebook Pages.'
+      );
     }
 
     const igId = pageWithInstagram.instagram_business_account.id;
+    const pageAccessToken = pageWithInstagram.access_token;
 
-    // 3) lê dados básicos da conta Instagram
     const igProfileUrl =
       `https://graph.facebook.com/v20.0/${encodeURIComponent(igId)}` +
-      `?fields=id,username,account_type,media_count` +
+      `?fields=id,username,name,followers_count,media_count` +
       `&access_token=${encodeURIComponent(userAccessToken)}`;
 
     const igProfileRes = await fetch(igProfileUrl, { cache: 'no-store' });
-    const igProfileData = (await igProfileRes.json()) as InstagramProfileResponse;
+    const igProfileData =
+      (await igProfileRes.json()) as InstagramProfileResponse;
 
     if (!igProfileRes.ok || igProfileData.error) {
-      throw new Error(igProfileData.error?.message || 'Failed to fetch Instagram profile');
+      throw new Error(
+        igProfileData.error?.message || 'Failed to fetch Instagram profile'
+      );
     }
 
-    // 4) Salva no Firestore
     const now = new Date().toISOString();
-    const accountQuery = await adminFirestore.collection('socialAccounts')
+
+    const accountQuery = await adminFirestore
+      .collection('socialAccounts')
       .where('workspaceId', '==', workspaceId)
       .where('network', '==', 'instagram')
-      .where('accountId', '==', igId)
-      .limit(1).get();
+      .limit(1)
+      .get();
+      
+    // If no primary exists, make this one primary.
+    const primaryQuery = await adminFirestore
+      .collection('socialAccounts')
+      .where('workspaceId', '==', workspaceId)
+      .where('network', '==', 'instagram')
+      .where('isPrimary', '==', true)
+      .limit(1)
+      .get();
+
+    const isPrimary = accountQuery.empty && primaryQuery.empty;
+
+    const payload = {
+      workspaceId,
+      network: 'instagram' as const,
+      accountId: igId,
+      username: igProfileData.username || '',
+      name: igProfileData.name || igProfileData.username || '',
+      status: 'connected' as const,
+      followers: igProfileData.followers_count || 0,
+      isPrimary,
+      accessToken: userAccessToken, // SAVING THE TOKEN
+      pageAccessToken: pageAccessToken || null,
+      updatedAt: now,
+    };
 
     if (accountQuery.empty) {
-        await adminFirestore.collection('socialAccounts').add({
-            workspaceId: workspaceId,
-            network: 'instagram',
-            accountId: igId,
-            username: igProfileData.username,
-            name: igProfileData.username, 
-            status: 'connected',
-            isPrimary: false,
-            createdAt: now,
-            updatedAt: now,
-        });
+      await adminFirestore.collection('socialAccounts').add({
+        ...payload,
+        createdAt: now,
+      });
     } else {
-        const docRef = accountQuery.docs[0].ref;
-        await docRef.update({
-            status: 'connected',
-            username: igProfileData.username,
-            name: igProfileData.username,
-            updatedAt: now,
-        });
+      const docRef = accountQuery.docs[0].ref;
+      await docRef.update(payload);
     }
 
     redirectUrl.searchParams.set('status', 'success_instagram');
-
   } catch (err: any) {
-    console.error("Facebook Callback Error:", err);
+    console.error('Facebook Callback Error:', err);
     redirectUrl.searchParams.set('error', err.message || 'unknown_error');
   }
 
   const response = NextResponse.redirect(redirectUrl);
-  response.cookies.set('fb_oauth_nonce', '', { maxAge: -1 }); // Clear cookie
+
+  response.cookies.set('fb_oauth_nonce', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+
   return response;
 }

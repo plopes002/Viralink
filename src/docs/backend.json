@@ -651,7 +651,9 @@
         "avgLikes": { "type": "number" },
         "avgComments": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "accessToken": { "type": "string", "description": "Access token for the social account." },
+        "pageAccessToken": { "type": "string", "description": "Page-specific access token, often longer-lived." }
       },
       "required": [
         "workspaceId",
