@@ -1,7 +1,7 @@
 // src/components/supporters/InteractionCard.tsx
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type Interaction = {
   id: string;
@@ -11,6 +11,27 @@ type Interaction = {
   commenterText: string;
   status: string;
   createdAt?: string;
+
+  automationMatched?: boolean;
+  automationRuleId?: string | null;
+  automationRuleName?: string | null;
+  automationExecutedActions?: string[];
+  processedAt?: string | null;
+
+  publicReplyText?: string | null;
+  privateReplyText?: string | null;
+
+  publicReplyMeta?: {
+    automated?: boolean;
+    sentAt?: string;
+    ruleId?: string;
+  } | null;
+
+  privateReplyMeta?: {
+    automated?: boolean;
+    sentAt?: string;
+    ruleId?: string;
+  } | null;
 };
 
 type Props = {
@@ -151,6 +172,42 @@ export function InteractionCard({ interaction, onRefresh }: Props) {
     ? new Date(interaction.createdAt).toLocaleString("pt-BR")
     : "-";
 
+  const processedAtLabel = interaction.processedAt
+    ? new Date(interaction.processedAt).toLocaleString("pt-BR")
+    : null;
+
+  const executedActions = useMemo(() => {
+    const raw = Array.isArray(interaction.automationExecutedActions)
+      ? interaction.automationExecutedActions
+      : [];
+
+    const labelMap: Record<string, string> = {
+      markAsRead: "Marcou como lido",
+      publicReply: "Resposta pública",
+      privateReply: "Resposta privada",
+      convertToLead: "Virou lead",
+    };
+
+    return raw.map((action) => labelMap[action] || action);
+  }, [interaction.automationExecutedActions]);
+
+  const statusBadgeClass = (() => {
+    switch (interaction.status) {
+      case "lead":
+        return "bg-cyan-500/15 text-cyan-300";
+      case "private_replied":
+        return "bg-sky-500/15 text-sky-300";
+      case "replied":
+        return "bg-emerald-500/15 text-emerald-300";
+      case "read":
+        return "bg-yellow-500/15 text-yellow-300";
+      case "archived":
+        return "bg-zinc-500/15 text-zinc-300";
+      default:
+        return "bg-violet-500/15 text-violet-300";
+    }
+  })();
+
   return (
     <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
@@ -161,7 +218,9 @@ export function InteractionCard({ interaction, onRefresh }: Props) {
           </p>
         </div>
 
-        <span className="px-3 py-1 rounded-full text-[10px] bg-violet-500/15 text-violet-300">
+        <span
+          className={`px-3 py-1 rounded-full text-[10px] ${statusBadgeClass}`}
+        >
           {interaction.status}
         </span>
       </div>
@@ -174,6 +233,66 @@ export function InteractionCard({ interaction, onRefresh }: Props) {
       </div>
 
       <p className="text-[10px] text-[#9CA3AF]">Recebido em: {createdAtLabel}</p>
+
+      {interaction.automationMatched && (
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-emerald-300">
+              ⚡ Automação executada
+            </p>
+
+            {processedAtLabel && (
+              <span className="text-[10px] text-emerald-200/80">
+                {processedAtLabel}
+              </span>
+            )}
+          </div>
+
+          {interaction.automationRuleName && (
+            <p className="text-[11px] text-white">
+              Regra:{" "}
+              <span className="font-medium">{interaction.automationRuleName}</span>
+            </p>
+          )}
+
+          {executedActions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {executedActions.map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full bg-[#111827] px-2.5 py-1 text-[10px] text-white"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {(interaction.publicReplyMeta?.automated ||
+            interaction.privateReplyMeta?.automated) && (
+            <div className="grid gap-2">
+              {interaction.publicReplyMeta?.automated && interaction.publicReplyText && (
+                <div className="rounded-md border border-[#1F173B] bg-[#050016] p-2">
+                  <p className="text-[10px] text-[#9CA3AF] mb-1">
+                    Resposta pública automática
+                  </p>
+                  <p className="text-[11px] text-white">{interaction.publicReplyText}</p>
+                </div>
+              )}
+
+              {interaction.privateReplyMeta?.automated &&
+                interaction.privateReplyText && (
+                  <div className="rounded-md border border-[#1F173B] bg-[#050016] p-2">
+                    <p className="text-[10px] text-[#9CA3AF] mb-1">
+                      Resposta privada automática
+                    </p>
+                    <p className="text-[11px] text-white">{interaction.privateReplyText}</p>
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button

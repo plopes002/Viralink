@@ -121,7 +121,6 @@ function ruleMatchesComment(rule: any, commentText: string) {
   if (!rule?.active) return false;
 
   const normalizedComment = normalizeText(commentText);
-
   const matchType = rule.matchType || rule.triggerType || "contains";
 
   if (matchType === "all") {
@@ -171,15 +170,6 @@ export async function processInteractionAutomation(interactionId: string) {
     throw new Error("interaction.commenterText undefined");
   }
 
-  const text = normalizeText(interaction.commenterText);
-
-  console.log("🔎 Engine input:", {
-    interactionId,
-    workspaceId: interaction.workspaceId,
-    primaryAccountId: interaction.primaryAccountId,
-    text,
-  });
-
   const rulesSnap = await adminFirestore
     .collection("interactionAutomationRules")
     .where("workspaceId", "==", interaction.workspaceId)
@@ -188,8 +178,17 @@ export async function processInteractionAutomation(interactionId: string) {
     .get();
 
   if (rulesSnap.empty) {
-    console.log("⚠️ Nenhuma regra encontrada");
-    return { matched: false };
+    await interactionRef.set(
+      {
+        automationMatched: false,
+        automationProcessedAt: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    return { matched: false, executed: [] };
   }
 
   const rules = rulesSnap.docs
@@ -202,18 +201,25 @@ export async function processInteractionAutomation(interactionId: string) {
   let matchedRule: any = null;
 
   for (const rule of rules) {
-    if (ruleMatchesComment(rule, text)) {
+    if (ruleMatchesComment(rule, interaction.commenterText)) {
       matchedRule = rule;
       break;
     }
   }
 
   if (!matchedRule) {
-    console.log("⚠️ Nenhuma regra bateu");
-    return { matched: false };
-  }
+    await interactionRef.set(
+      {
+        automationMatched: false,
+        automationProcessedAt: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
 
-  console.log("✅ Regra encontrada:", matchedRule.name);
+    return { matched: false, executed: [] };
+  }
 
   const sourceCampaignAccountId = interaction.sourceCampaignAccountId;
 
@@ -251,94 +257,115 @@ export async function processInteractionAutomation(interactionId: string) {
     automationMatched: true,
     automationRuleId: matchedRule.id,
     automationRuleName: matchedRule.name,
+    automationProcessedAt: new Date().toISOString(),
     processedAt: new Date().toISOString(),
+    automationLastError: null,
     updatedAt: new Date().toISOString(),
   };
 
   const executed: string[] = [];
 
-  if (actions.markAsRead) {
-    updates.status = "read";
-    executed.push("markAsRead");
-  }
-
-  if (
-    actions.publicReply &&
-    publicReplyTemplate &&
-    interaction.externalCommentId &&
-    !interaction.publicReplyMeta?.automated
-  ) {
-    await sendPublicReply({
-      socialAccountId,
-      commentId: interaction.externalCommentId,
-      message: publicReplyTemplate,
-    });
-
-    updates.publicReplyText = publicReplyTemplate;
-    updates.publicReplyMeta = {
-      automated: true,
-      sentAt: new Date().toISOString(),
-      ruleId: matchedRule.id,
-    };
-    updates.status = "replied";
-    executed.push("publicReply");
-  }
-
-  if (
-    actions.privateReply &&
-    privateReplyTemplate &&
-    interaction.externalCommentId &&
-    !interaction.privateReplyMeta?.automated
-  ) {
-    await sendPrivateReply({
-      socialAccountId,
-      commentId: interaction.externalCommentId,
-      message: privateReplyTemplate,
-    });
-
-    updates.privateReplyText = privateReplyTemplate;
-    updates.privateReplyMeta = {
-      automated: true,
-      sentAt: new Date().toISOString(),
-      ruleId: matchedRule.id,
-    };
-    updates.status = "private_replied";
-    executed.push("privateReply");
-  }
-
-  if (actions.convertToLead) {
-    const existingLeadSnap = await adminFirestore
-      .collection("supporterLeads")
-      .where("sourceInteractionId", "==", interactionId)
-      .limit(1)
-      .get();
-
-    if (existingLeadSnap.empty) {
-      await adminFirestore.collection("supporterLeads").add({
-        workspaceId: interaction.workspaceId,
-        primaryAccountId: interaction.primaryAccountId,
-        sourceCampaignAccountId: interaction.sourceCampaignAccountId || null,
-        sourceInteractionId: interactionId,
-        leadName: interaction.commenterUsername || "Lead Instagram",
-        instagramUsername: interaction.commenterUsername || "",
-        note: interaction.commenterText || "",
-        status: "new",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+  try {
+    if (actions.markAsRead) {
+      updates.status = "read";
+      executed.push("markAsRead");
     }
 
-    updates.status = "lead";
-    executed.push("convertToLead");
+    if (
+      actions.publicReply &&
+      publicReplyTemplate &&
+      interaction.externalCommentId &&
+      !interaction.publicReplyMeta?.automated
+    ) {
+      await sendPublicReply({
+        socialAccountId,
+        commentId: interaction.externalCommentId,
+        message: publicReplyTemplate,
+      });
+
+      updates.publicReplyText = publicReplyTemplate;
+      updates.publicReplyMeta = {
+        automated: true,
+        sentAt: new Date().toISOString(),
+        ruleId: matchedRule.id,
+      };
+      updates.status = "replied";
+      executed.push("publicReply");
+    }
+
+    if (
+      actions.privateReply &&
+      privateReplyTemplate &&
+      interaction.externalCommentId &&
+      !interaction.privateReplyMeta?.automated
+    ) {
+      await sendPrivateReply({
+        socialAccountId,
+        commentId: interaction.externalCommentId,
+        message: privateReplyTemplate,
+      });
+
+      updates.privateReplyText = privateReplyTemplate;
+      updates.privateReplyMeta = {
+        automated: true,
+        sentAt: new Date().toISOString(),
+        ruleId: matchedRule.id,
+      };
+      updates.status = "private_replied";
+      executed.push("privateReply");
+    }
+
+    if (actions.convertToLead) {
+      const existingLeadSnap = await adminFirestore
+        .collection("supporterLeads")
+        .where("sourceInteractionId", "==", interactionId)
+        .limit(1)
+        .get();
+
+      if (existingLeadSnap.empty) {
+        await adminFirestore.collection("supporterLeads").add({
+          workspaceId: interaction.workspaceId,
+          primaryAccountId: interaction.primaryAccountId,
+          sourceCampaignAccountId: interaction.sourceCampaignAccountId || null,
+          sourceInteractionId: interactionId,
+          leadName: interaction.commenterUsername || "Lead Instagram",
+          instagramUsername: interaction.commenterUsername || "",
+          note: interaction.commenterText || "",
+          status: "new",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      updates.status = "lead";
+      executed.push("convertToLead");
+    }
+
+    updates.automationExecutedActions = executed;
+
+    await interactionRef.set(updates, { merge: true });
+
+    return {
+      matched: true,
+      ruleName: matchedRule.name,
+      executed,
+    };
+  } catch (error: any) {
+    await interactionRef.set(
+      {
+        automationMatched: true,
+        automationRuleId: matchedRule.id,
+        automationRuleName: matchedRule.name,
+        automationProcessedAt: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        automationExecutedActions: executed,
+        automationLastError:
+          error?.message || "Erro desconhecido ao executar automação.",
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    throw error;
   }
-
-  updates.automationExecutedActions = executed;
-
-  await interactionRef.set(updates, { merge: true });
-
-  return {
-    matched: true,
-    ruleName: matchedRule.name,
-    executed,
-  };
 }
