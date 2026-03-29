@@ -13,8 +13,9 @@ import {
 } from "recharts";
 
 type HistoryPoint = {
-  id: string;
-  date: string;
+  id?: string;
+  date?: string;
+  createdAt?: string;
   avgLikes?: number;
   avgComments?: number;
 };
@@ -28,13 +29,24 @@ type Props = {
   competitorHistory: HistoryPoint[];
 };
 
+function getHistoryDate(point: HistoryPoint) {
+  return point.date || point.createdAt || "";
+}
+
 function getLatestValue(
   history: HistoryPoint[],
   metric: "avgLikes" | "avgComments",
 ) {
-  if (!history.length) return 0;
-  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-  return sorted[sorted.length - 1]?.[metric] || 0;
+  if (!Array.isArray(history) || history.length === 0) return 0;
+
+  const validHistory = history.filter((item) => !!getHistoryDate(item));
+  if (validHistory.length === 0) return 0;
+
+  const sorted = [...validHistory].sort((a, b) =>
+    getHistoryDate(a).localeCompare(getHistoryDate(b))
+  );
+
+  return Number(sorted[sorted.length - 1]?.[metric] || 0);
 }
 
 export default function CompetitorBarComparisonChart({
@@ -81,7 +93,12 @@ export default function CompetitorBarComparisonChart({
               }}
             />
             <Legend />
-            <Bar dataKey="myValue" name={myLabel} fill="#8B5CF6" radius={[6, 6, 0, 0]} />
+            <Bar
+              dataKey="myValue"
+              name={myLabel}
+              fill="#8B5CF6"
+              radius={[6, 6, 0, 0]}
+            />
             <Bar
               dataKey="competitorValue"
               name={competitorLabel}

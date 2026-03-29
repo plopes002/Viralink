@@ -280,6 +280,37 @@ export default function ConcorrentesPage() {
     }
   }
   
+  async function handleSyncCompetitor(competitorId: string) {
+    if (!workspaceId) {
+      alert("Workspace não disponível.");
+      return;
+    }
+  
+    try {
+      const res = await fetch("/api/competitors/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workspaceId,
+          competitorId,
+        }),
+      });
+  
+      const data = await res.json();
+  
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao sincronizar concorrente.");
+      }
+  
+      alert("Concorrente sincronizado com dados reais.");
+    } catch (error: any) {
+      alert(error?.message || "Erro ao sincronizar concorrente.");
+    }
+  }
+
+
   async function handleGenerateStrategy() {
     if (!selectedCompetitor || !primaryAccount || !firestore || !selectedCompetitorId) return;
   
@@ -589,45 +620,122 @@ export default function ConcorrentesPage() {
 
   {/* LISTA */}
   <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
-    <h2 className="text-sm font-semibold text-white mb-3">
-      Concorrentes cadastrados
-    </h2>
+  <h2 className="text-sm font-semibold text-white mb-3">
+    Concorrentes cadastrados
+  </h2>
 
-    {competitors.length === 0 && (
-      <p className="text-sm text-[#9CA3AF]">
-        Nenhum concorrente cadastrado.
-      </p>
-    )}
+  {loadingCompetitors && (
+    <p className="text-sm text-[#9CA3AF]">Carregando concorrentes...</p>
+  )}
 
-    <div className="flex flex-col gap-2">
-      {competitors.map((c) => (
+  {!loadingCompetitors && competitors.length === 0 && (
+    <p className="text-sm text-[#9CA3AF]">
+      Nenhum concorrente cadastrado.
+    </p>
+  )}
+
+<div className="flex flex-col gap-3">
+  {competitors.map((competitor) => {
+    const isActive = selectedCompetitorId === competitor.id;
+
+    return (
+      <div
+        key={competitor.id}
+        className={`rounded-2xl border p-3 transition ${
+          isActive
+            ? "border-[#8B5CF6] bg-[#111827]"
+            : "border-[#272046] bg-[#020012] hover:bg-[#0B1120]"
+        }`}
+      >
         <div
-          key={c.id}
-          className="rounded-xl border border-[#272046] bg-[#020012] p-3"
+          role="button"
+          tabIndex={0}
+          onClick={() => setSelectedCompetitorId(competitor.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setSelectedCompetitorId(competitor.id);
+            }
+          }}
+          className="cursor-pointer"
         >
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-white font-medium">
-                {c.name || c.username}
-              </p>
-              <p className="text-xs text-[#9CA3AF]">
-                @{c.username}
-              </p>
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 overflow-hidden rounded-full border border-[#272046] bg-[#111827] flex items-center justify-center shrink-0">
+              {competitor.profilePictureUrl ? (
+                <img
+                  src={competitor.profilePictureUrl}
+                  alt={competitor.name || competitor.username || "Concorrente"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-sm font-semibold text-white">
+                  {(competitor.name || competitor.username || "C")
+                    .charAt(0)
+                    .toUpperCase()}
+                </span>
+              )}
             </div>
 
-            
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-white">
+                    {competitor.name || competitor.username || "Concorrente"}
+                  </p>
+                  <p className="truncate text-xs text-[#9CA3AF]">
+                    @{competitor.username || "-"}
+                  </p>
+                </div>
+
+                {isActive && (
+                  <span className="rounded-full bg-[#8B5CF6]/20 px-2 py-1 text-[10px] text-[#C4B5FD]">
+                    selecionado
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-[#7D8590]">Seguidores</p>
+                  <p className="text-xs text-white">
+                    {competitor.followers ?? 0}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] text-[#7D8590]">Engajamento</p>
+                  <p className="text-xs text-white">
+                    {formatPercent(competitor.engagementRate)}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      ))}
-      <button
-              onClick={() => handleDeleteCompetitor(c.id)}
-              className="text-[11px] text-red-400"
-            >
-              Excluir
-            </button>
-    </div>
-  </div>
 
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => handleSyncCompetitor(competitor.id)}
+            className="rounded-lg border border-[#272046] px-3 py-1.5 text-[11px] text-white hover:bg-[#111827]"
+          >
+            Sincronizar
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleDeleteCompetitor(competitor.id)}
+            className="rounded-lg border border-red-500/40 px-3 py-1.5 text-[11px] text-red-300 hover:bg-red-500/10"
+          >
+            Excluir
+          </button>
+        </div>
+      </div>
+    );
+  })}
+</div>
+</div>
+  
 </div>
 
         

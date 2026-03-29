@@ -13,8 +13,9 @@ import {
 } from "recharts";
 
 type HistoryPoint = {
-  id: string;
-  date: string;
+  id?: string;
+  date?: string;
+  createdAt?: string;
   followers?: number;
   engagementRate?: number;
 };
@@ -27,6 +28,10 @@ type Props = {
   myHistory: HistoryPoint[];
   competitorHistory: HistoryPoint[];
 };
+
+function getHistoryDate(item: HistoryPoint) {
+  return item.date || item.createdAt || "";
+}
 
 function mergeHistory(
   myHistory: HistoryPoint[],
@@ -43,23 +48,31 @@ function mergeHistory(
   >();
 
   for (const item of myHistory) {
-    if (!map.has(item.date)) {
-      map.set(item.date, { date: item.date });
+    const itemDate = getHistoryDate(item);
+    if (!itemDate) continue;
+
+    if (!map.has(itemDate)) {
+      map.set(itemDate, { date: itemDate });
     }
-    const row = map.get(item.date)!;
-    row.myValue = item[metric];
+
+    const row = map.get(itemDate)!;
+    row.myValue = Number(item[metric] || 0);
   }
 
   for (const item of competitorHistory) {
-    if (!map.has(item.date)) {
-      map.set(item.date, { date: item.date });
+    const itemDate = getHistoryDate(item);
+    if (!itemDate) continue;
+
+    if (!map.has(itemDate)) {
+      map.set(itemDate, { date: itemDate });
     }
-    const row = map.get(item.date)!;
-    row.competitorValue = item[metric];
+
+    const row = map.get(itemDate)!;
+    row.competitorValue = Number(item[metric] || 0);
   }
 
   return Array.from(map.values()).sort((a, b) =>
-    a.date.localeCompare(b.date),
+    a.date.localeCompare(b.date)
   );
 }
 
