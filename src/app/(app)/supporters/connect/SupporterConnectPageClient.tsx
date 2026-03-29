@@ -1,0 +1,125 @@
+// src/app/(app)/supporters/connect/SupporterConnectPageClient.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useUser } from "@/firebase/provider";
+import { useWorkspace } from "@/hooks/useWorkspace";
+
+type InviteData = {
+  id: string;
+  workspaceId: string;
+  primaryAccountId: string;
+  supporterName: string | null;
+  primaryAccountName: string;
+  primaryUsername: string;
+};
+
+export default function SupporterConnectPageClient() {
+  const params = useSearchParams();
+  const { user } = useUser();
+  const { currentWorkspace } = useWorkspace();
+
+  const token = params.get("token");
+
+  const [invite, setInvite] = useState<InviteData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadInvite() {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `/api/network/supporter-invites/validate?token=${token}`,
+          { cache: "no-store" }
+        );
+
+        const data = await res.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || "Convite inválido.");
+        }
+
+        setInvite(data.invite);
+      } catch (error: any) {
+        alert(error?.message || "Erro ao validar convite.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadInvite();
+  }, [token]);
+
+  function handleConnectSupporterInstagram() {
+    if (!invite?.workspaceId || !user?.uid || !token) {
+      alert("Convite, workspace ou usuário não identificado.");
+      return;
+    }
+
+    window.location.href =
+      `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
+        invite.workspaceId
+      )}&ownerUserId=${encodeURIComponent(
+        user.uid
+      )}&mode=supporter&token=${encodeURIComponent(token)}`;
+  }
+
+  if (loading) {
+    return (
+      <section className="min-h-screen bg-[#050016] text-white p-6">
+        <p className="text-sm text-[#9CA3AF]">Validando convite...</p>
+      </section>
+    );
+  }
+
+  if (!invite) {
+    return (
+      <section className="min-h-screen bg-[#050016] text-white p-6">
+        <p className="text-sm text-rose-400">Convite inválido ou expirado.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="min-h-screen bg-[#050016] text-white p-6 flex items-center justify-center">
+      <div className="w-full max-w-lg rounded-2xl border border-[#272046] bg-[#0A0322] p-6 flex flex-col gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-white">
+            Entrar como apoiador
+          </h1>
+          <p className="text-xs text-[#9CA3AF] mt-1">
+            Você foi convidado para se vincular à conta principal:
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#050016] p-3">
+          <p className="text-sm font-medium text-white">
+            {invite.primaryAccountName}
+          </p>
+          <p className="text-xs text-[#9CA3AF]">{invite.primaryUsername}</p>
+        </div>
+
+        {!user?.uid ? (
+          <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3">
+            <p className="text-xs text-yellow-300">
+              Faça login no sistema para conectar sua conta como apoiador.
+            </p>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleConnectSupporterInstagram}
+            className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-sm font-medium text-white px-4 py-2"
+          >
+            Conectar meu Instagram como apoiador
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}

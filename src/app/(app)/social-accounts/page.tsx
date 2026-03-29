@@ -4,6 +4,7 @@
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSocialAccounts } from "@/hooks/useSocialAccounts";
 import type { SocialNetwork } from "@/types/socialAccount";
+import { useUser } from "@/firebase/provider";
 
 type NetworkCardInfo = {
   network: SocialNetwork;
@@ -38,13 +39,30 @@ const NETWORKS: NetworkCardInfo[] = [
 
 export default function SocialAccountsPage() {
   const { currentWorkspace } = useWorkspace();
+  const { user } = useUser();
+
   const workspaceId = currentWorkspace?.id;
 
   const { accounts, loading } = useSocialAccounts(workspaceId);
 
   const getStatusForNetwork = (network: SocialNetwork) => {
-    const acc = accounts.find((a) => a.network === network);
-
+    const networkAccounts = accounts.filter((a) => a.network === network);
+  
+    if (!networkAccounts.length) {
+      return {
+        status: "disconnected" as const,
+        label: "Não conectado",
+        badgeClass: "bg-rose-500/15 text-rose-400",
+        accountName: null,
+      };
+    }
+  
+    const acc =
+      networkAccounts.find((a: any) => a.isPrimary && a.status === "connected") ||
+      networkAccounts.find((a: any) => a.isPrimary) ||
+      networkAccounts.find((a) => a.status === "connected") ||
+      networkAccounts[0];
+  
     if (!acc) {
       return {
         status: "disconnected" as const,
@@ -53,7 +71,7 @@ export default function SocialAccountsPage() {
         accountName: null,
       };
     }
-
+  
     if (acc.status === "expired") {
       return {
         status: "expired" as const,
@@ -62,17 +80,16 @@ export default function SocialAccountsPage() {
         accountName: acc.name,
       };
     }
-
+  
     if (acc.status === "connected") {
       return {
         status: "connected" as const,
-        label: "Conectado",
+        label: acc.isPrimary ? "Principal conectada" : "Conectado",
         badgeClass: "bg-emerald-500/15 text-emerald-400",
         accountName: acc.name,
       };
     }
-
-    // fallback
+  
     return {
       status: "disconnected" as const,
       label: "Não conectado",
@@ -89,8 +106,17 @@ export default function SocialAccountsPage() {
 
   const handleManageClick = (network: SocialNetwork) => {
     alert(
-      `Tela de gerenciamento da conta ${network.toUpperCase()} (trocar conta, desconectar, renovar token).`,
+      `Tela de gerenciamento da conta ${network.toUpperCase()} (trocar conta, desconectar, renovar token).`
     );
+  };
+
+  const getInstagramConnectHref = () => {
+    if (!workspaceId) return "#";
+    if (!user?.uid) return "#";
+
+    return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
+      workspaceId
+    )}&ownerUserId=${encodeURIComponent(user.uid)}`;
   };
 
   return (
@@ -125,9 +151,9 @@ export default function SocialAccountsPage() {
               : status.status === "expired"
               ? "Renovar conexão"
               : n.connectLabel;
-          
-          const isInstagram = n.network === 'instagram';
-          const isConnected = status.status === 'connected';
+
+          const isInstagram = n.network === "instagram";
+          const isConnected = status.status === "connected";
 
           return (
             <div
@@ -136,19 +162,13 @@ export default function SocialAccountsPage() {
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-medium text-white">
-                    {n.label}
-                  </p>
-                  <p className="text-[11px] text-[#9CA3AF]">
-                    {n.description}
-                  </p>
+                  <p className="text-sm font-medium text-white">{n.label}</p>
+                  <p className="text-[11px] text-[#9CA3AF]">{n.description}</p>
 
                   {hasAccount && (
                     <p className="mt-2 text-[11px] text-[#E5E7EB]">
                       Conta:{" "}
-                      <span className="font-medium">
-                        {status.accountName}
-                      </span>
+                      <span className="font-medium">{status.accountName}</span>
                     </p>
                   )}
                 </div>
@@ -162,16 +182,25 @@ export default function SocialAccountsPage() {
 
               <div className="mt-auto flex flex-col gap-2">
                 {isInstagram ? (
-                   <a
-                    href={isConnected ? '#' : (workspaceId ? `/api/auth/facebook/start?workspaceId=${workspaceId}` : '#')}
+                  <a
+                    href={isConnected ? "#" : getInstagramConnectHref()}
                     onClick={(e) => {
-                        if (isConnected) {
-                            e.preventDefault();
-                            handleManageClick('instagram');
-                        } else if (!workspaceId) {
-                            e.preventDefault();
-                            alert("Workspace não disponível.");
-                        }
+                      if (isConnected) {
+                        e.preventDefault();
+                        handleManageClick("instagram");
+                        return;
+                      }
+
+                      if (!workspaceId) {
+                        e.preventDefault();
+                        alert("Workspace não disponível.");
+                        return;
+                      }
+
+                      if (!user?.uid) {
+                        e.preventDefault();
+                        alert("Usuário não identificado. Faça login novamente.");
+                      }
                     }}
                     className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
                   >

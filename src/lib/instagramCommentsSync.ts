@@ -1,0 +1,160 @@
+// src/lib/instagramCommentsSync.ts
+import "server-only";
+import { adminFirestore } from "@/lib/firebaseAdmin";
+import { processInteractionAutomation } from "@/lib/interactionAutomationEngine";
+
+
+type MetaMedia = {
+  id: string;
+  caption?: string;
+  timestamp?: string;
+};
+
+type MetaComment = {
+  id: string;
+  text?: string;
+  username?: string;
+  timestamp?: string;
+};
+
+async function fetchJson(url: string) {
+  const res = await fetch(url, { cache: "no-store" });
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data?.error?.message || "Erro na API da Meta.");
+  }
+
+  return data;
+}
+
+export async function syncInstagramCommentsForSocialAccount(params: {
+  workspaceId: string;
+  socialAccountId: string;
+  accountId: string;
+  accessToken: string;
+  sourceRole?: "primary" | "supporter";
+  sourceCampaignAccountId?: string | null;
+  sourceName?: string;
+  sourceUsername?: string;
+}) {
+  const {
+    workspaceId,
+    socialAccountId,
+    accountId,
+    accessToken,
+    sourceRole = "primary",
+    sourceCampaignAccountId = null,
+    sourceName = "Conta principal",
+    sourceUsername = "",
+  } = params;
+
+  const primaryCampaignSnap = await adminFirestore
+    .collection("campaignAccounts")
+    .where("workspaceId", "==", workspaceId)
+    .where("role", "==", "primary")
+    .limit(1)
+    .get();
+
+  if (primaryCampaignSnap.empty) {
+    throw new Error("Conta principal não encontrada.");
+  }
+
+  const primaryCampaignId = primaryCampaignSnap.docs[0].id;
+
+  const mediaUrl =
+    `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}/media` +
+    `?fields=id,caption,timestamp` +
+    `&limit=10` +
+    `&access_token=${encodeURIComponent(accessToken)}`;
+
+  const mediaData = await fetchJson(mediaUrl);
+  const mediaItems: MetaMedia[] = Array.isArray(mediaData?.data)
+    ? mediaData.data
+    : [];
+
+  let inserted = 0;
+  let updated = 0;
+
+  for (const media of mediaItems) {
+    const commentsUrl =
+      `https://graph.facebook.com/v20.0/${encodeURIComponent(media.id)}/comments` +
+      `?fields=id,text,username,timestamp` +
+      `&limit=50` +
+      `&access_token=${encodeURIComponent(accessToken)}`;
+
+    const commentsData = await fetchJson(commentsUrl);
+    const comments: MetaComment[] = Array.isArray(commentsData?.data)
+      ? commentsData.data
+      : [];
+
+    for (const comment of comments) {
+      const interactionId = `${workspaceId}_${socialAccountId}_${comment.id}`;
+      const ref = adminFirestore
+        .collection("supporterInteractions")
+        .doc(interactionId);
+
+      const existing = await ref.get();
+
+      const payload = {
+        workspaceId,
+        primaryAccountId: primaryCampaignId,
+        sourceCampaignAccountId:
+          sourceCampaignAccountId || primaryCampaignId,
+        sourceRole,
+        sourceName,
+        sourceUsername,
+        network: "instagram",
+        interactionType: "comment",
+        externalCommentId: comment.id,
+        externalMediaId: media.id,
+        mediaCaption: media.caption || "",
+        commenterId: comment.id,
+        commenterUsername: comment.username || "",
+        commenterText: comment.text || "",
+        status: existing.exists
+          ? (existing.data() as any)?.status || "new"
+          : "new",
+        assignedToUserId: existing.exists
+          ? (existing.data() as any)?.assignedToUserId || null
+          : null,
+        publicReplyText: existing.exists
+          ? (existing.data() as any)?.publicReplyText || null
+          : null,
+        privateReplyText: existing.exists
+          ? (existing.data() as any)?.privateReplyText || null
+          : null,
+        commentTimestamp: comment.timestamp || null,
+        capturedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (!existing.exists) {
+        await ref.set({
+          ...payload,
+          createdAt: new Date().toISOString(),
+        });
+      
+        inserted += 1;
+      
+        try {
+          await processInteractionAutomation(interactionId);
+        } catch (automationError) {
+          console.error(
+            "[instagramCommentsSync] erro ao processar automação:",
+            automationError
+          );
+        }
+      } else {
+        await ref.set(payload, { merge: true });
+        updated += 1;
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    inserted,
+    updated,
+  };
+}

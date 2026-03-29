@@ -77,7 +77,13 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const savedNonce = cookieStore.get('fb_oauth_nonce')?.value;
 
-  let stateData: { workspaceId: string; nonce: string };
+  let stateData: {
+    workspaceId: string;
+    ownerUserId: string;
+    mode: 'primary' | 'supporter';
+    token: string | null;
+    nonce: string;
+  };
 
   try {
     stateData = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
@@ -91,10 +97,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  const { workspaceId } = stateData;
+  const { workspaceId, ownerUserId, mode, token } = stateData;
 
-  if (!workspaceId) {
-    redirectUrl.searchParams.set('error', 'missing_workspace');
+  if (!workspaceId || !ownerUserId || !mode) {
+    redirectUrl.searchParams.set('error', 'missing_required_state_data');
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -160,15 +166,16 @@ export async function GET(request: NextRequest) {
 
     const now = new Date().toISOString();
 
-    const accountQuery = await adminFirestore
+    // ✅ socialAccounts agora procura pela conta real do Instagram, não só workspace/network
+    const socialAccountQuery = await adminFirestore
       .collection('socialAccounts')
       .where('workspaceId', '==', workspaceId)
       .where('network', '==', 'instagram')
+      .where('accountId', '==', igId)
       .limit(1)
       .get();
-      
-    // If no primary exists, make this one primary.
-    const primaryQuery = await adminFirestore
+
+    const primarySocialQuery = await adminFirestore
       .collection('socialAccounts')
       .where('workspaceId', '==', workspaceId)
       .where('network', '==', 'instagram')
@@ -176,10 +183,12 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .get();
 
-    const isPrimary = accountQuery.empty && primaryQuery.empty;
+    const isPrimary =
+      mode === 'primary' && primarySocialQuery.empty && socialAccountQuery.empty;
 
-    const payload = {
+    const socialPayload = {
       workspaceId,
+      ownerUserId,
       network: 'instagram' as const,
       accountId: igId,
       username: igProfileData.username || '',
@@ -189,20 +198,133 @@ export async function GET(request: NextRequest) {
       isPrimary,
       accessToken: pageAccessToken || userAccessToken,
       pageAccessToken: pageAccessToken || null,
+      facebookPageId: pageWithInstagram.id || null,
+      facebookPageName: pageWithInstagram.name || null,
       updatedAt: now,
     };
 
-    if (accountQuery.empty) {
-      await adminFirestore.collection('socialAccounts').add({
-        ...payload,
+    let socialAccountId: string;
+
+    if (socialAccountQuery.empty) {
+      const createdRef = await adminFirestore.collection('socialAccounts').add({
+        ...socialPayload,
         createdAt: now,
       });
+      socialAccountId = createdRef.id;
     } else {
-      const docRef = accountQuery.docs[0].ref;
-      await docRef.update(payload);
+      const docRef = socialAccountQuery.docs[0].ref;
+      await docRef.update(socialPayload);
+      socialAccountId = docRef.id;
     }
 
-    redirectUrl.searchParams.set('status', 'success_instagram');
+    // ✅ modo principal
+    if (mode === 'primary') {
+      const campaignQuery = await adminFirestore
+        .collection('campaignAccounts')
+        .where('workspaceId', '==', workspaceId)
+        .where('role', '==', 'primary')
+        .limit(1)
+        .get();
+    
+      const campaignPayload = {
+        workspaceId,
+        role: 'primary' as const,
+        linkedToAccountId: null,
+        socialAccountId, // <- sempre o doc atual de socialAccounts
+        name: igProfileData.name || igProfileData.username || 'Conta principal',
+        username: igProfileData.username ? `@${igProfileData.username}` : '',
+        network: 'instagram' as const,
+        accountId: igId,
+        status: 'connected' as const,
+        ownerUserId,
+        permissions: null,
+        updatedAt: now,
+      };
+    
+      if (campaignQuery.empty) {
+        await adminFirestore.collection('campaignAccounts').add({
+          ...campaignPayload,
+          createdAt: now,
+        });
+      } else {
+        await campaignQuery.docs[0].ref.set(campaignPayload, { merge: true });
+      }
+    
+      redirectUrl.searchParams.set('status', 'success_instagram_primary');
+    }
+
+    // ✅ modo supporter
+    if (mode === 'supporter') {
+      if (!token) {
+        throw new Error('Supporter token not found in callback state.');
+      }
+
+      const inviteSnap = await adminFirestore
+        .collection('supporterInvites')
+        .where('token', '==', token)
+        .limit(1)
+        .get();
+
+      if (inviteSnap.empty) {
+        throw new Error('Convite de apoiador não encontrado.');
+      }
+
+      const inviteDoc = inviteSnap.docs[0];
+      const invite = inviteDoc.data() as any;
+
+      if (invite.status !== 'pending') {
+        throw new Error('Convite de apoiador já utilizado ou inválido.');
+      }
+
+      if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) {
+        throw new Error('Convite de apoiador expirado.');
+      }
+
+      const existingSupporterQuery = await adminFirestore
+        .collection('campaignAccounts')
+        .where('workspaceId', '==', invite.workspaceId)
+        .where('role', '==', 'supporter')
+        .where('ownerUserId', '==', ownerUserId)
+        .where('linkedToAccountId', '==', invite.primaryAccountId)
+        .limit(1)
+        .get();
+
+      const supporterPayload = {
+        workspaceId: invite.workspaceId,
+        role: 'supporter' as const,
+        linkedToAccountId: invite.primaryAccountId,
+        socialAccountId,
+        name: igProfileData.name || igProfileData.username || 'Apoiador',
+        username: igProfileData.username ? `@${igProfileData.username}` : '',
+        network: 'instagram' as const,
+        accountId: igId,
+        status: 'connected' as const,
+        ownerUserId,
+        permissions: {
+          allowContentBoost: true,
+          allowLeadCapture: false,
+          allowFollowerCampaigns: true,
+        },
+        updatedAt: now,
+      };
+
+      if (existingSupporterQuery.empty) {
+        await adminFirestore.collection('campaignAccounts').add({
+          ...supporterPayload,
+          createdAt: now,
+        });
+      } else {
+        await existingSupporterQuery.docs[0].ref.update(supporterPayload);
+      }
+
+      await inviteDoc.ref.update({
+        status: 'accepted',
+        acceptedAt: now,
+      });
+
+      redirectUrl.pathname = '/supporters';
+      redirectUrl.searchParams.set('status', 'success_instagram_supporter');
+    }
   } catch (err: any) {
     console.error('Facebook Callback Error:', err);
     redirectUrl.searchParams.set('error', err.message || 'unknown_error');

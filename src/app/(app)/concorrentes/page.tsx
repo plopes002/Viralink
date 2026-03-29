@@ -63,7 +63,13 @@ export default function ConcorrentesPage() {
   );
   
   const primaryAccount = useMemo(() => {
-    return accounts.find((a) => a.isPrimary) || accounts[0] || null;
+    return (
+      accounts.find((a: any) => a.isPrimary && a.status === "connected") ||
+      accounts.find((a: any) => a.isPrimary) ||
+      accounts.find((a: any) => a.status === "connected") ||
+      accounts[0] ||
+      null
+    );
   }, [accounts]);
 
   const { history: accountHistory } = useSocialMetricsHistory(

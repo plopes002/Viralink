@@ -13,14 +13,51 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const primaryCampaignSnap = await adminFirestore
+      .collection("campaignAccounts")
+      .where("workspaceId", "==", workspaceId)
+      .where("role", "==", "primary")
+      .limit(1)
+      .get();
+
+    if (primaryCampaignSnap.empty) {
+      return NextResponse.json(
+        { ok: false, message: "Conta principal não encontrada" },
+        { status: 404 }
+      );
+    }
+
+    const primaryCampaign = primaryCampaignSnap.docs[0].data() as any;
+let socialAccountId = primaryCampaign.socialAccountId || null;
+
+if (!socialAccountId) {
+  const fallbackSnap = await adminFirestore
+    .collection("socialAccounts")
+    .where("workspaceId", "==", workspaceId)
+    .where("network", "==", "instagram")
+    .where("isPrimary", "==", true)
+    .limit(1)
+    .get();
+
+  if (fallbackSnap.empty) {
+    return NextResponse.json(
+      { ok: false, message: "Conta principal sem socialAccountId" },
+      { status: 400 }
+    );
+  }
+
+  socialAccountId = fallbackSnap.docs[0].id;
+}
+
     const snap = await adminFirestore
       .collection("instagramInsightsHistory")
       .where("workspaceId", "==", workspaceId)
+      .where("socialAccountId", "==", socialAccountId)
       .get();
 
     const items = snap.docs
       .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
-      .sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+      .sort((a: any, b: any) => String(a.dateKey).localeCompare(String(b.dateKey)))
       .slice(-7);
 
     return NextResponse.json({
