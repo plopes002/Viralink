@@ -6,6 +6,8 @@ import { EngagementChart } from "../components/EngagementChart";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useScheduledPosts } from "@/hooks/useScheduledPosts";
+import LogoutButton from "@/components/LogoutButton";
+
 
 const CARD = "#0B001F";
 const BORDER = "#261341";
@@ -66,13 +68,15 @@ function formatScheduledDate(date?: any) {
 }
 
 export default function DashboardPage() {
+  
+
   const { currentWorkspace } = useWorkspace();
   const workspaceId = currentWorkspace?.id ?? null;
 
   const {
     posts: scheduledPosts,
     loading: loadingScheduledPosts,
-  } = useScheduledPosts(workspaceId || undefined);
+  } = useScheduledPosts(workspaceId);
 
   const [insights, setInsights] = useState<InstagramInsights | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
@@ -306,7 +310,7 @@ export default function DashboardPage() {
 
           {loadingScheduledPosts ? (
             <p className="text-[11px] text-[#9CA3AF]">Carregando posts agendados...</p>
-          ) : scheduledPosts.length === 0 ? (
+          ) : !scheduledPosts || scheduledPosts.length === 0 ? (
             <p className="text-[11px] text-[#9CA3AF]">
               Nenhum post agendado encontrado.
             </p>

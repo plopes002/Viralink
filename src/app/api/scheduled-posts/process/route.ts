@@ -86,13 +86,13 @@ async function publishToInstagram(post: ScheduledPostDoc) {
 async function processPost(docId: string, data: ScheduledPostDoc) {
   const ref = adminFirestore.collection("scheduledPosts").doc(docId);
 
-  await ref.update({
-    status: "processing",
-    lastError: null,
-    updatedAt: new Date().toISOString(),
-  });
-
   try {
+    await ref.update({
+      status: "processing",
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    });
+
     const networks = Array.isArray(data.networks) ? data.networks : [];
 
     if (!networks.length) {
@@ -107,6 +107,7 @@ async function processPost(docId: string, data: ScheduledPostDoc) {
       }
 
       const result = await publishToInstagram(data);
+
       publishResults.push({
         network,
         mediaId: result?.mediaId,
@@ -121,18 +122,36 @@ async function processPost(docId: string, data: ScheduledPostDoc) {
       updatedAt: new Date().toISOString(),
     });
 
-    return { id: docId, ok: true };
+    return {
+      id: docId,
+      ok: true,
+    };
   } catch (error: any) {
-    await ref.update({
-      status: "failed",
-      lastError: error?.message || "Erro ao publicar post agendado.",
-      updatedAt: new Date().toISOString(),
+    const safeMessage =
+      error?.message || "Erro ao publicar post agendado.";
+
+    console.error("[scheduled-posts/process] erro no post:", {
+      docId,
+      error: safeMessage,
     });
+
+    try {
+      await ref.update({
+        status: "failed",
+        lastError: safeMessage,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (updateError: any) {
+      console.error("[scheduled-posts/process] erro ao marcar failed:", {
+        docId,
+        error: updateError?.message || updateError,
+      });
+    }
 
     return {
       id: docId,
       ok: false,
-      error: error?.message || "Erro ao publicar post agendado.",
+      error: safeMessage,
     };
   }
 }
@@ -167,7 +186,9 @@ export async function POST(req: NextRequest) {
     const dueDocs = snap.docs.filter((doc) => {
       const data = doc.data() as ScheduledPostDoc;
       const runAt = getRunAtDate(data.runAt);
+
       if (!runAt) return false;
+
       return runAt.getTime() <= now.getTime();
     });
 
@@ -179,11 +200,48 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const results = [];
+    const results: Array<{
+      id: string;
+      ok: boolean;
+      error?: string;
+    }> = [];
+
     for (const doc of dueDocs) {
-      const data = doc.data() as ScheduledPostDoc;
-      const result = await processPost(doc.id, data);
-      results.push(result);
+      try {
+        const data = doc.data() as ScheduledPostDoc;
+        const result = await processPost(doc.id, data);
+        results.push(result);
+      } catch (error: any) {
+        const safeMessage =
+          error?.message || "Erro inesperado ao processar post.";
+
+        console.error("[scheduled-posts/process] erro fora de processPost:", {
+          docId: doc.id,
+          error: safeMessage,
+        });
+
+        try {
+          await adminFirestore.collection("scheduledPosts").doc(doc.id).update({
+            status: "failed",
+            lastError: safeMessage,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (updateError: any) {
+          console.error(
+            "[scheduled-posts/process] erro extra ao marcar failed:",
+            {
+              docId: doc.id,
+              error: updateError?.message || updateError,
+            }
+          );
+        }
+
+        results.push({
+          id: doc.id,
+          ok: false,
+          error: safeMessage,
+        });
+      }
     }
 
     return NextResponse.json({
@@ -192,7 +250,7 @@ export async function POST(req: NextRequest) {
       results,
     });
   } catch (error: any) {
-    console.error("[scheduled-posts/process] erro:", error);
+    console.error("[scheduled-posts/process] erro fatal:", error);
 
     return NextResponse.json(
       {

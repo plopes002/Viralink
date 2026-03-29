@@ -1,4 +1,4 @@
-// app/(app)/layout.tsx
+// src/app/(app)/layout.tsx
 "use client";
 
 import "../globals.css";
@@ -24,6 +24,7 @@ import {
   FiClock,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
+import UserMenu from "./components/UserMenu";
 import { useUser } from "@/firebase/provider";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 
@@ -52,12 +53,14 @@ const navItems = [
 function AppLayoutContent({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: BG }}>
-      {/* SIDEBAR DESKTOP */}
       <aside
         className="hidden md:flex md:flex-col w-64 border-r"
         style={{ backgroundColor: SIDEBAR, borderColor: BORDER }}
       >
-        <div className="px-6 py-5 flex items-center gap-3 border-b" style={{ borderColor: BORDER }}>
+        <div
+          className="px-6 py-5 flex items-center gap-3 border-b"
+          style={{ borderColor: BORDER }}
+        >
           <div
             className="h-9 w-9 rounded-2xl flex items-center justify-center text-sm font-bold text-white"
             style={{
@@ -86,7 +89,10 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="px-4 py-4 text-[11px] text-[#9CA3AF] border-t" style={{ borderColor: BORDER }}>
+        <div
+          className="px-4 py-4 text-[11px] text-[#9CA3AF] border-t"
+          style={{ borderColor: BORDER }}
+        >
           <p className="mb-1">
             Plano atual: <span className="text-[#7C3AED] font-semibold">Pro</span>
           </p>
@@ -97,7 +103,6 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* CONTEÚDO */}
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 pb-10 pt-4">
@@ -111,7 +116,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
 function Topbar() {
   const [openMobileNav, setOpenMobileNav] = useState(false);
   const { user } = useUser();
-  const currentWorkspaceId = "agency_123"; // TODO: Replace with dynamic workspace ID from context
+  const currentWorkspaceId = "agency_123";
 
   return (
     <header
@@ -131,7 +136,6 @@ function Topbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Infos rápidas só no desktop */}
           <div className="hidden md:flex flex-col items-end text-[11px] text-[#CBD5E1]">
             <span>
               Taxa de resposta hoje:{" "}
@@ -145,7 +149,6 @@ function Topbar() {
 
           <NotificationsBell workspaceId={currentWorkspaceId} uid={user?.uid ?? null} />
 
-          {/* Botão menu mobile */}
           <button
             className="md:hidden h-8 w-8 rounded-full border border-[#312356] flex items-center justify-center text-[#E5E7EB] bg-black/20 backdrop-blur-sm"
             onClick={() => setOpenMobileNav((v) => !v)}
@@ -154,14 +157,10 @@ function Topbar() {
             {openMobileNav ? <FiX size={16} /> : <FiMenu size={16} />}
           </button>
 
-          {/* Avatar */}
-          <button className="h-9 w-9 rounded-full bg-gradient-to-tr from-[#7C3AED] to-[#C026D3] flex items-center justify-center text-xs font-bold text-white">
-            AD
-          </button>
+          <UserMenu />
         </div>
       </div>
 
-      {/* MENU MOBILE – overlay suave */}
       {openMobileNav && (
         <div className="md:hidden absolute inset-x-0 top-full pb-3 px-3">
           <div className="rounded-2xl border border-[#312356] bg-[#050017]/95 backdrop-blur-xl shadow-2xl">
@@ -185,11 +184,10 @@ function Topbar() {
   );
 }
 
-
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <FirebaseClientProvider>
       <AppLayoutContent>{children}</AppLayoutContent>
     </FirebaseClientProvider>
-  )
+  );
 }

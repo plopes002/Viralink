@@ -5,12 +5,14 @@ import { NextRequest, NextResponse } from 'next/server';
 const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID!;
 const FACEBOOK_REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI!;
 
+// 🔥 ATUALIZADO COM PERMISSÃO DE PUBLICAÇÃO
 const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'instagram_basic',
   'instagram_manage_comments',
   'instagram_manage_messages',
+  'instagram_business_content_publish', // 👈 ESSA É A CHAVE
 ].join(',');
 
 function generateNonce(length = 32) {

@@ -1,14 +1,22 @@
 // src/lib/firebaseAdmin.ts
-import 'server-only';
-import * as admin from "firebase-admin";
+import "server-only";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    // Se estiver rodando no Firebase Hosting/Emulador,
-    // normalmente não precisa passar nada aqui.
-    // Se um dia for usar service account, configuramos depois.
-  });
-}
+const apps = getApps();
 
-export const adminFirestore = admin.firestore();
-export const adminAuth = admin.auth();
+const adminApp =
+  apps.length > 0
+    ? apps[0]
+    : initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        }),
+      });
+
+export const adminAuth = getAuth(adminApp);
+export const adminFirestore = getFirestore(adminApp);
+export { adminApp };

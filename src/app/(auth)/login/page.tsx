@@ -1,49 +1,71 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Logo } from '@/components/icons/logo';
+// src/app/(auth)/login/page.tsx
+"use client";
+
+import { useState } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebaseClient";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+
+    console.log("tentando login...");
+
+    if (!email || !password) {
+      alert("Preencha email e senha");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const user = await signInWithEmailAndPassword(auth, email, password);
+      console.log("logado:", user.user.uid);
+      window.location.assign("/dashboard");
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Erro ao fazer login");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Card className="mx-auto max-w-sm w-full">
-      <CardHeader className="text-center">
-        <div className="flex justify-center items-center mb-4">
-            <Logo className="h-8 w-8 text-primary" />
-        </div>
-        <CardTitle className="text-2xl font-headline">Welcome Back</CardTitle>
-        <CardDescription>Enter your email below to login to your ViralinkAI account</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="m@example.com" required />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center">
-              <Label htmlFor="password">Password</Label>
-              <Link href="#" className="ml-auto inline-block text-sm underline">
-                Forgot your password?
-              </Link>
-            </div>
-            <Input id="password" type="password" required />
-          </div>
-          <Button type="submit" className="w-full" asChild>
-            <Link href="/dashboard">Login</Link>
-          </Button>
-          <Button variant="outline" className="w-full">
-            Login with Google
-          </Button>
-        </div>
-        <div className="mt-4 text-center text-sm">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="underline">
-            Sign up
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="min-h-screen flex items-center justify-center bg-[#050016]">
+      <form
+        onSubmit={handleLogin}
+        className="bg-[#020012] p-6 rounded-2xl border border-[#272046] w-[320px]"
+      >
+        <h1 className="text-white text-lg mb-4">Entrar</h1>
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full mb-3 p-2 rounded bg-[#0B001F] text-white"
+        />
+
+        <input
+          type="password"
+          placeholder="Senha"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full mb-4 p-2 rounded bg-[#0B001F] text-white"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-purple-600 p-2 rounded text-white"
+        >
+          {loading ? "Entrando..." : "Entrar"}
+        </button>
+      </form>
+    </div>
   );
 }
