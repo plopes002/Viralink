@@ -53,7 +53,12 @@ export default function ConcorrentesPage() {
 
   const [selectedCompetitorId, setSelectedCompetitorId] =
     useState<string | null>(null);
-    
+  
+  const [competitorUsername, setCompetitorUsername] = useState("");
+  const [competitorName, setCompetitorName] = useState("");
+  const [competitorNotes, setCompetitorNotes] = useState("");
+  const [savingCompetitor, setSavingCompetitor] = useState(false);
+
   const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
 
   const selectedCompetitor = useMemo(
@@ -439,6 +444,75 @@ export default function ConcorrentesPage() {
     }
   }
 
+  async function handleCreateCompetitor() {
+    if (!workspaceId) {
+      alert("Workspace não disponível.");
+      return;
+    }
+  
+    try {
+      setSavingCompetitor(true);
+  
+      const res = await fetch("/api/competitors/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workspaceId,
+          ownerUserId: null,
+          username: competitorUsername,
+          name: competitorName,
+          notes: competitorNotes,
+        }),
+      });
+  
+      const data = await res.json();
+  
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao cadastrar concorrente.");
+      }
+  
+      setCompetitorUsername("");
+      setCompetitorName("");
+      setCompetitorNotes("");
+  
+      alert("Concorrente cadastrado com sucesso.");
+    } catch (error: any) {
+      alert(error?.message || "Erro ao cadastrar concorrente.");
+    } finally {
+      setSavingCompetitor(false);
+    }
+  }
+  
+  async function handleDeleteCompetitor(competitorId: string) {
+    if (!confirm("Excluir concorrente?")) return;
+  
+    try {
+      const res = await fetch("/api/competitors/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ competitorId }),
+      });
+  
+      const data = await res.json();
+  
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao excluir concorrente.");
+      }
+  
+      if (selectedCompetitorId === competitorId) {
+        setSelectedCompetitorId(null);
+      }
+  
+      alert("Concorrente excluído com sucesso.");
+    } catch (error: any) {
+      alert(error?.message || "Erro ao excluir concorrente.");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -471,59 +545,92 @@ export default function ConcorrentesPage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
+
+      
+
+
         {/* lista real de concorrentes */}
-        <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
-          <h2 className="text-sm font-semibold text-white mb-4">
-            Concorrentes cadastrados
-          </h2>
+        <div className="flex flex-col gap-4">
 
-          {loadingCompetitors && (
-            <p className="text-sm text-[#9CA3AF]">Carregando concorrentes...</p>
-          )}
+  {/* FORM */}
+  <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-3">
+    <h2 className="text-sm font-semibold text-white">
+      Cadastrar concorrente
+    </h2>
 
-          {!loadingCompetitors && competitors.length === 0 && (
-            <p className="text-sm text-[#9CA3AF]">
-              Nenhum concorrente cadastrado.
-            </p>
-          )}
+    <input
+      value={competitorUsername}
+      onChange={(e) => setCompetitorUsername(e.target.value)}
+      placeholder="@usuario_do_concorrente"
+      className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+    />
 
-          <div className="flex flex-col gap-3">
-            {competitors.map((competitor) => (
-              <button
-                key={competitor.id}
-                type="button"
-                onClick={() => setSelectedCompetitorId(competitor.id)}
-                className={`text-left rounded-2xl border p-4 transition ${
-                  selectedCompetitorId === competitor.id
-                    ? "border-[#8B5CF6] bg-[#111827]"
-                    : "border-[#272046] bg-[#020012] hover:bg-[#0B1120]"
-                }`}
-              >
-                <p className="text-sm font-medium text-white">
-                  {competitor.name}
-                </p>
-                <p className="text-xs text-[#9CA3AF]">
-                  @{competitor.username || "-"} • {competitor.platform || "-"}
-                </p>
+    <input
+      value={competitorName}
+      onChange={(e) => setCompetitorName(e.target.value)}
+      placeholder="Nome exibido (opcional)"
+      className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+    />
 
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-[10px] text-[#7D8590]">Seguidores</p>
-                    <p className="text-xs text-white">
-                      {competitor.followers ?? "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#7D8590]">Engajamento</p>
-                    <p className="text-xs text-white">
-                      {formatPercent(competitor.engagementRate)}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            ))}
+    <textarea
+      value={competitorNotes}
+      onChange={(e) => setCompetitorNotes(e.target.value)}
+      placeholder="Observações internas"
+      className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none min-h-[80px]"
+    />
+
+    <button
+      onClick={handleCreateCompetitor}
+      className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-sm text-white px-4 py-2"
+    >
+      Cadastrar concorrente
+    </button>
+  </div>
+
+  {/* LISTA */}
+  <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+    <h2 className="text-sm font-semibold text-white mb-3">
+      Concorrentes cadastrados
+    </h2>
+
+    {competitors.length === 0 && (
+      <p className="text-sm text-[#9CA3AF]">
+        Nenhum concorrente cadastrado.
+      </p>
+    )}
+
+    <div className="flex flex-col gap-2">
+      {competitors.map((c) => (
+        <div
+          key={c.id}
+          className="rounded-xl border border-[#272046] bg-[#020012] p-3"
+        >
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm text-white font-medium">
+                {c.name || c.username}
+              </p>
+              <p className="text-xs text-[#9CA3AF]">
+                @{c.username}
+              </p>
+            </div>
+
+            
           </div>
         </div>
+      ))}
+      <button
+              onClick={() => handleDeleteCompetitor(c.id)}
+              className="text-[11px] text-red-400"
+            >
+              Excluir
+            </button>
+    </div>
+  </div>
+
+</div>
+
+        
 
         {/* painel principal */}
         <div className="flex flex-col gap-4">

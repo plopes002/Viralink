@@ -3,7 +3,6 @@ import "server-only";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import { processInteractionAutomation } from "@/lib/interactionAutomationEngine";
 
-
 type MetaMedia = {
   id: string;
   caption?: string;
@@ -90,17 +89,18 @@ export async function syncInstagramCommentsForSocialAccount(params: {
 
     for (const comment of comments) {
       const interactionId = `${workspaceId}_${socialAccountId}_${comment.id}`;
+
       const ref = adminFirestore
         .collection("supporterInteractions")
         .doc(interactionId);
 
       const existing = await ref.get();
+      const existingData = existing.exists ? (existing.data() as any) : null;
 
       const payload = {
         workspaceId,
         primaryAccountId: primaryCampaignId,
-        sourceCampaignAccountId:
-          sourceCampaignAccountId || primaryCampaignId,
+        sourceCampaignAccountId: sourceCampaignAccountId || primaryCampaignId,
         sourceRole,
         sourceName,
         sourceUsername,
@@ -112,18 +112,22 @@ export async function syncInstagramCommentsForSocialAccount(params: {
         commenterId: comment.id,
         commenterUsername: comment.username || "",
         commenterText: comment.text || "",
-        status: existing.exists
-          ? (existing.data() as any)?.status || "new"
-          : "new",
-        assignedToUserId: existing.exists
-          ? (existing.data() as any)?.assignedToUserId || null
-          : null,
-        publicReplyText: existing.exists
-          ? (existing.data() as any)?.publicReplyText || null
-          : null,
-        privateReplyText: existing.exists
-          ? (existing.data() as any)?.privateReplyText || null
-          : null,
+        status: existingData?.status || "new",
+        assignedToUserId: existingData?.assignedToUserId || null,
+        publicReplyText: existingData?.publicReplyText || null,
+        privateReplyText: existingData?.privateReplyText || null,
+        publicReplyMeta: existingData?.publicReplyMeta || null,
+        privateReplyMeta: existingData?.privateReplyMeta || null,
+        automationMatched:
+          typeof existingData?.automationMatched === "boolean"
+            ? existingData.automationMatched
+            : undefined,
+        automationRuleId: existingData?.automationRuleId || null,
+        automationRuleName: existingData?.automationRuleName || null,
+        automationExecutedActions:
+          existingData?.automationExecutedActions || [],
+        automationProcessedAt: existingData?.automationProcessedAt || null,
+        automationLastError: existingData?.automationLastError || null,
         commentTimestamp: comment.timestamp || null,
         capturedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -134,9 +138,9 @@ export async function syncInstagramCommentsForSocialAccount(params: {
           ...payload,
           createdAt: new Date().toISOString(),
         });
-      
+
         inserted += 1;
-      
+
         try {
           await processInteractionAutomation(interactionId);
         } catch (automationError) {
@@ -148,6 +152,23 @@ export async function syncInstagramCommentsForSocialAccount(params: {
       } else {
         await ref.set(payload, { merge: true });
         updated += 1;
+
+        // reprocessa se ainda não foi automatizado
+        if (
+          !existingData?.automationProcessedAt &&
+          (existingData?.status === "new" ||
+            existingData?.status === "read" ||
+            !existingData?.status)
+        ) {
+          try {
+            await processInteractionAutomation(interactionId);
+          } catch (automationError) {
+            console.error(
+              "[instagramCommentsSync] erro ao reprocessar automação:",
+              automationError
+            );
+          }
+        }
       }
     }
   }

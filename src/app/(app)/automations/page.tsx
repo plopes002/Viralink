@@ -75,6 +75,9 @@ export default function AutomationsPage() {
     InteractionAutomationRule[]
   >([]);
   const [loadingInteractionRules, setLoadingInteractionRules] = useState(true);
+
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [creatingInteractionRule, setCreatingInteractionRule] = useState(false);
 
   const [ruleName, setRuleName] = useState("");
@@ -88,6 +91,10 @@ export default function AutomationsPage() {
   const [ruleReplyPublic, setRuleReplyPublic] = useState(true);
   const [ruleReplyPrivate, setRuleReplyPrivate] = useState(true);
   const [ruleConvertToLead, setRuleConvertToLead] = useState(true);
+
+  
+  const [metricsSummary, setMetricsSummary] = useState<any | null>(null);
+  
 
   const handleOpenForm = () => {
     if (!workspaceId) {
@@ -209,9 +216,47 @@ export default function AutomationsPage() {
     }
   }
 
+  
+
+  async function loadMetrics() {
+    if (!workspaceId) return;
+
+    try {
+      setLoadingMetrics(true);
+
+      const res = await fetch(
+        `/api/network/automation-rules/metrics?workspaceId=${workspaceId}`,
+        { cache: "no-store" }
+      );
+
+      const data = await res.json();
+
+      if (data.ok) {
+        setMetrics(data.metrics || []);
+        setMetricsSummary(data.summary || null);
+      } else {
+        setMetrics([]);
+        setMetricsSummary(null);
+      }
+    } catch (err) {
+      console.error("[AutomationsPage] erro ao carregar métricas:", err);
+      setMetrics([]);
+      setMetricsSummary(null);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  }
+
+  
   useEffect(() => {
     loadInteractionRules();
   }, [workspaceId]);
+
+  useEffect(() => {
+    loadMetrics();
+  }, [workspaceId]);
+
+  
 
   async function handleCreateInteractionRule() {
     if (!workspaceId) {
@@ -552,6 +597,58 @@ export default function AutomationsPage() {
           </p>
         </div>
 
+        
+
+
+              <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
+        <h2 className="text-sm font-semibold text-white">
+          Performance das automações
+        </h2>
+
+        {loadingMetrics ? (
+          <p className="text-xs text-[#9CA3AF]">Carregando métricas...</p>
+        ) : metrics.length === 0 ? (
+          <p className="text-xs text-[#9CA3AF]">
+            Nenhuma métrica disponível ainda.
+          </p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {metrics.map((m) => (
+              <div
+                key={m.ruleId}
+                className="bg-[#0A0322] border border-[#272046] rounded-xl p-4 flex flex-col gap-2"
+              >
+                <p className="text-white font-medium text-sm">
+                  {m.ruleName}
+                </p>
+
+                <div className="text-xs text-[#9CA3AF]">
+                  Execuções: {m.executions}
+                </div>
+
+                <div className="text-xs text-[#9CA3AF]">
+                  Respostas públicas: {m.publicReplies}
+                </div>
+
+                <div className="text-xs text-[#9CA3AF]">
+                  DMs: {m.privateReplies}
+                </div>
+
+                <div className="text-xs text-[#9CA3AF]">
+                  Leads: {m.leads}
+                </div>
+
+                <div className="text-xs font-medium text-emerald-400">
+                  Conversão: {(m.conversionRate * 100).toFixed(1)}%
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+
+
         <div className="grid gap-3">
           <input
             value={ruleName}
@@ -740,6 +837,172 @@ export default function AutomationsPage() {
           )}
         </div>
       </div>
+
+
+      <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
+  <div className="flex items-center justify-between">
+    <div>
+      <h2 className="text-sm font-semibold text-white">
+        Painel comercial das automações
+      </h2>
+      <p className="text-[11px] text-[#9CA3AF]">
+        Veja quais regras estão gerando mais respostas e mais leads.
+      </p>
+    </div>
+  </div>
+
+  {loadingMetrics ? (
+    <p className="text-xs text-[#9CA3AF]">Carregando métricas...</p>
+  ) : !metricsSummary ? (
+    <p className="text-xs text-[#9CA3AF]">
+      Nenhuma métrica disponível ainda.
+    </p>
+  ) : (
+    <>
+      {/* Cards-resumo */}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Execuções</p>
+          <p className="text-lg font-semibold text-white">
+            {metricsSummary.totalExecutions}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Respostas públicas</p>
+          <p className="text-lg font-semibold text-white">
+            {metricsSummary.totalPublicReplies}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Respostas privadas</p>
+          <p className="text-lg font-semibold text-white">
+            {metricsSummary.totalPrivateReplies}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Leads</p>
+          <p className="text-lg font-semibold text-white">
+            {metricsSummary.totalLeads}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF]">Conversão média</p>
+          <p className="text-lg font-semibold text-emerald-400">
+            {(metricsSummary.averageConversionRate * 100).toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      {/* Destaques */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF] mb-2">Melhor regra por leads</p>
+          {metricsSummary.bestRuleByLeads ? (
+            <>
+              <p className="text-sm font-medium text-white">
+                {metricsSummary.bestRuleByLeads.ruleName}
+              </p>
+              <p className="text-xs text-[#9CA3AF] mt-1">
+                Leads: {metricsSummary.bestRuleByLeads.leads} • Conversão:{" "}
+                {(metricsSummary.bestRuleByLeads.conversionRate * 100).toFixed(1)}%
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-[#9CA3AF]">Sem dados ainda.</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4">
+          <p className="text-[11px] text-[#9CA3AF] mb-2">Melhor regra por conversão</p>
+          {metricsSummary.bestRuleByConversion ? (
+            <>
+              <p className="text-sm font-medium text-white">
+                {metricsSummary.bestRuleByConversion.ruleName}
+              </p>
+              <p className="text-xs text-[#9CA3AF] mt-1">
+                Conversão:{" "}
+                {(metricsSummary.bestRuleByConversion.conversionRate * 100).toFixed(1)}% •
+                Leads: {metricsSummary.bestRuleByConversion.leads}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-[#9CA3AF]">Sem dados ainda.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Ranking + gráfico */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4 flex flex-col gap-3">
+          <p className="text-sm font-medium text-white">Ranking de regras</p>
+
+          {metrics.length === 0 ? (
+            <p className="text-xs text-[#9CA3AF]">Sem métricas para ranking.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {metrics.map((m, index) => (
+                <div
+                  key={m.ruleId}
+                  className="flex items-center justify-between rounded-lg border border-[#1F173B] bg-[#050016] px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm text-white">
+                      #{index + 1} {m.ruleName}
+                    </p>
+                    <p className="text-[11px] text-[#9CA3AF]">
+                      Execuções: {m.executions} • Leads: {m.leads}
+                    </p>
+                  </div>
+
+                  <span className="text-xs font-medium text-emerald-400">
+                    {(m.conversionRate * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-4 flex flex-col gap-3">
+          <p className="text-sm font-medium text-white">Leads por regra</p>
+
+          {metrics.length === 0 ? (
+            <p className="text-xs text-[#9CA3AF]">Sem dados para gráfico.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {metrics.map((m) => {
+                const maxLeads = Math.max(...metrics.map((item) => item.leads || 0), 1);
+                const width = ((m.leads || 0) / maxLeads) * 100;
+
+                return (
+                  <div key={m.ruleId} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-white">{m.ruleName}</span>
+                      <span className="text-[#9CA3AF]">{m.leads} leads</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-[#111827] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4]"
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )}
+</div>
+
+
+
 
       {/* Form de criação simples das automações sociais antigas */}
       {showForm && (
