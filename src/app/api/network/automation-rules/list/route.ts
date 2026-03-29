@@ -7,27 +7,36 @@ export async function GET(req: NextRequest) {
     const workspaceId = req.nextUrl.searchParams.get("workspaceId");
     const primaryAccountId = req.nextUrl.searchParams.get("primaryAccountId");
 
-    if (!workspaceId || !primaryAccountId) {
+    if (!workspaceId) {
       return NextResponse.json(
-        { ok: false, error: "workspaceId e primaryAccountId são obrigatórios." },
+        { ok: false, error: "workspaceId é obrigatório." },
         { status: 400 }
       );
     }
 
-    const snap = await adminFirestore
+    let query: FirebaseFirestore.Query = adminFirestore
       .collection("interactionAutomationRules")
-      .where("workspaceId", "==", workspaceId)
-      .where("primaryAccountId", "==", primaryAccountId)
-      .get();
+      .where("workspaceId", "==", workspaceId);
+
+    if (primaryAccountId) {
+      query = query.where("primaryAccountId", "==", primaryAccountId);
+    }
+
+    const snap = await query.get();
 
     const rules = snap.docs
       .map((doc) => ({
         id: doc.id,
-        ...doc.data(),
+        ...(doc.data() as any),
       }))
-      .sort((a: any, b: any) =>
-        String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
-      );
+      .sort((a: any, b: any) => {
+        const pa = Number(a.priority || 100);
+        const pb = Number(b.priority || 100);
+
+        if (pa !== pb) return pa - pb;
+
+        return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+      });
 
     return NextResponse.json({
       ok: true,
