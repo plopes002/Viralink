@@ -29,6 +29,8 @@ type ExecutiveMetrics = {
   queueProcessing: number;
   queueDone: number;
   queueErrors: number;
+
+  executiveScore: number;
 };
 
 const EMPTY_METRICS: ExecutiveMetrics = {
@@ -53,21 +55,23 @@ const EMPTY_METRICS: ExecutiveMetrics = {
   queueProcessing: 0,
   queueDone: 0,
   queueErrors: 0,
+
+  executiveScore: 0,
 };
 
-function chooseMetric(localValue: number, remoteValue: number) {
-  return localValue > 0 ? localValue : remoteValue;
+function preferApiMetric(apiValue: number, localValue: number) {
+  return apiValue > 0 ? apiValue : localValue;
 }
 
-export function useExecutiveMetrics(workspaceId?: string) {
+export function useExecutiveMetrics(
+  workspaceId?: string,
+  network: "all" | "instagram" | "facebook" = "all"
+) {
   const { profiles, loading: loadingProfiles } =
     useEngagementProfiles(workspaceId);
-  const { campaigns, loading: loadingCampaigns } =
-    useCampaigns(workspaceId);
-  const { messages, loading: loadingMessages } =
-    useMessages(workspaceId);
-  const { jobs, loading: loadingQueue } =
-    useProcessingQueue(workspaceId);
+  const { campaigns, loading: loadingCampaigns } = useCampaigns(workspaceId);
+  const { messages, loading: loadingMessages } = useMessages(workspaceId);
+  const { jobs, loading: loadingQueue } = useProcessingQueue(workspaceId);
 
   const [apiMetrics, setApiMetrics] = useState<ExecutiveMetrics>(EMPTY_METRICS);
   const [loadingApi, setLoadingApi] = useState(true);
@@ -86,7 +90,9 @@ export function useExecutiveMetrics(workspaceId?: string) {
         setLoadingApi(true);
 
         const res = await fetch(
-          `/api/executivo/metrics?workspaceId=${workspaceId}`,
+          `/api/executivo/metrics?workspaceId=${encodeURIComponent(
+            workspaceId
+          )}&network=${encodeURIComponent(network)}`,
           { cache: "no-store" }
         );
 
@@ -97,6 +103,8 @@ export function useExecutiveMetrics(workspaceId?: string) {
             ...EMPTY_METRICS,
             ...data.metrics,
           });
+        } else if (!cancelled) {
+          setApiMetrics(EMPTY_METRICS);
         }
       } catch (error) {
         console.error("[useExecutiveMetrics] erro ao carregar API:", error);
@@ -116,19 +124,19 @@ export function useExecutiveMetrics(workspaceId?: string) {
     return () => {
       cancelled = true;
     };
-  }, [workspaceId]);
+  }, [workspaceId, network]);
 
   const localMetrics = useMemo<ExecutiveMetrics>(() => {
     const totalProfiles = profiles.length;
     const hotLeads = profiles.filter((p) => p.leadTemperature === "hot").length;
     const priorityLeads = profiles.filter(
-      (p) => p.leadTemperature === "priority",
+      (p) => p.leadTemperature === "priority"
     ).length;
 
     const totalCampaigns = campaigns.length;
     const queuedCampaigns = campaigns.filter((c) => c.status === "queued").length;
     const processingCampaigns = campaigns.filter(
-      (c) => c.status === "processing",
+      (c) => c.status === "processing"
     ).length;
     const doneCampaigns = campaigns.filter((c) => c.status === "done").length;
     const errorCampaigns = campaigns.filter((c) => c.status === "error").length;
@@ -136,7 +144,7 @@ export function useExecutiveMetrics(workspaceId?: string) {
     const totalMessages = messages.length;
     const queuedMessages = messages.filter((m) => m.status === "queued").length;
     const processingMessages = messages.filter(
-      (m) => m.status === "processing",
+      (m) => m.status === "processing"
     ).length;
     const sentMessages = messages.filter((m) => m.status === "sent").length;
     const errorMessages = messages.filter((m) => m.status === "error").length;
@@ -147,9 +155,7 @@ export function useExecutiveMetrics(workspaceId?: string) {
         : 0;
 
     const queuePending = jobs.filter((j) => j.status === "pending").length;
-    const queueProcessing = jobs.filter(
-      (j) => j.status === "processing",
-    ).length;
+    const queueProcessing = jobs.filter((j) => j.status === "processing").length;
     const queueDone = jobs.filter((j) => j.status === "done").length;
     const queueErrors = jobs.filter((j) => j.status === "error").length;
 
@@ -175,86 +181,90 @@ export function useExecutiveMetrics(workspaceId?: string) {
       queueProcessing,
       queueDone,
       queueErrors,
+
+      executiveScore: 0,
     };
   }, [profiles, campaigns, messages, jobs]);
 
   const metrics = useMemo<ExecutiveMetrics>(() => {
+    const totalMessages = preferApiMetric(
+      apiMetrics.totalMessages,
+      localMetrics.totalMessages
+    );
+
+    const errorMessages = preferApiMetric(
+      apiMetrics.errorMessages,
+      localMetrics.errorMessages
+    );
+
+    const errorRate =
+      totalMessages > 0
+        ? Number(((errorMessages / totalMessages) * 100).toFixed(1))
+        : 0;
+
     return {
-      totalProfiles: chooseMetric(
-        localMetrics.totalProfiles,
-        apiMetrics.totalProfiles
+      totalProfiles: preferApiMetric(
+        apiMetrics.totalProfiles,
+        localMetrics.totalProfiles
       ),
-      hotLeads: chooseMetric(
-        localMetrics.hotLeads,
-        apiMetrics.hotLeads
-      ),
-      priorityLeads: chooseMetric(
-        localMetrics.priorityLeads,
-        apiMetrics.priorityLeads
+      hotLeads: preferApiMetric(apiMetrics.hotLeads, localMetrics.hotLeads),
+      priorityLeads: preferApiMetric(
+        apiMetrics.priorityLeads,
+        localMetrics.priorityLeads
       ),
 
-      totalCampaigns: chooseMetric(
-        localMetrics.totalCampaigns,
-        apiMetrics.totalCampaigns
+      totalCampaigns: preferApiMetric(
+        apiMetrics.totalCampaigns,
+        localMetrics.totalCampaigns
       ),
-      queuedCampaigns: chooseMetric(
-        localMetrics.queuedCampaigns,
-        apiMetrics.queuedCampaigns
+      queuedCampaigns: preferApiMetric(
+        apiMetrics.queuedCampaigns,
+        localMetrics.queuedCampaigns
       ),
-      processingCampaigns: chooseMetric(
-        localMetrics.processingCampaigns,
-        apiMetrics.processingCampaigns
+      processingCampaigns: preferApiMetric(
+        apiMetrics.processingCampaigns,
+        localMetrics.processingCampaigns
       ),
-      doneCampaigns: chooseMetric(
-        localMetrics.doneCampaigns,
-        apiMetrics.doneCampaigns
+      doneCampaigns: preferApiMetric(
+        apiMetrics.doneCampaigns,
+        localMetrics.doneCampaigns
       ),
-      errorCampaigns: chooseMetric(
-        localMetrics.errorCampaigns,
-        apiMetrics.errorCampaigns
+      errorCampaigns: preferApiMetric(
+        apiMetrics.errorCampaigns,
+        localMetrics.errorCampaigns
       ),
 
-      totalMessages: chooseMetric(
-        localMetrics.totalMessages,
-        apiMetrics.totalMessages
+      totalMessages,
+      queuedMessages: preferApiMetric(
+        apiMetrics.queuedMessages,
+        localMetrics.queuedMessages
       ),
-      queuedMessages: chooseMetric(
-        localMetrics.queuedMessages,
-        apiMetrics.queuedMessages
+      processingMessages: preferApiMetric(
+        apiMetrics.processingMessages,
+        localMetrics.processingMessages
       ),
-      processingMessages: chooseMetric(
-        localMetrics.processingMessages,
-        apiMetrics.processingMessages
+      sentMessages: preferApiMetric(
+        apiMetrics.sentMessages,
+        localMetrics.sentMessages
       ),
-      sentMessages: chooseMetric(
-        localMetrics.sentMessages,
-        apiMetrics.sentMessages
-      ),
-      errorMessages: chooseMetric(
-        localMetrics.errorMessages,
-        apiMetrics.errorMessages
-      ),
-      errorRate:
-        localMetrics.totalMessages > 0
-          ? localMetrics.errorRate
-          : apiMetrics.errorRate,
+      errorMessages,
+      errorRate,
 
-      queuePending: chooseMetric(
-        localMetrics.queuePending,
-        apiMetrics.queuePending
+      queuePending: preferApiMetric(
+        apiMetrics.queuePending,
+        localMetrics.queuePending
       ),
-      queueProcessing: chooseMetric(
-        localMetrics.queueProcessing,
-        apiMetrics.queueProcessing
+      queueProcessing: preferApiMetric(
+        apiMetrics.queueProcessing,
+        localMetrics.queueProcessing
       ),
-      queueDone: chooseMetric(
-        localMetrics.queueDone,
-        apiMetrics.queueDone
+      queueDone: preferApiMetric(apiMetrics.queueDone, localMetrics.queueDone),
+      queueErrors: preferApiMetric(
+        apiMetrics.queueErrors,
+        localMetrics.queueErrors
       ),
-      queueErrors: chooseMetric(
-        localMetrics.queueErrors,
-        apiMetrics.queueErrors
-      ),
+
+      executiveScore: Number(apiMetrics.executiveScore || 0),
     };
   }, [localMetrics, apiMetrics]);
 

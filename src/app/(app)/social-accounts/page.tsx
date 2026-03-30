@@ -25,8 +25,8 @@ const NETWORKS: NetworkCardInfo[] = [
     network: "facebook",
     label: "Facebook",
     description:
-      "Conecte sua página para acompanhar interações, comentários e mensagens.",
-    connectLabel: "Conectar página do Facebook",
+      "Conecte seu perfil pessoal ou sua página para acompanhar interações, comentários e mensagens.",
+    connectLabel: "Conectar Facebook",
   },
   {
     network: "whatsapp",
@@ -39,15 +39,14 @@ const NETWORKS: NetworkCardInfo[] = [
 
 export default function SocialAccountsPage() {
   const { currentWorkspace } = useWorkspace();
-  const { user } = useUser();
+const { user } = useUser();
 
-  const workspaceId = currentWorkspace?.id;
-
-  const { accounts, loading } = useSocialAccounts(workspaceId);
+const workspaceId = currentWorkspace?.id;
+const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
 
   const getStatusForNetwork = (network: SocialNetwork) => {
     const networkAccounts = accounts.filter((a) => a.network === network);
-  
+
     if (!networkAccounts.length) {
       return {
         status: "disconnected" as const,
@@ -56,13 +55,13 @@ export default function SocialAccountsPage() {
         accountName: null,
       };
     }
-  
+
     const acc =
       networkAccounts.find((a: any) => a.isPrimary && a.status === "connected") ||
       networkAccounts.find((a: any) => a.isPrimary) ||
       networkAccounts.find((a) => a.status === "connected") ||
       networkAccounts[0];
-  
+
     if (!acc) {
       return {
         status: "disconnected" as const,
@@ -71,7 +70,7 @@ export default function SocialAccountsPage() {
         accountName: null,
       };
     }
-  
+
     if (acc.status === "expired") {
       return {
         status: "expired" as const,
@@ -80,7 +79,7 @@ export default function SocialAccountsPage() {
         accountName: acc.name,
       };
     }
-  
+
     if (acc.status === "connected") {
       return {
         status: "connected" as const,
@@ -89,7 +88,7 @@ export default function SocialAccountsPage() {
         accountName: acc.name,
       };
     }
-  
+
     return {
       status: "disconnected" as const,
       label: "Não conectado",
@@ -110,13 +109,53 @@ export default function SocialAccountsPage() {
     );
   };
 
+  const ensureWorkspaceAndUserOrBlock = (
+    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+  ) => {
+    if (!workspaceId) {
+      e.preventDefault();
+      alert("Workspace não disponível.");
+      return true;
+    }
+
+    if (!user?.uid) {
+      e.preventDefault();
+      alert("Usuário não identificado. Faça login novamente.");
+      return true;
+    }
+
+    return false;
+  };
+
   const getInstagramConnectHref = () => {
     if (!workspaceId) return "#";
     if (!user?.uid) return "#";
 
     return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
       workspaceId
-    )}&ownerUserId=${encodeURIComponent(user.uid)}`;
+    )}&ownerUserId=${encodeURIComponent(user.uid)}&network=instagram&mode=primary`;
+  };
+
+  const getFacebookProfileConnectHref = () => {
+    if (!workspaceId) return "#";
+    if (!user?.uid) return "#";
+
+    return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
+      workspaceId
+    )}&ownerUserId=${encodeURIComponent(
+      user.uid
+    )}&network=facebook&mode=primary&accountType=profile&allowProfile=true&allowPages=false`;
+  };
+
+  const getFacebookPageConnectHref = () => {
+    if (!workspaceId) return "#";
+    if (!user?.uid) return "#";
+
+    return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
+      workspaceId
+    )}&ownerUserId=${encodeURIComponent(
+      user.uid
+    )}&network=facebook&mode=primary&accountType=page&allowProfile=false&allowPages=true`;
   };
 
   return (
@@ -142,17 +181,17 @@ export default function SocialAccountsPage() {
       <div className="grid gap-3 md:grid-cols-3">
         {NETWORKS.map((n) => {
           const status = getStatusForNetwork(n.network);
-
           const hasAccount = !!status.accountName;
 
           const primaryLabel =
             status.status === "connected"
               ? "Gerenciar conexão"
               : status.status === "expired"
-              ? "Renovar conexão"
-              : n.connectLabel;
+                ? "Renovar conexão"
+                : n.connectLabel;
 
           const isInstagram = n.network === "instagram";
+          const isFacebook = n.network === "facebook";
           const isConnected = status.status === "connected";
 
           return (
@@ -171,6 +210,13 @@ export default function SocialAccountsPage() {
                       <span className="font-medium">{status.accountName}</span>
                     </p>
                   )}
+
+                  {isFacebook && (
+                    <p className="mt-2 text-[10px] text-[#A78BFA]">
+                      Escolha se deseja conectar um perfil pessoal ou uma página
+                      administrativa.
+                    </p>
+                  )}
                 </div>
 
                 <span
@@ -182,48 +228,85 @@ export default function SocialAccountsPage() {
 
               <div className="mt-auto flex flex-col gap-2">
                 {isInstagram ? (
-                  <a
-                    href={isConnected ? "#" : getInstagramConnectHref()}
-                    onClick={(e) => {
-                      if (isConnected) {
-                        e.preventDefault();
-                        handleManageClick("instagram");
-                        return;
-                      }
+                  <>
+                    <a
+                      href={isConnected ? "#" : getInstagramConnectHref()}
+                      onClick={(e) => {
+                        if (isConnected) {
+                          e.preventDefault();
+                          handleManageClick("instagram");
+                          return;
+                        }
 
-                      if (!workspaceId) {
-                        e.preventDefault();
-                        alert("Workspace não disponível.");
-                        return;
-                      }
+                        ensureWorkspaceAndUserOrBlock(e);
+                      }}
+                      className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                    >
+                      {primaryLabel}
+                    </a>
 
-                      if (!user?.uid) {
-                        e.preventDefault();
-                        alert("Usuário não identificado. Faça login novamente.");
-                      }
-                    }}
-                    className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
-                  >
-                    {primaryLabel}
-                  </a>
+                    {isConnected && (
+                      <button
+                        type="button"
+                        onClick={() => handleManageClick(n.network)}
+                        className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
+                      >
+                        Ver detalhes da integração
+                      </button>
+                    )}
+                  </>
+                ) : isFacebook ? (
+                  <>
+                    <a
+                      href={getFacebookPageConnectHref()}
+                      onClick={(e) => {
+                        if (ensureWorkspaceAndUserOrBlock(e)) return;
+                      }}
+                      className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                    >
+                      Conectar página administrativa
+                    </a>
+
+                    <a
+                      href={getFacebookProfileConnectHref()}
+                      onClick={(e) => {
+                        if (ensureWorkspaceAndUserOrBlock(e)) return;
+                      }}
+                      className="w-full text-center rounded-xl border border-[#272046] bg-transparent text-[12px] font-medium text-[#E5E7EB] py-2 hover:bg-[#111827] transition"
+                    >
+                      Conectar perfil pessoal
+                    </a>
+
+                    {isConnected && (
+                      <button
+                        type="button"
+                        onClick={() => handleManageClick(n.network)}
+                        className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
+                      >
+                        Ver detalhes da integração
+                      </button>
+                    )}
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleOtherConnectClick(n.network)}
-                    className="w-full rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
-                  >
-                    {primaryLabel}
-                  </button>
-                )}
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleOtherConnectClick(n.network)}
+                      className="w-full rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                    >
+                      {primaryLabel}
+                    </button>
 
-                {isConnected && (
-                  <button
-                    type="button"
-                    onClick={() => handleManageClick(n.network)}
-                    className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
-                  >
-                    Ver detalhes da integração
-                  </button>
+                    {isConnected && (
+                      <button
+                        type="button"
+                        onClick={() => handleManageClick(n.network)}
+                        className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
+                      >
+                        Ver detalhes da integração
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

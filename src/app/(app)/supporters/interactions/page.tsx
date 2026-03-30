@@ -17,6 +17,7 @@ type Interaction = {
   sourceUsername?: string;
   sourceRole?: "primary" | "supporter";
   sourceCampaignAccountId?: string;
+  network?: "instagram" | "facebook" | string;
   commenterUsername: string;
   commenterText: string;
   status: string;
@@ -31,6 +32,7 @@ type SupporterAccount = {
 };
 
 type SourceFilter = "all" | "primary" | "supporter";
+type NetworkFilter = "all" | "instagram" | "facebook";
 
 export default function SupporterInteractionsPage() {
   const { currentWorkspace } = useWorkspace();
@@ -40,12 +42,14 @@ export default function SupporterInteractionsPage() {
   const [selectedPrimaryId, setSelectedPrimaryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [networkFilter, setNetworkFilter] = useState<NetworkFilter>("all");
   const [selectedSupporterId, setSelectedSupporterId] = useState("all");
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [supporters, setSupporters] = useState<SupporterAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingFake, setCreatingFake] = useState(false);
-  const [syncingReal, setSyncingReal] = useState(false);
+  const [syncingRealInstagram, setSyncingRealInstagram] = useState(false);
+  const [syncingRealFacebook, setSyncingRealFacebook] = useState(false);
 
   async function loadPrimaryAccounts() {
     if (!workspaceId) return;
@@ -118,6 +122,10 @@ export default function SupporterInteractionsPage() {
         params.set("sourceRole", sourceFilter);
       }
 
+      if (networkFilter !== "all") {
+        params.set("network", networkFilter);
+      }
+
       if (sourceFilter === "supporter" && selectedSupporterId !== "all") {
         params.set("sourceCampaignAccountId", selectedSupporterId);
       }
@@ -156,6 +164,7 @@ export default function SupporterInteractionsPage() {
     selectedPrimaryId,
     statusFilter,
     sourceFilter,
+    networkFilter,
     selectedSupporterId,
   ]);
 
@@ -184,10 +193,20 @@ export default function SupporterInteractionsPage() {
       (item) => item.sourceRole === "supporter"
     ).length;
 
+    const instagramCount = interactions.filter(
+      (item) => item.network === "instagram"
+    ).length;
+
+    const facebookCount = interactions.filter(
+      (item) => item.network === "facebook"
+    ).length;
+
     return {
       total: interactions.length,
       primary: primaryCount,
       supporter: supporterCount,
+      instagram: instagramCount,
+      facebook: facebookCount,
     };
   }, [interactions]);
 
@@ -239,14 +258,14 @@ export default function SupporterInteractionsPage() {
     }
   }
 
-  async function handleSyncRealComments() {
+  async function handleSyncRealInstagram() {
     if (!workspaceId) {
       alert("Workspace não encontrado.");
       return;
     }
 
     try {
-      setSyncingReal(true);
+      setSyncingRealInstagram(true);
 
       const res = await fetch("/api/instagram/comments/sync", {
         method: "POST",
@@ -259,18 +278,53 @@ export default function SupporterInteractionsPage() {
       const data = await res.json();
 
       if (!data.ok) {
-        throw new Error(data.error || "Erro ao sincronizar comentários reais.");
+        throw new Error(data.error || "Erro ao sincronizar comentários reais do Instagram.");
       }
 
       await loadInteractions();
 
       alert(
-        `Sincronização concluída. Novos: ${data.inserted ?? 0}, atualizados: ${data.updated ?? 0}`
+        `Instagram sincronizado. Novos: ${data.inserted ?? 0}, atualizados: ${data.updated ?? 0}`
       );
     } catch (error: any) {
-      alert(error?.message || "Erro ao sincronizar comentários reais.");
+      alert(error?.message || "Erro ao sincronizar comentários reais do Instagram.");
     } finally {
-      setSyncingReal(false);
+      setSyncingRealInstagram(false);
+    }
+  }
+
+  async function handleSyncRealFacebook() {
+    if (!workspaceId) {
+      alert("Workspace não encontrado.");
+      return;
+    }
+
+    try {
+      setSyncingRealFacebook(true);
+
+      const res = await fetch("/api/facebook/comments/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ workspaceId }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao sincronizar comentários reais do Facebook.");
+      }
+
+      await loadInteractions();
+
+      alert(
+        `Facebook sincronizado. Novos: ${data.inserted ?? 0}, atualizados: ${data.updated ?? 0}`
+      );
+    } catch (error: any) {
+      alert(error?.message || "Erro ao sincronizar comentários reais do Facebook.");
+    } finally {
+      setSyncingRealFacebook(false);
     }
   }
 
@@ -313,7 +367,7 @@ export default function SupporterInteractionsPage() {
         )}
 
         <div className="flex flex-wrap gap-2">
-         {/* <button
+          <button
             type="button"
             onClick={handleCreateFakeInteraction}
             disabled={creatingFake}
@@ -321,17 +375,25 @@ export default function SupporterInteractionsPage() {
           >
             {creatingFake ? "Criando..." : "Criar interação fake para teste"}
           </button>
-*/}
+
           <button
             type="button"
-            onClick={handleSyncRealComments}
-            disabled={syncingReal}
-            className="rounded-xl border border-[#272046] bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-sm font-medium text-white px-4 py-2 disabled:opacity-60"
+            onClick={handleSyncRealInstagram}
+            disabled={syncingRealInstagram}
+            className="rounded-xl border border-[#272046] text-sm font-medium text-white px-4 py-2 disabled:opacity-60"
           >
-            {syncingReal ? "Sincronizando..." : "Sincronizar comentários reais"}
+            {syncingRealInstagram ? "Sincronizando Instagram..." : "Sincronizar Instagram"}
           </button>
-        </div> 
-      
+
+          <button
+            type="button"
+            onClick={handleSyncRealFacebook}
+            disabled={syncingRealFacebook}
+            className="rounded-xl border border-[#272046] text-sm font-medium text-white px-4 py-2 disabled:opacity-60"
+          >
+            {syncingRealFacebook ? "Sincronizando Facebook..." : "Sincronizar Facebook"}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
@@ -370,6 +432,19 @@ export default function SupporterInteractionsPage() {
             </select>
           </div>
 
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-[#9CA3AF]">Rede</label>
+            <select
+              value={networkFilter}
+              onChange={(e) => setNetworkFilter(e.target.value as NetworkFilter)}
+              className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+            >
+              <option value="all">Todas</option>
+              <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
+            </select>
+          </div>
+
           {sourceFilter === "supporter" && (
             <div className="flex flex-col gap-2">
               <label className="text-[11px] text-[#9CA3AF]">Apoiador</label>
@@ -400,6 +475,12 @@ export default function SupporterInteractionsPage() {
           <span className="rounded-full bg-fuchsia-500/15 px-3 py-1 text-xs text-fuchsia-400">
             Apoiadores: {sourceCounters.supporter}
           </span>
+          <span className="rounded-full bg-pink-500/15 px-3 py-1 text-xs text-pink-400">
+            Instagram: {sourceCounters.instagram}
+          </span>
+          <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs text-blue-400">
+            Facebook: {sourceCounters.facebook}
+          </span>
 
           {sourceFilter === "supporter" && selectedSupporter && (
             <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-400">
@@ -413,7 +494,7 @@ export default function SupporterInteractionsPage() {
         <div>
           <p className="text-sm font-medium text-white">Fila central</p>
           <p className="text-[11px] text-[#9CA3AF]">
-            Comentários centralizados da conta principal e apoiadores.
+            Comentários centralizados do Instagram e Facebook, da conta principal e apoiadores.
           </p>
         </div>
 

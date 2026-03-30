@@ -1,51 +1,78 @@
 // src/app/api/network/supporter-invites/create/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore } from "@/lib/firebaseAdmin";
 import crypto from "crypto";
+import { adminFirestore } from "@/lib/firebaseAdmin";
 
-export async function POST(req: NextRequest) {
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+  "https://viramind.site";
+
+type InviteNetwork = "instagram" | "facebook";
+
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await request.json();
 
-    const { workspaceId, primaryAccountId, invitedByUserId, supporterName } =
-      body;
+    const workspaceId = body.workspaceId;
+    const primaryAccountId = body.primaryAccountId;
+    const invitedByUserId = body.invitedByUserId;
+    const supporterName = body.supporterName || null;
+    const network: InviteNetwork =
+      body.network === "facebook" ? "facebook" : "instagram";
 
-    if (!workspaceId || !primaryAccountId || !invitedByUserId) {
+    if (!workspaceId) {
       return NextResponse.json(
-        { ok: false, error: "Dados obrigatórios não informados." },
+        { ok: false, error: "workspaceId é obrigatório." },
+        { status: 400 }
+      );
+    }
+
+    if (!primaryAccountId) {
+      return NextResponse.json(
+        { ok: false, error: "primaryAccountId é obrigatório." },
+        { status: 400 }
+      );
+    }
+
+    if (!invitedByUserId) {
+      return NextResponse.json(
+        { ok: false, error: "invitedByUserId é obrigatório." },
         { status: 400 }
       );
     }
 
     const token = crypto.randomBytes(20).toString("hex");
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    const ref = await adminFirestore.collection("supporterInvites").add({
+    await adminFirestore.collection("supporterInvites").doc(token).set({
+      token,
       workspaceId,
       primaryAccountId,
       invitedByUserId,
-      supporterName: supporterName || null,
-      supporterEmail: null,
-      token,
+      supporterName,
+      network,
       status: "pending",
-      expiresAt: expiresAt.toISOString(),
-      acceptedAt: null,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
+
+    const link = `/supporters/connect?token=${token}`;
+    const absoluteLink = `${APP_URL}${link}`;
 
     return NextResponse.json({
       ok: true,
-      inviteId: ref.id,
       token,
-      link: `/supporters/connect?token=${token}`,
+      link,
+      absoluteLink,
+      network,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[supporter-invites/create] erro:", error);
 
     return NextResponse.json(
-      { ok: false, error: error?.message || "Erro ao criar convite." },
+      {
+        ok: false,
+        error: "Erro ao criar convite.",
+      },
       { status: 500 }
     );
   }

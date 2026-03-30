@@ -6,11 +6,16 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUser } from "@/firebase/provider";
 import { SupporterCard } from "@/components/supporters/SupporterCard";
 
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+  "https://viramind.site";
+
 type PrimaryAccount = {
   id: string;
   name: string;
   username: string;
   role: "primary";
+  network?: "instagram" | "facebook";
 };
 
 type Supporter = {
@@ -18,6 +23,7 @@ type Supporter = {
   name: string;
   username?: string;
   status: string;
+  network?: "instagram" | "facebook";
   permissions?: {
     allowContentBoost: boolean;
     allowLeadCapture: boolean;
@@ -31,6 +37,8 @@ type Stats = {
   revoked: number;
   leadEnabled: number;
 };
+
+type InviteNetwork = "instagram" | "facebook";
 
 export default function SupportersPage() {
   const { currentWorkspace } = useWorkspace();
@@ -50,6 +58,7 @@ export default function SupportersPage() {
 
   const [inviteLink, setInviteLink] = useState("");
   const [supporterName, setSupporterName] = useState("");
+  const [inviteNetwork, setInviteNetwork] = useState<InviteNetwork>("instagram");
   const [loadingPrimary, setLoadingPrimary] = useState(true);
   const [loadingSupporters, setLoadingSupporters] = useState(false);
   const [creatingInvite, setCreatingInvite] = useState(false);
@@ -64,22 +73,27 @@ export default function SupportersPage() {
     try {
       setLoadingPrimary(true);
 
-      const res = await fetch(`/api/network/primary/list?workspaceId=${workspaceId}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/network/primary/list?workspaceId=${workspaceId}`,
+        { cache: "no-store" }
+      );
 
       const data = await res.json();
 
       if (data.ok) {
         const loadedAccounts = data.accounts || [];
         setPrimaryAccounts(loadedAccounts);
-      
+
         if (loadedAccounts.length && !selectedPrimaryId) {
           const primary =
             loadedAccounts.find((acc: any) => acc.role === "primary") ||
             loadedAccounts[0];
-      
+
           setSelectedPrimaryId(primary.id);
+
+          if (primary?.network === "facebook" || primary?.network === "instagram") {
+            setInviteNetwork(primary.network);
+          }
         }
       }
     } catch (error) {
@@ -145,6 +159,15 @@ export default function SupportersPage() {
     [primaryAccounts, selectedPrimaryId]
   );
 
+  useEffect(() => {
+    if (
+      selectedPrimary?.network === "facebook" ||
+      selectedPrimary?.network === "instagram"
+    ) {
+      setInviteNetwork(selectedPrimary.network);
+    }
+  }, [selectedPrimary]);
+
   async function handleCreateInvite() {
     if (!workspaceId || !selectedPrimaryId || !user?.uid) {
       alert("Workspace, conta principal ou usuário não identificados.");
@@ -165,6 +188,7 @@ export default function SupportersPage() {
           primaryAccountId: selectedPrimaryId,
           invitedByUserId: user.uid,
           supporterName: supporterName || null,
+          network: inviteNetwork,
         }),
       });
 
@@ -174,7 +198,7 @@ export default function SupportersPage() {
         throw new Error(data.error || "Erro ao criar convite.");
       }
 
-      const absoluteLink = `${window.location.origin}${data.link}`;
+      const absoluteLink = data.absoluteLink || `${APP_URL}${data.link}`;
       setInviteLink(absoluteLink);
       setSupporterName("");
     } catch (error: any) {
@@ -216,7 +240,7 @@ export default function SupportersPage() {
           <p className="text-xs text-[#9CA3AF]">Carregando contas principais...</p>
         ) : primaryAccounts.length === 0 ? (
           <p className="text-xs text-yellow-300">
-            Nenhuma conta principal encontrada. Conecte o Instagram primeiro.
+            Nenhuma conta principal encontrada. Conecte Instagram ou Facebook primeiro.
           </p>
         ) : (
           <select
@@ -227,6 +251,7 @@ export default function SupportersPage() {
             {primaryAccounts.map((acc) => (
               <option key={acc.id} value={acc.id}>
                 {acc.name} {acc.username ? `(${acc.username})` : ""}
+                {acc.network ? ` • ${acc.network}` : ""}
               </option>
             ))}
           </select>
@@ -235,7 +260,10 @@ export default function SupportersPage() {
         {selectedPrimary && (
           <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-3">
             <p className="text-sm text-white font-medium">{selectedPrimary.name}</p>
-            <p className="text-xs text-[#9CA3AF]">{selectedPrimary.username}</p>
+            <p className="text-xs text-[#9CA3AF]">
+              {selectedPrimary.username}
+              {selectedPrimary.network ? ` • ${selectedPrimary.network}` : ""}
+            </p>
           </div>
         )}
       </div>
@@ -263,17 +291,36 @@ export default function SupportersPage() {
         <div>
           <p className="text-sm font-medium text-white">Gerar convite</p>
           <p className="text-[11px] text-[#9CA3AF]">
-            Crie um link para vincular um novo apoiador.
+            Crie um link para vincular um novo apoiador em Instagram ou Facebook.
           </p>
         </div>
 
-        <input
-          type="text"
-          value={supporterName}
-          onChange={(e) => setSupporterName(e.target.value)}
-          placeholder="Nome do apoiador (opcional)"
-          className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
-        />
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-[#9CA3AF]">Rede do convite</label>
+            <select
+              value={inviteNetwork}
+              onChange={(e) => setInviteNetwork(e.target.value as InviteNetwork)}
+              className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+            >
+              <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-[#9CA3AF]">
+              Nome do apoiador
+            </label>
+            <input
+              type="text"
+              value={supporterName}
+              onChange={(e) => setSupporterName(e.target.value)}
+              placeholder="Nome do apoiador (opcional)"
+              className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+            />
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <button
@@ -282,7 +329,9 @@ export default function SupportersPage() {
             disabled={!selectedPrimaryId || creatingInvite}
             className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-sm font-medium text-white px-4 py-2 disabled:opacity-60"
           >
-            {creatingInvite ? "Gerando..." : "Gerar convite"}
+            {creatingInvite
+              ? "Gerando..."
+              : `Gerar convite ${inviteNetwork === "facebook" ? "Facebook" : "Instagram"}`}
           </button>
 
           {inviteLink && (
@@ -298,7 +347,9 @@ export default function SupportersPage() {
 
         {inviteLink && (
           <div className="rounded-xl border border-[#272046] bg-[#0A0322] p-3">
-            <p className="text-[11px] text-[#9CA3AF] mb-1">Link gerado</p>
+            <p className="text-[11px] text-[#9CA3AF] mb-1">
+              Link gerado ({inviteNetwork})
+            </p>
             <p className="text-xs text-white break-all">{inviteLink}</p>
           </div>
         )}

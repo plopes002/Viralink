@@ -6,6 +6,9 @@ import { useExecutiveMetrics } from "@/hooks/useExecutiveMetrics";
 import { useQueuePolling } from "@/hooks/useQueuePolling";
 import { useCompetitiveExecutiveSummary } from "@/hooks/useCompetitiveExecutiveSummary";
 import { useCompetitors } from "@/hooks/useCompetitors";
+import { useState } from "react";
+import { StatCard } from "../components/StatCard";
+
 
 function MetricCard({
   label,
@@ -26,11 +29,13 @@ function MetricCard({
 }
 
 export default function ExecutivoPage() {
+  const [selectedNetwork, setSelectedNetwork] = useState<"all" | "instagram" | "facebook">("all");
   const { currentWorkspace } = useWorkspace() as any;
   const workspaceId = currentWorkspace?.id;
 
-  const { metrics, loading } = useExecutiveMetrics(workspaceId);
   const { competitors } = useCompetitors(workspaceId);
+
+  const { metrics, loading } = useExecutiveMetrics(workspaceId, selectedNetwork);
 
   // usa o primeiro concorrente como referência no dashboard
   const primaryCompetitorId = competitors?.[0]?.id || null;
@@ -55,6 +60,26 @@ export default function ExecutivoPage() {
           Visão geral da operação do VIRALINK em tempo real, com prioridades competitivas e ações pendentes.
         </p>
       </header>
+      <div className="flex gap-2 text-xs">
+  {[
+    { id: "all", label: "Consolidado" },
+    { id: "instagram", label: "Instagram" },
+    { id: "facebook", label: "Facebook" },
+  ].map((n) => (
+    <button
+      key={n.id}
+      onClick={() => setSelectedNetwork(n.id as any)}
+      className={`px-3 py-1.5 rounded-full border transition ${
+        selectedNetwork === n.id
+          ? "border-[#7C3AED] bg-[#2A1458] text-white"
+          : "border-[#312356] text-[#9CA3AF] hover:bg-white/5"
+      }`}
+    >
+      {n.label}
+    </button>
+  ))}
+</div>
+
 
       {loading && (
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
@@ -86,6 +111,11 @@ export default function ExecutivoPage() {
               value={metrics.totalCampaigns}
               helper="Total acumulado"
             />
+            <StatCard
+              label="Score executivo"
+              value={metrics.executiveScore}
+              helper="Performance geral da operação"
+            />
           </section>
 
           {/* operação de mensagens */}
@@ -93,7 +123,7 @@ export default function ExecutivoPage() {
             <MetricCard
               label="Mensagens enviadas"
               value={metrics.sentMessages}
-              helper="Envios concluídos"
+              helper={`IG: ${metrics.breakdown?.instagram || 0} • FB: ${metrics.breakdown?.facebook || 0}`}
             />
             <MetricCard
               label="Mensagens em fila"
@@ -109,6 +139,12 @@ export default function ExecutivoPage() {
               label="Taxa de erro"
               value={`${metrics.errorRate}%`}
               helper="Erros sobre total de mensagens"
+            />
+
+            <MetricCard
+              label="Score executivo"
+              value={metrics.executiveScore}
+              helper="Performance geral da operação"
             />
           </section>
 

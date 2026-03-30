@@ -1,24 +1,52 @@
 // src/hooks/useWorkspace.ts
 "use client";
 
-// This is a placeholder hook.
-// In a real application, you would fetch the current workspace
-// from a context, a global state manager (like Zustand or Redux),
-// or based on the user's session and permissions.
+import { useEffect, useState } from "react";
+import { useFirebase, useUser } from "@/firebase/provider";
+import { ensureWorkspaceForUser } from "@/lib/ensureWorkspace";
 
 export function useWorkspace() {
-  // For now, we'll return a mock workspace.
-  // Replace this with your actual workspace logic.
-  const currentWorkspace = {
-    id: "agency_123", // Example workspace ID
-    name: "Agência Digital Exemplo",
-    plan: "pro",
-    timeZone: "America/Sao_Paulo",
-  };
+  const { firestore } = useFirebase();
+  const { user, isUserLoading } = useUser();
+
+  const [currentWorkspace, setCurrentWorkspace] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isUserLoading) return;
+
+    if (!user?.uid || !firestore) {
+      setCurrentWorkspace(null);
+      setLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+
+        const workspace = await ensureWorkspaceForUser(firestore, user.uid);
+
+        if (!mounted) return;
+        setCurrentWorkspace(workspace);
+      } catch (err) {
+        console.error("[useWorkspace] erro:", err);
+        if (!mounted) return;
+        setCurrentWorkspace(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [firestore, user?.uid, isUserLoading]);
 
   return {
     currentWorkspace,
-    // Add other workspace-related states and functions here if needed
-    // e.g., setCurrentWorkspace, listWorkspaces, etc.
+    loading,
   };
 }

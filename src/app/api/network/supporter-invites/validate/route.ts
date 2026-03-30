@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
         supporterName: data.supporterName || null,
         primaryAccountName: primaryData?.name || "Conta principal",
         primaryUsername: primaryData?.username || "",
+        network: data.network === "facebook" ? "facebook" : "instagram",
       },
     });
   } catch (error: any) {

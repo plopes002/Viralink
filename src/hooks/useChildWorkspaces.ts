@@ -11,8 +11,8 @@ export function useChildWorkspaces(masterWorkspaceId?: string | null) {
 
   const childWorkspaces = useMemo(() => {
     const activeChildIds = links
-      .filter((l) => l.status === "active")
-      .map((l) => l.childWorkspaceId);
+      .filter((l: any) => l.status === "active")
+      .map((l: any) => l.childWorkspaceId);
 
     return workspaces.filter((w: any) => activeChildIds.includes(w.id));
   }, [links, workspaces]);

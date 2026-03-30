@@ -5,12 +5,15 @@ const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID!;
 const FACEBOOK_REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI!;
 
 const FACEBOOK_SCOPES = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'instagram_basic',
-  'instagram_manage_comments',
-  'instagram_manage_messages',
-].join(',');
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_metadata",
+  "pages_manage_posts",
+  "pages_messaging",
+  "instagram_basic",
+  "instagram_manage_comments",
+  "instagram_manage_messages",
+].join(",");
 
 function generateNonce(length = 32) {
   const chars =
@@ -59,13 +62,30 @@ export async function GET(request: NextRequest) {
 
     const nonce = generateNonce();
 
-    const statePayload = {
-      workspaceId,
-      ownerUserId,
-      mode,
-      token: token || null,
-      nonce,
-    };
+    const network =
+  searchParams.get('network') === 'facebook' ? 'facebook' : 'instagram';
+
+const accountTypeParam = searchParams.get('accountType');
+
+const accountType =
+  accountTypeParam === 'profile' || accountTypeParam === 'page'
+    ? accountTypeParam
+    : null;
+
+const allowProfile = searchParams.get('allowProfile') === 'true';
+const allowPages = searchParams.get('allowPages') === 'true';
+
+const statePayload = {
+  workspaceId,
+  ownerUserId,
+  mode,
+  token: token || null,
+  network,
+  accountType,
+  allowProfile,
+  allowPages,
+  nonce,
+};
 
     const state = Buffer.from(
       JSON.stringify(statePayload),
@@ -79,6 +99,7 @@ export async function GET(request: NextRequest) {
       `&state=${encodeURIComponent(state)}` +
       `&scope=${encodeURIComponent(FACEBOOK_SCOPES)}` +
       `&response_type=code`;
+      '&auth_type=rerequest'
 
     const response = NextResponse.redirect(authUrl);
 
@@ -88,6 +109,7 @@ export async function GET(request: NextRequest) {
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 10,
+      priority: 'high',
     });
 
     return response;

@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     const status = req.nextUrl.searchParams.get("status");
     const sourceRole = req.nextUrl.searchParams.get("sourceRole");
     const sourceCampaignAccountId = req.nextUrl.searchParams.get("sourceCampaignAccountId");
+    const network = req.nextUrl.searchParams.get("network");
 
     if (!workspaceId || !primaryAccountId) {
       return NextResponse.json(
@@ -40,6 +41,10 @@ export async function GET(req: NextRequest) {
       items = items.filter(
         (item) => item.sourceCampaignAccountId === sourceCampaignAccountId
       );
+    }
+
+    if (network && network !== "all") {
+      items = items.filter((item) => item.network === network);
     }
 
     items.sort((a, b) =>

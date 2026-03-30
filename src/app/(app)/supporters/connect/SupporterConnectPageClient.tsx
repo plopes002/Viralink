@@ -1,10 +1,12 @@
 // src/app/(app)/supporters/connect/SupporterConnectPageClient.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@/firebase/provider";
 import { useWorkspace } from "@/hooks/useWorkspace";
+
+type InviteNetwork = "instagram" | "facebook";
 
 type InviteData = {
   id: string;
@@ -13,6 +15,7 @@ type InviteData = {
   supporterName: string | null;
   primaryAccountName: string;
   primaryUsername: string;
+  network?: InviteNetwork;
 };
 
 export default function SupporterConnectPageClient() {
@@ -55,18 +58,31 @@ export default function SupporterConnectPageClient() {
     loadInvite();
   }, [token]);
 
-  function handleConnectSupporterInstagram() {
+  const inviteNetwork: InviteNetwork = useMemo(() => {
+    return invite?.network === "facebook" ? "facebook" : "instagram";
+  }, [invite]);
+
+  function handleConnectSupporter() {
     if (!invite?.workspaceId || !user?.uid || !token) {
       alert("Convite, workspace ou usuário não identificado.");
       return;
     }
 
-    window.location.href =
+    const base =
       `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
         invite.workspaceId
       )}&ownerUserId=${encodeURIComponent(
         user.uid
       )}&mode=supporter&token=${encodeURIComponent(token)}`;
+
+    if (inviteNetwork === "facebook") {
+      window.location.href =
+        `${base}&network=facebook&accountType=page&allowProfile=false&allowPages=true`;
+      return;
+    }
+
+    window.location.href =
+      `${base}&network=instagram`;
   }
 
   if (loading) {
@@ -102,6 +118,9 @@ export default function SupporterConnectPageClient() {
             {invite.primaryAccountName}
           </p>
           <p className="text-xs text-[#9CA3AF]">{invite.primaryUsername}</p>
+          <p className="mt-2 text-[11px] text-[#A78BFA]">
+            Rede do convite: {inviteNetwork === "facebook" ? "Facebook" : "Instagram"}
+          </p>
         </div>
 
         {!user?.uid ? (
@@ -113,11 +132,22 @@ export default function SupporterConnectPageClient() {
         ) : (
           <button
             type="button"
-            onClick={handleConnectSupporterInstagram}
+            onClick={handleConnectSupporter}
             className="rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-sm font-medium text-white px-4 py-2"
           >
-            Conectar meu Instagram como apoiador
+            {inviteNetwork === "facebook"
+              ? "Conectar meu Facebook como apoiador"
+              : "Conectar meu Instagram como apoiador"}
           </button>
+        )}
+
+        {currentWorkspace?.id && invite.workspaceId !== currentWorkspace.id && (
+          <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3">
+            <p className="text-xs text-yellow-300">
+              Atenção: você está logado em outro workspace. O convite será vinculado ao
+              workspace correto após a autenticação.
+            </p>
+          </div>
         )}
       </div>
     </section>

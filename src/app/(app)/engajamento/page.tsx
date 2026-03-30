@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type {
   EngagementInteractionType,
   EngagementItem,
@@ -32,12 +32,23 @@ type FollowFilter = "all" | "followers" | "non_followers";
 export default function EngagementPage() {
   const [selectedUser, setSelectedUser] = useState<EngagementItem | null>(null);
   const [message, setMessage] = useState("");
-
-  const { firestore } = useFirebase();
   const { currentWorkspace } = useWorkspace();
   const workspaceId = currentWorkspace?.id;
-
   const { engagements, loading } = useEngagements(workspaceId);
+  useEffect(() => {
+    if (!selectedUser) return;
+  
+    const updated = engagements.find((item) => item.id === selectedUser.id);
+    if (updated) {
+      setSelectedUser(updated);
+    }
+  }, [engagements, selectedUser]);
+
+
+  const { firestore } = useFirebase();
+  
+
+  
   const { categories } = useContactCategories(workspaceId);
 
   const [sentimentFilter, setSentimentFilter] =
@@ -169,22 +180,39 @@ export default function EngagementPage() {
 
 
   async function sendMessage() {
-    if (!selectedUser || !message.trim()) return;
+  if (!workspaceId || !selectedUser || !message.trim()) return;
 
-    await fetch("/api/engagement/send-message", {
+  try {
+    const res = await fetch("/api/engagement/send-message", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        workspaceId,
+        engagementId: selectedUser.id,
         username: selectedUser.username,
-        message,
+        phone: selectedUser.phone || null,
+        network: selectedUser.network,
+        source: selectedUser.source,
+        message: message.trim(),
       }),
     });
 
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data?.error || "Erro ao enviar mensagem.");
+      return;
+    }
+
     alert(`Mensagem enviada para @${selectedUser.username}`);
     setMessage("");
+  } catch (error) {
+    console.error("[EngagementPage] erro ao enviar mensagem:", error);
+    alert("Erro ao enviar mensagem.");
   }
+}
 
   function fillSuggestedMessage(user: EngagementItem) {
     if (user.interactionSentiment === "positive" && !user.isFollower) {
@@ -257,21 +285,28 @@ export default function EngagementPage() {
         body: JSON.stringify({
           workspaceId,
           users: users.map((u) => ({
+            engagementId: u.id,
             username: u.username,
             phone: u.phone || null,
+            network: u.network,
+            source: u.source,
           })),
-          message: bulkMessage,
+          message: bulkMessage.trim(),
         }),
       });
   
       const data = await res.json();
+  
       if (!res.ok) {
         alert(data?.error || "Erro ao disparar mensagens.");
         return;
       }
   
-      alert(`Mensagens enfileiradas para ${data.queued} usuários.`);
+      alert(`Mensagens enfileiradas para ${data.queued || users.length} usuários.`);
       setBulkMessage("");
+    } catch (error) {
+      console.error("[EngagementPage] erro ao enviar em massa:", error);
+      alert("Erro ao disparar mensagens.");
     } finally {
       setBulkSending(false);
     }
@@ -381,7 +416,27 @@ export default function EngagementPage() {
       </section>
 
       {/* filtros */}
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
+        <label className="block text-[11px] text-[#E5E7EB] mb-1">
+          Tipo de interação
+        </label>
+        <select
+          value={interactionFilter}
+          onChange={(e) =>
+            setInteractionFilter(e.target.value as InteractionFilter)
+          }
+          className="w-full rounded-xl border border-[#272046] bg-[#020012] text-[12px] text-[#E5E7EB] px-3 py-2"
+        >
+          <option value="all">Todas</option>
+          <option value="view">Visualização</option>
+          <option value="like">Curtida</option>
+          <option value="comment">Comentário</option>
+          <option value="reaction">Reação</option>
+          <option value="share">Compartilhamento</option>
+          <option value="message">Mensagem</option>
+        </select>
+      </div>
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
           <label className="block text-[11px] text-[#E5E7EB] mb-1">
             Busca inteligente
@@ -416,8 +471,8 @@ export default function EngagementPage() {
         </div>
 
         <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4">
-          <label className="block text-[11px] text-[#E5E7EB] mb-1">
-            Sentimento
+        <label className="block text-[11px] text-[#E5E7EB] mb-1">
+            Seguidores
           </label>
           <select
             value={sentimentFilter}
@@ -547,6 +602,14 @@ export default function EngagementPage() {
           </div>
 
           <div className="flex flex-col gap-3">
+          {!loading && filtered.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-[#272046] bg-[#020012] p-6 text-center">
+              <p className="text-sm text-white">Nenhum engajamento encontrado</p>
+              <p className="mt-1 text-xs text-[#9CA3AF]">
+                Ajuste os filtros ou verifique se já existem interações salvas para este workspace.
+              </p>
+            </div>
+          )}
             {filtered.map((item) => (
               <button
                 key={item.id}
@@ -826,18 +889,20 @@ export default function EngagementPage() {
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => {
-                           if (!firestore) return;
-                           alreadyHas
-                            ? removeCategoryFromEngagement(firestore, selectedUser.id, cat.slug)
-                            : addCategoryToEngagement(firestore, selectedUser.id, cat.slug)
+                        onClick={async () => {
+                          if (!firestore) return;
+                        
+                          try {
+                            if (alreadyHas) {
+                              await removeCategoryFromEngagement(firestore, selectedUser.id, cat.slug);
+                            } else {
+                              await addCategoryToEngagement(firestore, selectedUser.id, cat.slug);
+                            }
+                          } catch (error) {
+                            console.error("[EngagementPage] erro ao atualizar categoria:", error);
+                            alert("Erro ao atualizar categoria.");
                           }
-                        }
-                        className={`rounded-full px-3 py-1 text-xs ${
-                          alreadyHas
-                            ? "bg-rose-500/15 text-rose-400"
-                            : "bg-[#111827] text-[#E5E7EB]"
-                        }`}
+                        }}
                       >
                         {alreadyHas ? `Remover ${cat.name}` : `Adicionar ${cat.name}`}
                       </button>
@@ -872,13 +937,20 @@ export default function EngagementPage() {
                       <button
                         key={tag}
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           if (!firestore) return;
-                           hasTag
-                            ? removeOperationalTag(firestore, selectedUser.id, tag)
-                            : addOperationalTag(firestore, selectedUser.id, tag)
+                        
+                          try {
+                            if (hasTag) {
+                              await removeOperationalTag(firestore, selectedUser.id, tag);
+                            } else {
+                              await addOperationalTag(firestore, selectedUser.id, tag);
+                            }
+                          } catch (error) {
+                            console.error("[EngagementPage] erro ao atualizar tag operacional:", error);
+                            alert("Erro ao atualizar tag.");
                           }
-                        }
+                        }}
                         className={`rounded-full px-3 py-1 text-xs ${
                           hasTag
                             ? "bg-rose-500/15 text-rose-400"
