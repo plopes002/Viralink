@@ -3,34 +3,35 @@ import "server-only";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 
 export async function getPrimaryInstagramSocialAccountByWorkspaceId(
-  workspaceId: string
+  workspaceId: string,
 ) {
-  const primaryCampaignSnap = await adminFirestore
-    .collection("campaignAccounts")
+  // Query for primary instagram account
+  let socialSnap = await adminFirestore
+    .collection("socialAccounts")
     .where("workspaceId", "==", workspaceId)
-    .where("role", "==", "primary")
+    .where("network", "==", "instagram")
+    .where("isPrimary", "==", true)
     .limit(1)
     .get();
 
-  if (primaryCampaignSnap.empty) {
-    throw new Error("Conta principal não encontrada.");
+  // If no primary, look for any connected instagram account
+  if (socialSnap.empty) {
+    socialSnap = await adminFirestore
+      .collection("socialAccounts")
+      .where("workspaceId", "==", workspaceId)
+      .where("network", "==", "instagram")
+      .where("status", "==", "connected")
+      .limit(1)
+      .get();
   }
 
-  const primaryCampaign = primaryCampaignSnap.docs[0].data() as any;
-  const socialAccountId = primaryCampaign.socialAccountId;
-
-  if (!socialAccountId) {
-    throw new Error("Conta principal sem socialAccountId.");
+  if (socialSnap.empty) {
+    throw new Error(
+      "Nenhuma conta principal ou conectada do Instagram encontrada para este workspace.",
+    );
   }
 
-  const socialDoc = await adminFirestore
-    .collection("socialAccounts")
-    .doc(socialAccountId)
-    .get();
-
-  if (!socialDoc.exists) {
-    throw new Error("Social account principal não encontrada.");
-  }
+  const socialDoc = socialSnap.docs[0];
 
   return {
     id: socialDoc.id,

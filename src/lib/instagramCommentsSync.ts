@@ -73,7 +73,7 @@ export async function syncInstagramCommentsForSocialAccount(params: {
 
   const mediaUrl =
     `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}/media` +
-    `?fields=id,caption,timestamp` +
+    `?fields=id,caption,media_type,permalink,timestamp` +
     `&limit=10` +
     `&access_token=${encodeURIComponent(accessToken)}`;
 

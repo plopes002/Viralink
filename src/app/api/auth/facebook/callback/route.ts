@@ -30,58 +30,56 @@ export async function GET(request: NextRequest) {
     const { workspaceId, ownerUserId, mode } = stateData;
 
     // 🔥 1. TROCAR CODE POR TOKEN
-const tokenRes = await fetch(
-  "https://graph.facebook.com/v20.0/oauth/access_token" +
-    `?client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
-    `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
-    `&client_secret=${encodeURIComponent(FACEBOOK_APP_SECRET)}` +
-    `&code=${encodeURIComponent(code)}`,
-  { cache: "no-store" }
-);
+    const tokenRes = await fetch(
+      "https://graph.facebook.com/v20.0/oauth/access_token" +
+        `?client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
+        `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
+        `&client_secret=${encodeURIComponent(FACEBOOK_APP_SECRET)}` +
+        `&code=${encodeURIComponent(code)}`,
+      { cache: "no-store" }
+    );
 
-const tokenData = await tokenRes.json();
+    const tokenData = await tokenRes.json();
 
-if (!tokenRes.ok || !tokenData.access_token) {
-  throw new Error(
-    tokenData?.error?.message || "Erro ao obter access token"
-  );
-}
+    if (!tokenRes.ok || !tokenData.access_token) {
+      throw new Error(
+        tokenData?.error?.message || "Erro ao obter access token"
+      );
+    }
 
-// 🔥 2. GERAR LONG-LIVED TOKEN (60 dias)
-const longTokenUrl =
-  "https://graph.facebook.com/v20.0/oauth/access_token" +
-  `?grant_type=fb_exchange_token` +
-  `&client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
-  `&client_secret=${encodeURIComponent(FACEBOOK_APP_SECRET)}` +
-  `&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`;
+    // 🔥 2. GERAR LONG-LIVED TOKEN (60 dias)
+    const longTokenUrl =
+      "https://graph.facebook.com/v20.0/oauth/access_token" +
+      `?grant_type=fb_exchange_token` +
+      `&client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
+      `&client_secret=${encodeURIComponent(FACEBOOK_APP_SECRET)}` +
+      `&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`;
 
-const longTokenRes = await fetch(longTokenUrl, { cache: "no-store" });
-const longTokenData = await longTokenRes.json();
+    const longTokenRes = await fetch(longTokenUrl, { cache: "no-store" });
+    const longTokenData = await longTokenRes.json();
 
-if (!longTokenRes.ok || !longTokenData.access_token) {
-  throw new Error(
-    longTokenData?.error?.message || "Erro ao gerar long-lived token"
-  );
-}
+    if (!longTokenRes.ok || !longTokenData.access_token) {
+      throw new Error(
+        longTokenData?.error?.message || "Erro ao gerar long-lived token"
+      );
+    }
 
-// 👉 ESSE É O TOKEN FINAL (USE ESSE)
-const userAccessToken = longTokenData.access_token;
+    // 👉 ESSE É O TOKEN FINAL (USE ESSE)
+    const userAccessToken = longTokenData.access_token;
 
-// 🔥 3. PEGAR PÁGINAS (COM PAGE TOKEN)
-const pagesRes = await fetch(
-  `https://graph.facebook.com/v20.0/me/accounts` +
-    `?fields=id,name,access_token,instagram_business_account` +
-    `&access_token=${encodeURIComponent(userAccessToken)}`,
-  { cache: "no-store" }
-);
+    // 🔥 3. PEGAR PÁGINAS (COM PAGE TOKEN)
+    const pagesRes = await fetch(
+      `https://graph.facebook.com/v20.0/me/accounts` +
+        `?fields=id,name,access_token,instagram_business_account` +
+        `&access_token=${encodeURIComponent(userAccessToken)}`,
+      { cache: "no-store" }
+    );
 
-const pagesData = await pagesRes.json();
+    const pagesData = await pagesRes.json();
 
-if (!pagesRes.ok || !pagesData.data) {
-  throw new Error(
-    pagesData?.error?.message || "Erro ao buscar páginas"
-  );
-}
+    if (!pagesRes.ok || !pagesData.data) {
+      throw new Error(pagesData?.error?.message || "Erro ao buscar páginas");
+    }
 
     const page = pagesData.data[0];
 
@@ -90,6 +88,14 @@ if (!pagesRes.ok || !pagesData.data) {
     const pageAccessToken = page.access_token;
 
     const now = new Date().toISOString();
+
+    const primaryFbSnap = await adminFirestore
+      .collection("socialAccounts")
+      .where("workspaceId", "==", workspaceId)
+      .where("network", "==", "facebook")
+      .where("isPrimary", "==", true)
+      .limit(1)
+      .get();
 
     // 🔥 3. SALVAR FACEBOOK CORRETO (PAGE TOKEN)
     const socialRef = await adminFirestore.collection("socialAccounts").add({
@@ -104,7 +110,7 @@ if (!pagesRes.ok || !pagesData.data) {
       username: "",
       status: "connected",
       followers: 0,
-      isPrimary: mode === "primary",
+      isPrimary: mode === "primary" && primaryFbSnap.empty,
       accessToken: userAccessToken, // guarda também
       pageAccessToken: pageAccessToken, // ⭐ ESSENCIAL
       createdAt: now,
@@ -137,6 +143,14 @@ if (!pagesRes.ok || !pagesData.data) {
 
       const igData = await igRes.json();
 
+      const primaryIgSnap = await adminFirestore
+        .collection("socialAccounts")
+        .where("workspaceId", "==", workspaceId)
+        .where("network", "==", "instagram")
+        .where("isPrimary", "==", true)
+        .limit(1)
+        .get();
+
       await adminFirestore.collection("socialAccounts").add({
         workspaceId,
         ownerUserId,
@@ -150,7 +164,7 @@ if (!pagesRes.ok || !pagesData.data) {
         facebookPageId: pageId,
         facebookPageName: pageName,
         status: "connected",
-        isPrimary: false,
+        isPrimary: mode === "primary" && primaryIgSnap.empty,
         createdAt: now,
         updatedAt: now,
       });
