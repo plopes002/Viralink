@@ -1,4 +1,3 @@
-
 // src/hooks/useEngagements.ts
 "use client";
 
@@ -20,10 +19,12 @@ export function useEngagements(workspaceId?: string) {
 
   useEffect(() => {
     if (!workspaceId || !firestore) {
-        setLoading(false);
-        setEngagements([]);
-        return;
-    };
+      setEngagements([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
 
     const colRef = collection(firestore, "engagements");
     const q = query(
@@ -35,15 +36,56 @@ export function useEngagements(workspaceId?: string) {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const docs: EngagementItem[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }));
+        const docs: EngagementItem[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+
+          return {
+            id: d.id,
+            workspaceId: data.workspaceId || "",
+            socialAccountId: data.socialAccountId || "",
+            username: data.username || "",
+            name: data.name || data.username || "Sem nome",
+            phone: data.phone || null,
+
+            source: data.source || "manual",
+            network: data.network || "instagram",
+
+            interactionType: data.interactionType || "comment",
+            interactionText: data.interactionText || "",
+            interactionSentiment: data.interactionSentiment || "neutral",
+
+            isFollower: Boolean(data.isFollower),
+
+            postId: data.postId || null,
+            postTitle: data.postTitle || "",
+            postTopic: data.postTopic || "",
+            postType: data.postType || "",
+
+            categories: Array.isArray(data.categories) ? data.categories : [],
+            operationalTags: Array.isArray(data.operationalTags)
+              ? data.operationalTags
+              : [],
+
+            politicalReview: data.politicalReview || null,
+
+            leadScore:
+              typeof data.leadScore === "number" ? data.leadScore : null,
+            leadTemperature: data.leadTemperature || "cold",
+            leadScoreReason: Array.isArray(data.leadScoreReason)
+              ? data.leadScoreReason
+              : [],
+
+            createdAt: data.createdAt || "",
+            updatedAt: data.updatedAt || "",
+          };
+        });
+
         setEngagements(docs);
         setLoading(false);
       },
       (err) => {
         console.error("[useEngagements] erro:", err);
+        setEngagements([]);
         setLoading(false);
       },
     );

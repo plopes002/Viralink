@@ -27,6 +27,16 @@ async function fetchJson(url: string) {
   return data;
 }
 
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] === undefined) {
+      delete obj[key];
+    }
+  });
+
+  return obj;
+}
+
 export async function syncInstagramCommentsForSocialAccount(params: {
   workspaceId: string;
   socialAccountId: string;
@@ -88,7 +98,8 @@ export async function syncInstagramCommentsForSocialAccount(params: {
       : [];
 
     for (const comment of comments) {
-      const interactionId = `${workspaceId}_${socialAccountId}_${comment.id}`;
+      const stableSourceId = sourceCampaignAccountId || accountId;
+      const interactionId = `${workspaceId}_${stableSourceId}_${comment.id}`;
 
       const ref = adminFirestore
         .collection("supporterInteractions")
@@ -97,7 +108,7 @@ export async function syncInstagramCommentsForSocialAccount(params: {
       const existing = await ref.get();
       const existingData = existing.exists ? (existing.data() as any) : null;
 
-      const payload = {
+      const payload = removeUndefinedFields({
         workspaceId,
         primaryAccountId: primaryCampaignId,
         sourceCampaignAccountId: sourceCampaignAccountId || primaryCampaignId,
@@ -118,20 +129,25 @@ export async function syncInstagramCommentsForSocialAccount(params: {
         privateReplyText: existingData?.privateReplyText || null,
         publicReplyMeta: existingData?.publicReplyMeta || null,
         privateReplyMeta: existingData?.privateReplyMeta || null,
+
+        // 🔒 nunca undefined
         automationMatched:
           typeof existingData?.automationMatched === "boolean"
             ? existingData.automationMatched
-            : undefined,
+            : false,
+
         automationRuleId: existingData?.automationRuleId || null,
         automationRuleName: existingData?.automationRuleName || null,
-        automationExecutedActions:
-          existingData?.automationExecutedActions || [],
+        automationExecutedActions: Array.isArray(existingData?.automationExecutedActions)
+          ? existingData.automationExecutedActions
+          : [],
         automationProcessedAt: existingData?.automationProcessedAt || null,
         automationLastError: existingData?.automationLastError || null,
+
         commentTimestamp: comment.timestamp || null,
         capturedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
+      });
 
       if (!existing.exists) {
         await ref.set({
@@ -153,7 +169,6 @@ export async function syncInstagramCommentsForSocialAccount(params: {
         await ref.set(payload, { merge: true });
         updated += 1;
 
-        // reprocessa se ainda não foi automatizado
         if (
           !existingData?.automationProcessedAt &&
           (existingData?.status === "new" ||

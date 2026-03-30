@@ -1,12 +1,106 @@
 // src/app/api/competitors/sync/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
+import {
+  politicalKeywords,
+  politicalPositiveWords,
+  politicalNegativeWords,
+} from "@/lib/politicalKeywords";
 
 function normalizeUsername(value: string) {
   return String(value || "")
     .trim()
     .replace(/^@+/, "")
     .toLowerCase();
+}
+
+function inferSentimentFromCaption(text?: string) {
+  const value = String(text || "").toLowerCase();
+
+  const isPolitical = politicalKeywords.some((w) =>
+    value.includes(w)
+  );
+
+  if (isPolitical) {
+    const pos = politicalPositiveWords.filter((w) =>
+      value.includes(w)
+    ).length;
+
+    const neg = politicalNegativeWords.filter((w) =>
+      value.includes(w)
+    ).length;
+
+    if (pos > neg) return "political_positive";
+    if (neg > pos) return "political_negative";
+    return "political_neutral";
+  }
+
+  // fallback comercial
+  const positiveWords = ["promo", "oferta", "desconto"];
+  const negativeWords = ["erro", "problema"];
+
+  const pos = positiveWords.filter((w) => value.includes(w)).length;
+  const neg = negativeWords.filter((w) => value.includes(w)).length;
+
+  if (pos > neg) return "positive";
+  if (neg > pos) return "negative";
+  return "neutral";
+}
+
+function isPolitical(text: string) {
+    const value = text.toLowerCase();
+    return politicalKeywords.some((w) => value.includes(w));
+  }
+  
+  function getPoliticalSentiment(text: string) {
+    const value = text.toLowerCase();
+  
+    const pos = politicalPositiveWords.filter((w) => value.includes(w)).length;
+    const neg = politicalNegativeWords.filter((w) => value.includes(w)).length;
+  
+    if (pos > neg) return "positive";
+    if (neg > pos) return "negative";
+    return "neutral";
+  }
+
+function inferInteractionType(mediaType?: string) {
+  const value = String(mediaType || "").toUpperCase();
+
+  if (value === "VIDEO" || value === "REELS") return "video_engagement";
+  if (value === "CAROUSEL_ALBUM") return "carousel_engagement";
+  return "post_engagement";
+}
+
+function buildLeadScore(params: {
+  likeCount: number;
+  commentsCount: number;
+  followers: number;
+  caption?: string;
+}) {
+  const { likeCount, commentsCount, followers, caption } = params;
+
+  let score = 0;
+
+  if (followers > 0) {
+    const engagementRate = ((likeCount + commentsCount) / followers) * 100;
+
+    if (engagementRate >= 5) score += 40;
+    else if (engagementRate >= 3) score += 25;
+    else if (engagementRate >= 1) score += 10;
+  }
+
+  if (commentsCount >= 20) score += 25;
+  else if (commentsCount >= 10) score += 15;
+  else if (commentsCount >= 3) score += 8;
+
+  if (likeCount >= 300) score += 20;
+  else if (likeCount >= 100) score += 12;
+  else if (likeCount >= 30) score += 6;
+
+  const sentiment = inferSentimentFromCaption(caption);
+  if (sentiment === "positive") score += 10;
+
+  return Math.min(score, 100);
 }
 
 export async function POST(req: NextRequest) {
@@ -44,7 +138,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // pega a conta social principal conectada do workspace
     const socialSnap = await adminFirestore
       .collection("socialAccounts")
       .where("workspaceId", "==", workspaceId)
@@ -130,21 +223,25 @@ export async function POST(req: NextRequest) {
     const avgLikes =
       media.length > 0
         ? Math.round(
-            media.reduce((sum: number, item: any) => sum + Number(item.like_count || 0), 0) /
-              media.length
+            media.reduce(
+              (sum: number, item: any) => sum + Number(item.like_count || 0),
+              0
+            ) / media.length
           )
         : 0;
 
     const avgComments =
       media.length > 0
         ? Math.round(
-            media.reduce((sum: number, item: any) => sum + Number(item.comments_count || 0), 0) /
-              media.length
+            media.reduce(
+              (sum: number, item: any) => sum + Number(item.comments_count || 0),
+              0
+            ) / media.length
           )
         : 0;
 
     const engagementRate =
-      discovery.followers_count > 0
+      Number(discovery.followers_count || 0) > 0
         ? Number(
             (
               ((avgLikes + avgComments) / Number(discovery.followers_count || 1)) *
@@ -175,7 +272,6 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    // opcional: histórico para gráficos
     await adminFirestore.collection("socialMetricsHistory").add({
       workspaceId,
       entityType: "competitor",
@@ -187,6 +283,92 @@ export async function POST(req: NextRequest) {
       createdAt: now,
       source: "business_discovery",
     });
+
+    let mediaUpserts = 0;
+    let leadsUpserts = 0;
+
+    for (const item of media) {
+      const mediaId = String(item?.id || "");
+      if (!mediaId) continue;
+
+      const mediaRef = adminFirestore
+        .collection("competitorMedia")
+        .doc(`${workspaceId}_${competitorId}_${mediaId}`);
+
+      await mediaRef.set(
+        {
+          workspaceId,
+          competitorId,
+          competitorUsername: discovery.username || username,
+          competitorName: discovery.name || competitor.name || username,
+          instagramAccountId: discovery.id || null,
+          mediaId,
+          caption: item?.caption || "",
+          likeCount: Number(item?.like_count || 0),
+          commentsCount: Number(item?.comments_count || 0),
+          mediaType: item?.media_type || null,
+          mediaUrl: item?.media_url || null,
+          permalink: item?.permalink || null,
+          postedAt: item?.timestamp || null,
+          updatedAt: now,
+          createdAt: now,
+        },
+        { merge: true }
+      );
+
+      mediaUpserts += 1;
+
+      const inferredSentiment = inferSentimentFromCaption(item?.caption || "");
+      const leadScore = buildLeadScore({
+        likeCount: Number(item?.like_count || 0),
+        commentsCount: Number(item?.comments_count || 0),
+        followers: Number(discovery.followers_count || 0),
+        caption: item?.caption || "",
+      });
+
+      const leadRef = adminFirestore
+        .collection("competitorLeads")
+        .doc(`${workspaceId}_${competitorId}_${mediaId}`);
+
+      await leadRef.set(
+        {
+          workspaceId,
+          competitorId,
+          source: "competitor_media_analysis",
+          sourceMediaId: mediaId,
+          competitorUsername: discovery.username || username,
+          competitorName: discovery.name || competitor.name || username,
+          username: discovery.username || username,
+          displayName: discovery.name || competitor.name || username,
+          profilePictureUrl: discovery.profile_picture_url || null,
+          interactionType: inferInteractionType(item?.media_type),
+          sentiment: inferredSentiment,
+          score: leadScore,
+          note: item?.caption || "",
+          isFollower: false,
+          hasInteracted: Number(item?.comments_count || 0) > 0 || Number(item?.like_count || 0) > 0,
+          capturedFrom: "competitor_post",
+          status: "new",
+          metrics: {
+            likeCount: Number(item?.like_count || 0),
+            commentsCount: Number(item?.comments_count || 0),
+          },
+          media: {
+            mediaId,
+            mediaType: item?.media_type || null,
+            mediaUrl: item?.media_url || null,
+            permalink: item?.permalink || null,
+            caption: item?.caption || "",
+            postedAt: item?.timestamp || null,
+          },
+          createdAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      leadsUpserts += 1;
+    }
 
     return NextResponse.json({
       ok: true,
@@ -200,6 +382,10 @@ export async function POST(req: NextRequest) {
         avgLikes,
         avgComments,
         engagementRate,
+      },
+      stats: {
+        mediaUpserts,
+        leadsUpserts,
       },
     });
   } catch (error: any) {

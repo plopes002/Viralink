@@ -1,5 +1,10 @@
 // src/lib/interactionAutomationEngine.ts
 import { adminFirestore } from "@/lib/firebaseAdmin";
+import {
+  politicalKeywords,
+  politicalPositiveWords,
+  politicalNegativeWords,
+} from "@/lib/politicalKeywords";
 
 function normalizeText(text: string) {
   return String(text || "")
@@ -8,6 +13,59 @@ function normalizeText(text: string) {
     .toLowerCase()
     .trim();
 }
+
+
+function detectPoliticalSentiment(text: string) {
+  const value = String(text || "").toLowerCase();
+
+  const isPolitical = politicalKeywords.some((w) =>
+    value.includes(w)
+  );
+
+  if (!isPolitical) return null;
+
+  const pos = politicalPositiveWords.filter((w) =>
+    value.includes(w)
+  ).length;
+
+  const neg = politicalNegativeWords.filter((w) =>
+    value.includes(w)
+  ).length;
+
+  if (pos > neg) return "political_positive";
+  if (neg > pos) return "political_negative";
+  return "political_neutral";
+}
+
+function detectLeadIntent(text: string) {
+  const value = String(text || "").toLowerCase();
+
+  const intentWords = [
+    "preço",
+    "valor",
+    "quanto",
+    "me chama",
+    "me chama no direct",
+    "manda mensagem",
+    "tem vaga",
+    "agenda",
+    "quero",
+    "tenho interesse",
+    "como funciona",
+    "onde fica",
+    "tem horário",
+    "atende hoje",
+    "parcelam",
+    "faz desconto",
+  ];
+
+  const matches = intentWords.filter((w) => value.includes(w)).length;
+
+  if (matches >= 2) return "high";
+  if (matches === 1) return "medium";
+  return null;
+}
+
 
 async function sendPublicReply(params: {
   socialAccountId: string;
@@ -156,6 +214,7 @@ export async function processInteractionAutomation(interactionId: string) {
     throw new Error("Interação não encontrada no engine");
   }
 
+  
   const interaction = interactionSnap.data() as any;
 
   if (!interaction.workspaceId) {
@@ -169,6 +228,22 @@ export async function processInteractionAutomation(interactionId: string) {
   if (!interaction.commenterText) {
     throw new Error("interaction.commenterText undefined");
   }
+
+  const commentText = String(interaction.commenterText || "");
+  const politicalSentiment = detectPoliticalSentiment(commentText);
+  const intentLevel = detectLeadIntent(commentText);
+
+  let autoDM = null;
+
+if (intentLevel === "high") {
+  autoDM =
+    "Oi! 😊 Vi seu comentário e posso te ajudar melhor por aqui. Me conta rapidinho o que você está buscando?";
+}
+
+if (intentLevel === "medium") {
+  autoDM =
+    "Oi! Tudo bem? Vi que você comentou no post. Se quiser mais informações, posso te explicar melhor aqui no direct 😊";
+}
 
   const rulesSnap = await adminFirestore
     .collection("interactionAutomationRules")
@@ -277,10 +352,27 @@ export async function processInteractionAutomation(interactionId: string) {
       interaction.externalCommentId &&
       !interaction.publicReplyMeta?.automated
     ) {
+      let finalMessage = publicReplyTemplate;
+
+      if (politicalSentiment === "political_positive") {
+        finalMessage =
+          "Muito obrigado pelo apoio! 🙌 Seguimos trabalhando firme por melhorias reais.";
+      }
+
+      if (politicalSentiment === "political_negative") {
+        finalMessage =
+          "Respeitamos sua opinião. Estamos sempre abertos ao diálogo.";
+      }
+
+      if (politicalSentiment === "political_neutral") {
+        finalMessage =
+          "Obrigado pelo comentário! Se quiser conhecer melhor nosso trabalho, estamos à disposição.";
+      }
+
       await sendPublicReply({
         socialAccountId,
         commentId: interaction.externalCommentId,
-        message: publicReplyTemplate,
+        message: finalMessage,
       });
 
       updates.publicReplyText = publicReplyTemplate;
@@ -294,18 +386,18 @@ export async function processInteractionAutomation(interactionId: string) {
     }
 
     if (
-      actions.privateReply &&
-      privateReplyTemplate &&
-      interaction.externalCommentId &&
-      !interaction.privateReplyMeta?.automated
+      (actions.privateReply && privateReplyTemplate ) ||
+      (autoDM && interaction.externalCommentId)
     ) {
+      const messageToSend = autoDM || privateReplyTemplate;
+    
       await sendPrivateReply({
         socialAccountId,
         commentId: interaction.externalCommentId,
-        message: privateReplyTemplate,
+        message: messageToSend,
       });
 
-      updates.privateReplyText = privateReplyTemplate;
+      updates.privateReplyText = messageToSend;
       updates.privateReplyMeta = {
         automated: true,
         sentAt: new Date().toISOString(),
@@ -315,13 +407,13 @@ export async function processInteractionAutomation(interactionId: string) {
       executed.push("privateReply");
     }
 
-    if (actions.convertToLead) {
+    if (actions.convertToLead || intentLevel === "high") {
       const existingLeadSnap = await adminFirestore
         .collection("supporterLeads")
         .where("sourceInteractionId", "==", interactionId)
         .limit(1)
         .get();
-
+    
       if (existingLeadSnap.empty) {
         await adminFirestore.collection("supporterLeads").add({
           workspaceId: interaction.workspaceId,
@@ -331,12 +423,13 @@ export async function processInteractionAutomation(interactionId: string) {
           leadName: interaction.commenterUsername || "Lead Instagram",
           instagramUsername: interaction.commenterUsername || "",
           note: interaction.commenterText || "",
+          intentLevel: intentLevel || "auto",
           status: "new",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
       }
-
+    
       updates.status = "lead";
       executed.push("convertToLead");
     }

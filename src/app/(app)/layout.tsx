@@ -27,7 +27,7 @@ import { NotificationsBell } from "./components/NotificationsBell";
 import UserMenu from "./components/UserMenu";
 import { useUser } from "@/firebase/provider";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
-import { Users } from "lucide-react";
+import { Mail, MailOpen, Users } from "lucide-react";
 
 const BG = "#050017";
 const SIDEBAR = "#050012";
@@ -39,6 +39,7 @@ const navItems = [
   //{ href: "/posts", label: "Posts & Agenda", icon: FiEdit3 },
   { href: "/automations", label: "Automações", icon: FiZap },
   { href: "/engajamento", label: "Engajamento", icon: FiHeart },
+  { href: "/supporters/interactions", label: "Comentários", icon: MailOpen },
   { href: "/supporters", label: "Apoiadores", icon: Users },
   { href: "/perfis", label: "Perfis Consolidados", icon: FiUserCheck },
   { href: "/contatos", label: "Contatos (CRM)", icon: FiClipboard },

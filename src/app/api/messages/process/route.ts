@@ -1,5 +1,5 @@
 // src/app/api/messages/process/route.ts
-import 'server-only';
+import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
 
@@ -77,18 +77,33 @@ async function refreshCampaignStatus(campaignId: string) {
   });
 }
 
+function isDueNow(scheduledAt: any, nowMs: number) {
+  if (!scheduledAt) return false;
+
+  const parsed = new Date(String(scheduledAt)).getTime();
+  if (Number.isNaN(parsed)) return false;
+
+  return parsed <= nowMs;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const now = new Date().toISOString();
+    const nowIso = new Date().toISOString();
+    const nowMs = new Date(nowIso).getTime();
 
-    const snap = await adminFirestore
+    // Evita query composta para não depender de índice agora
+    const baseSnap = await adminFirestore
       .collection("messages")
       .where("status", "==", "scheduled")
-      .where("scheduledAt", "<=", now)
-      .limit(10)
+      .limit(50)
       .get();
 
-    const docs = snap.docs;
+    const docs = baseSnap.docs
+      .filter((docSnap) => {
+        const data = docSnap.data() as any;
+        return isDueNow(data?.scheduledAt, nowMs);
+      })
+      .slice(0, 10);
 
     if (!docs.length) {
       return NextResponse.json({

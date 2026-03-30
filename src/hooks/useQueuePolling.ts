@@ -17,15 +17,26 @@ export function useQueuePolling(options?: Options) {
 
     let stopped = false;
 
+    async function safePost(url: string) {
+      const res = await fetch(url, { method: "POST" });
+
+      if (!res.ok) {
+        let details = "";
+        try {
+          const data = await res.json();
+          details = data?.error || data?.message || JSON.stringify(data);
+        } catch {
+          details = await res.text();
+        }
+
+        console.error(`[useQueuePolling] ${url} falhou:`, res.status, details);
+      }
+    }
+
     async function tick() {
       try {
-        await fetch("/api/queue/process", {
-          method: "POST",
-        });
-
-        await fetch("/api/messages/process", {
-          method: "POST",
-        });
+        await safePost("/api/queue/process");
+        await safePost("/api/messages/process");
       } catch (err) {
         console.error("[useQueuePolling] erro:", err);
       }

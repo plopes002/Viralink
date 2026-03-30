@@ -1,4 +1,4 @@
-
+// src/hooks/useContactCategories.ts
 "use client";
 
 import { useEffect, useState } from "react";
@@ -18,28 +18,42 @@ export function useContactCategories(workspaceId?: string) {
 
   useEffect(() => {
     if (!workspaceId || !firestore) {
-        setCategories([]);
-        setLoading(false);
-        return;
-    };
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
 
-    const colRef = collection(firestore, "contactCategories");
-    const q = query(colRef, where("workspaceId", "==", workspaceId));
+    setLoading(true);
+
+    const q = query(
+      collection(firestore, "contactCategories"),
+      where("workspaceId", "==", workspaceId)
+    );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const docs: ContactCategory[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }));
+        const docs: ContactCategory[] = snap.docs.map((doc) => {
+          const data = doc.data() as any;
+
+          return {
+            id: doc.id,
+            workspaceId: data.workspaceId || "",
+            name: data.name || "Sem nome",
+            slug: data.slug || "",
+            color: data.color || null,
+            createdAt: data.createdAt || "",
+          };
+        });
+
         setCategories(docs);
         setLoading(false);
       },
-      (err) => {
-        console.error("[useContactCategories] erro:", err);
+      (error) => {
+        console.error("[useContactCategories] erro:", error);
+        setCategories([]);
         setLoading(false);
-      },
+      }
     );
 
     return () => unsub();

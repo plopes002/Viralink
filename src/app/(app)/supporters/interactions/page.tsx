@@ -15,6 +15,8 @@ type Interaction = {
   id: string;
   sourceName: string;
   sourceUsername?: string;
+  sourceRole?: "primary" | "supporter";
+  sourceCampaignAccountId?: string;
   commenterUsername: string;
   commenterText: string;
   status: string;
@@ -28,6 +30,8 @@ type SupporterAccount = {
   role: string;
 };
 
+type SourceFilter = "all" | "primary" | "supporter";
+
 export default function SupporterInteractionsPage() {
   const { currentWorkspace } = useWorkspace();
   const workspaceId = currentWorkspace?.id ?? null;
@@ -35,6 +39,8 @@ export default function SupporterInteractionsPage() {
   const [primaryAccounts, setPrimaryAccounts] = useState<PrimaryAccount[]>([]);
   const [selectedPrimaryId, setSelectedPrimaryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [selectedSupporterId, setSelectedSupporterId] = useState("all");
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [supporters, setSupporters] = useState<SupporterAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,12 +108,24 @@ export default function SupporterInteractionsPage() {
     try {
       setLoading(true);
 
-      const url =
-        `/api/network/interactions/list?workspaceId=${workspaceId}` +
-        `&primaryAccountId=${selectedPrimaryId}` +
-        `&status=${statusFilter}`;
+      const params = new URLSearchParams({
+        workspaceId,
+        primaryAccountId: selectedPrimaryId,
+        status: statusFilter,
+      });
 
-      const res = await fetch(url, { cache: "no-store" });
+      if (sourceFilter !== "all") {
+        params.set("sourceRole", sourceFilter);
+      }
+
+      if (sourceFilter === "supporter" && selectedSupporterId !== "all") {
+        params.set("sourceCampaignAccountId", selectedSupporterId);
+      }
+
+      const res = await fetch(
+        `/api/network/interactions/list?${params.toString()}`,
+        { cache: "no-store" }
+      );
       const data = await res.json();
 
       if (data.ok) {
@@ -129,13 +147,49 @@ export default function SupporterInteractionsPage() {
 
   useEffect(() => {
     loadSupporters();
+  }, [workspaceId, selectedPrimaryId]);
+
+  useEffect(() => {
     loadInteractions();
-  }, [workspaceId, selectedPrimaryId, statusFilter]);
+  }, [
+    workspaceId,
+    selectedPrimaryId,
+    statusFilter,
+    sourceFilter,
+    selectedSupporterId,
+  ]);
+
+  useEffect(() => {
+    if (sourceFilter !== "supporter") {
+      setSelectedSupporterId("all");
+    }
+  }, [sourceFilter]);
 
   const selectedPrimary = useMemo(
     () => primaryAccounts.find((acc) => acc.id === selectedPrimaryId) || null,
     [primaryAccounts, selectedPrimaryId]
   );
+
+  const selectedSupporter = useMemo(
+    () => supporters.find((acc) => acc.id === selectedSupporterId) || null,
+    [supporters, selectedSupporterId]
+  );
+
+  const sourceCounters = useMemo(() => {
+    const primaryCount = interactions.filter(
+      (item) => item.sourceRole === "primary"
+    ).length;
+
+    const supporterCount = interactions.filter(
+      (item) => item.sourceRole === "supporter"
+    ).length;
+
+    return {
+      total: interactions.length,
+      primary: primaryCount,
+      supporter: supporterCount,
+    };
+  }, [interactions]);
 
   async function handleCreateFakeInteraction() {
     if (!workspaceId || !selectedPrimaryId) {
@@ -259,7 +313,7 @@ export default function SupporterInteractionsPage() {
         )}
 
         <div className="flex flex-wrap gap-2">
-          <button
+         {/* <button
             type="button"
             onClick={handleCreateFakeInteraction}
             disabled={creatingFake}
@@ -267,16 +321,17 @@ export default function SupporterInteractionsPage() {
           >
             {creatingFake ? "Criando..." : "Criar interação fake para teste"}
           </button>
-
+*/}
           <button
             type="button"
             onClick={handleSyncRealComments}
             disabled={syncingReal}
-            className="rounded-xl border border-[#272046] text-sm font-medium text-white px-4 py-2 disabled:opacity-60"
+            className="rounded-xl border border-[#272046] bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-sm font-medium text-white px-4 py-2 disabled:opacity-60"
           >
             {syncingReal ? "Sincronizando..." : "Sincronizar comentários reais"}
           </button>
-        </div>
+        </div> 
+      
       </div>
 
       <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
@@ -284,19 +339,74 @@ export default function SupporterInteractionsPage() {
           <p className="text-sm font-medium text-white">Filtros</p>
         </div>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
-        >
-          <option value="all">Todos</option>
-          <option value="new">Novos</option>
-          <option value="read">Lidos</option>
-          <option value="lead">Leads</option>
-          <option value="replied">Respondidos</option>
-          <option value="private_replied">Privado respondido</option>
-          <option value="archived">Arquivados</option>
-        </select>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-[#9CA3AF]">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+            >
+              <option value="all">Todos</option>
+              <option value="new">Novos</option>
+              <option value="read">Lidos</option>
+              <option value="lead">Leads</option>
+              <option value="replied">Respondidos</option>
+              <option value="private_replied">Privado respondido</option>
+              <option value="archived">Arquivados</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-[#9CA3AF]">Origem</label>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+              className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+            >
+              <option value="all">Todos</option>
+              <option value="primary">Conta principal</option>
+              <option value="supporter">Apoiadores</option>
+            </select>
+          </div>
+
+          {sourceFilter === "supporter" && (
+            <div className="flex flex-col gap-2">
+              <label className="text-[11px] text-[#9CA3AF]">Apoiador</label>
+              <select
+                value={selectedSupporterId}
+                onChange={(e) => setSelectedSupporterId(e.target.value)}
+                className="rounded-xl border border-[#272046] bg-[#020012] text-sm text-white px-3 py-2 outline-none"
+              >
+                <option value="all">Todos os apoiadores</option>
+                {supporters.map((supporter) => (
+                  <option key={supporter.id} value={supporter.id}>
+                    {supporter.name}
+                    {supporter.username ? ` (${supporter.username})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-[#111827] px-3 py-1 text-xs text-white">
+            Total: {sourceCounters.total}
+          </span>
+          <span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs text-sky-400">
+            Principal: {sourceCounters.primary}
+          </span>
+          <span className="rounded-full bg-fuchsia-500/15 px-3 py-1 text-xs text-fuchsia-400">
+            Apoiadores: {sourceCounters.supporter}
+          </span>
+
+          {sourceFilter === "supporter" && selectedSupporter && (
+            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-400">
+              Selecionado: {selectedSupporter.name}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-[#272046] bg-[#050016] p-4 flex flex-col gap-4">
