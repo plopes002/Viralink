@@ -71,7 +71,7 @@ async function loadInstagramInsights(account: { id: string } & SocialAccountDoc)
   }
 
   const response = await fetch(
-    `https://graph.facebook.com/v19.0/${encodeURIComponent(
+    `https://graph.facebook.com/v20.0/${encodeURIComponent(
       instagramId
     )}?fields=followers_count,media_count,username&access_token=${encodeURIComponent(
       accessToken
@@ -125,7 +125,7 @@ async function loadFacebookInsights(account: { id: string } & SocialAccountDoc) 
   }
 
   const response = await fetch(
-    `https://graph.facebook.com/v19.0/${encodeURIComponent(
+    `https://graph.facebook.com/v20.0/${encodeURIComponent(
       pageId
     )}?fields=id,name,followers_count&access_token=${encodeURIComponent(accessToken)}`,
     { cache: "no-store" }

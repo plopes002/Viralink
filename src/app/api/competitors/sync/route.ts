@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
         "profile_picture_url",
         "website",
         "biography",
-        "media.limit(12){id,caption,like_count,comments_count,media_type,media_url,permalink,timestamp}"
+        "media.limit(12){id,caption,like_count,comments_count,media_type,permalink,timestamp}"
       ].join(","),
       "}"
     ].join("");
@@ -307,7 +307,6 @@ export async function POST(req: NextRequest) {
           likeCount: Number(item?.like_count || 0),
           commentsCount: Number(item?.comments_count || 0),
           mediaType: item?.media_type || null,
-          mediaUrl: item?.media_url || null,
           permalink: item?.permalink || null,
           postedAt: item?.timestamp || null,
           updatedAt: now,
@@ -356,7 +355,6 @@ export async function POST(req: NextRequest) {
           media: {
             mediaId,
             mediaType: item?.media_type || null,
-            mediaUrl: item?.media_url || null,
             permalink: item?.permalink || null,
             caption: item?.caption || "",
             postedAt: item?.timestamp || null,

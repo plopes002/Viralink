@@ -10,7 +10,7 @@ async function replyToInstagramComment(params: {
   const { commentId, message, accessToken } = params;
 
   const response = await fetch(
-    `https://graph.facebook.com/v19.0/${encodeURIComponent(commentId)}/replies`,
+    `https://graph.facebook.com/v20.0/${encodeURIComponent(commentId)}/replies`,
     {
       method: "POST",
       headers: {

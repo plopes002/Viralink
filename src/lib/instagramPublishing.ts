@@ -16,6 +16,7 @@ type MetaGraphError = {
     error_subcode?: number;
     fbtrace_id?: string;
   };
+  id?: string;
 };
 
 async function readMetaJson(response: Response) {
@@ -47,7 +48,7 @@ export async function publishImageToInstagram({
   }
 
   const createContainerUrl = new URL(
-    `https://graph.facebook.com/v22.0/${igUserId}/media`
+    `https://graph.facebook.com/v20.0/${igUserId}/media`
   );
   createContainerUrl.searchParams.set("image_url", imageUrl);
   createContainerUrl.searchParams.set("caption", caption || "");
@@ -71,7 +72,7 @@ export async function publishImageToInstagram({
   const creationId = createJson.id;
 
   const publishUrl = new URL(
-    `https://graph.facebook.com/v22.0/${igUserId}/media_publish`
+    `https://graph.facebook.com/v20.0/${igUserId}/media_publish`
   );
   publishUrl.searchParams.set("creation_id", creationId);
   publishUrl.searchParams.set("access_token", accessToken);
