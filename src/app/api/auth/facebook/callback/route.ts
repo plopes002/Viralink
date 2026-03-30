@@ -2,6 +2,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
+import { randomUUID } from "crypto";
 
 const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID!;
 const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET!;
@@ -10,86 +11,29 @@ const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
   "https://viramind.site";
 
-export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
+async function saveAccount(
+  { workspaceId, ownerUserId, mode, token: inviteToken }: any,
+  page: any
+) {
+  const now = new Date().toISOString();
+  const socialAccountPayload: any = {
+    workspaceId,
+    ownerUserId,
+    network: "facebook",
+    accountType: "page",
+    accountId: page.id,
+    facebookPageId: page.id,
+    facebookPageName: page.name,
+    name: page.name,
+    status: "connected",
+    accessToken: page.access_token,
+    pageAccessToken: page.access_token,
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  const redirectUrl = new URL("/social-accounts", APP_URL);
-
-  if (!code || !state) {
-    redirectUrl.searchParams.set("error", "invalid_request");
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  try {
-    const stateData = JSON.parse(
-      Buffer.from(state, "base64").toString("utf8")
-    );
-
-    const { workspaceId, ownerUserId, mode } = stateData;
-
-    // 🔥 1. TROCAR CODE POR TOKEN
-    const tokenRes = await fetch(
-      "https://graph.facebook.com/v20.0/oauth/access_token" +
-        `?client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
-        `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
-        `&client_secret=${encodeURIComponent(FACEBOOK_APP_SECRET)}` +
-        `&code=${encodeURIComponent(code)}`,
-      { cache: "no-store" }
-    );
-
-    const tokenData = await tokenRes.json();
-
-    if (!tokenRes.ok || !tokenData.access_token) {
-      throw new Error(
-        tokenData?.error?.message || "Erro ao obter access token"
-      );
-    }
-
-    // 🔥 2. GERAR LONG-LIVED TOKEN (60 dias)
-    const longTokenUrl =
-      "https://graph.facebook.com/v20.0/oauth/access_token" +
-      `?grant_type=fb_exchange_token` +
-      `&client_id=${encodeURIComponent(FACEBOOK_APP_ID)}` +
-      `&client_secret=${encodeURIComponent(FACEBOOK_APP_SECRET)}` +
-      `&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`;
-
-    const longTokenRes = await fetch(longTokenUrl, { cache: "no-store" });
-    const longTokenData = await longTokenRes.json();
-
-    if (!longTokenRes.ok || !longTokenData.access_token) {
-      throw new Error(
-        longTokenData?.error?.message || "Erro ao gerar long-lived token"
-      );
-    }
-
-    // 👉 ESSE É O TOKEN FINAL (USE ESSE)
-    const userAccessToken = longTokenData.access_token;
-
-    // 🔥 3. PEGAR PÁGINAS (COM PAGE TOKEN)
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v20.0/me/accounts` +
-        `?fields=id,name,access_token,instagram_business_account` +
-        `&access_token=${encodeURIComponent(userAccessToken)}`,
-      { cache: "no-store" }
-    );
-
-    const pagesData = await pagesRes.json();
-
-    if (!pagesRes.ok || !pagesData.data) {
-      throw new Error(pagesData?.error?.message || "Erro ao buscar páginas");
-    }
-
-    const page = pagesData.data[0];
-
-    const pageId = page.id;
-    const pageName = page.name;
-    const pageAccessToken = page.access_token;
-
-    const now = new Date().toISOString();
-
-    const primaryFbSnap = await adminFirestore
+  if (mode === "primary") {
+    const primarySnap = await adminFirestore
       .collection("socialAccounts")
       .where("workspaceId", "==", workspaceId)
       .where("network", "==", "facebook")
@@ -97,52 +41,94 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .get();
 
-    // 🔥 3. SALVAR FACEBOOK CORRETO (PAGE TOKEN)
-    const socialRef = await adminFirestore.collection("socialAccounts").add({
+    if (primarySnap.empty) {
+      socialAccountPayload.isPrimary = true;
+    }
+  }
+
+  const socialRef = await adminFirestore
+    .collection("socialAccounts")
+    .add(socialAccountPayload);
+
+  // Lógica para conta de campanha
+  const campaignPayload = {
+    workspaceId,
+    role: mode === "primary" ? "primary" : "supporter",
+    socialAccountId: socialRef.id,
+    name: page.name,
+    network: "facebook",
+    accountType: "page",
+    accountId: page.id,
+    status: "connected",
+    ownerUserId,
+    createdAt: now,
+    updatedAt: now,
+    ...(mode === "supporter" && {
+      permissions: {
+        allowContentBoost: true,
+        allowLeadCapture: false,
+        allowFollowerCampaigns: true,
+      },
+    }),
+  };
+
+  const campaignQuery = await adminFirestore
+    .collection("campaignAccounts")
+    .where("workspaceId", "==", workspaceId)
+    .where("role", "==", mode)
+    .where("network", "==", "facebook")
+    .where("accountId", "==", page.id)
+    .limit(1)
+    .get();
+
+  if (campaignQuery.empty) {
+    await adminFirestore.collection("campaignAccounts").add(campaignPayload);
+  } else {
+    await campaignQuery.docs[0].ref.set(campaignPayload, { merge: true });
+  }
+
+  // Se for apoiador, atualiza o convite
+  if (mode === "supporter" && inviteToken) {
+    const inviteSnap = await adminFirestore
+      .collection("supporterInvites")
+      .where("token", "==", inviteToken)
+      .limit(1)
+      .get();
+    if (!inviteSnap.empty) {
+      await inviteSnap.docs[0].ref.update({
+        status: "accepted",
+        acceptedAt: now,
+      });
+    }
+  }
+
+  // Se a página tiver uma conta do Instagram
+  if (page.instagram_business_account?.id) {
+    const igId = page.instagram_business_account.id;
+    const igRes = await fetch(
+      `https://graph.facebook.com/v20.0/${igId}?fields=id,username,name,followers_count&access_token=${page.access_token}`
+    );
+    const igData = await igRes.json();
+
+    const igPayload = {
       workspaceId,
       ownerUserId,
-      network: "facebook",
-      accountType: "page",
-      accountId: pageId,
-      facebookPageId: pageId,
-      facebookPageName: pageName,
-      name: pageName,
-      username: "",
+      network: "instagram",
+      accountId: igId,
+      username: igData.username || "",
+      name: igData.name || "",
+      followers: igData.followers_count || 0,
+      accessToken: page.access_token,
+      pageAccessToken: page.access_token,
+      facebookPageId: page.id,
+      facebookPageName: page.name,
       status: "connected",
-      followers: 0,
-      isPrimary: mode === "primary" && primaryFbSnap.empty,
-      accessToken: userAccessToken, // guarda também
-      pageAccessToken: pageAccessToken, // ⭐ ESSENCIAL
       createdAt: now,
       updatedAt: now,
-    });
+      isPrimary: false,
+    };
 
-    // 🔥 4. SALVAR CAMPAIGN
-    await adminFirestore.collection("campaignAccounts").add({
-      workspaceId,
-      role: "primary",
-      socialAccountId: socialRef.id,
-      name: pageName,
-      network: "facebook",
-      accountType: "page",
-      accountId: pageId,
-      status: "connected",
-      ownerUserId,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // 🔥 5. INSTAGRAM (SE EXISTIR)
-    if (page.instagram_business_account?.id) {
-      const igId = page.instagram_business_account.id;
-
-      const igRes = await fetch(
-        `https://graph.facebook.com/v20.0/${igId}?fields=id,username,name,followers_count&access_token=${pageAccessToken}`,
-        { cache: "no-store" }
-      );
-
-      const igData = await igRes.json();
-
+    if (mode === "primary") {
       const primaryIgSnap = await adminFirestore
         .collection("socialAccounts")
         .where("workspaceId", "==", workspaceId)
@@ -150,38 +136,111 @@ export async function GET(request: NextRequest) {
         .where("isPrimary", "==", true)
         .limit(1)
         .get();
-
-      await adminFirestore.collection("socialAccounts").add({
-        workspaceId,
-        ownerUserId,
-        network: "instagram",
-        accountId: igId,
-        username: igData.username || "",
-        name: igData.name || "",
-        followers: igData.followers_count || 0,
-        accessToken: pageAccessToken,
-        pageAccessToken: pageAccessToken,
-        facebookPageId: pageId,
-        facebookPageName: pageName,
-        status: "connected",
-        isPrimary: mode === "primary" && primaryIgSnap.empty,
-        createdAt: now,
-        updatedAt: now,
-      });
+      if (primaryIgSnap.empty) {
+        igPayload.isPrimary = true;
+      }
     }
+    await adminFirestore.collection("socialAccounts").add(igPayload);
+  }
+}
 
-    redirectUrl.searchParams.set("status", "success");
-  } catch (error: any) {
-    console.error("Erro Facebook callback:", error);
-    redirectUrl.searchParams.set("error", error.message);
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+  const errorReason = url.searchParams.get("error_reason");
+  const errorDescription = url.searchParams.get("error_description");
+
+  const redirectUrl = new URL("/social-accounts", APP_URL);
+
+  if (error) {
+    redirectUrl.searchParams.set("error", error);
+    redirectUrl.searchParams.set("error_description", errorDescription || errorReason || "Unknown error");
+    return NextResponse.redirect(redirectUrl);
   }
 
-  const response = NextResponse.redirect(redirectUrl);
+  const cookieStore = cookies();
+  const savedNonce = cookieStore.get("fb_oauth_nonce")?.value;
 
-  response.cookies.set("fb_oauth_nonce", "", {
-    maxAge: 0,
-    path: "/",
-  });
+  try {
+    if (!code || !state) {
+      throw new Error("Invalid request: code or state missing.");
+    }
+    
+    const stateData = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
+    
+    if (stateData.nonce !== savedNonce) {
+      throw new Error("Invalid state: nonce mismatch.");
+    }
 
-  return response;
+    const tokenRes = await fetch(
+      `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${FACEBOOK_APP_ID}&redirect_uri=${FACEBOOK_REDIRECT_URI}&client_secret=${FACEBOOK_APP_SECRET}&code=${code}`
+    );
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData.access_token) {
+      throw new Error(tokenData?.error?.message || "Failed to exchange code for token.");
+    }
+
+    const longTokenRes = await fetch(
+      `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${FACEBOOK_APP_ID}&client_secret=${FACEBOOK_APP_SECRET}&fb_exchange_token=${tokenData.access_token}`
+    );
+    const longTokenData = await longTokenRes.json();
+    if (!longTokenRes.ok || !longTokenData.access_token) {
+      throw new Error(longTokenData?.error?.message || "Failed to get long-lived token.");
+    }
+    
+    const userAccessToken = longTokenData.access_token;
+    
+    const accountsRes = await fetch(
+      `https://graph.facebook.com/v20.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${userAccessToken}`
+    );
+    const accountsData = await accountsRes.json();
+    if (!accountsRes.ok || !accountsData.data) {
+      throw new Error(accountsData?.error?.message || "Failed to fetch pages.");
+    }
+
+    const pages = accountsData.data.filter(
+      (p: any) =>
+        (stateData.allowPages && p.id) ||
+        (stateData.allowProfile && p.instagram_business_account)
+    );
+
+    if (pages.length === 0) {
+      throw new Error("No compatible pages or Instagram accounts found.");
+    }
+
+    if (pages.length === 1) {
+      await saveAccount(stateData, pages[0]);
+      redirectUrl.searchParams.set("status", "success");
+      return NextResponse.redirect(redirectUrl);
+    }
+    
+    const sessionId = randomUUID();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+    
+    await adminFirestore
+      .collection("facebookPageSelections")
+      .doc(sessionId)
+      .set({
+        ...stateData,
+        status: "pending",
+        userAccessToken,
+        pages,
+        createdAt: new Date().toISOString(),
+        expiresAt,
+      });
+
+    redirectUrl.pathname = "/social-accounts/select-facebook-page";
+    redirectUrl.searchParams.set("session", sessionId);
+    return NextResponse.redirect(redirectUrl);
+
+  } catch (err: any) {
+    console.error("Facebook callback error:", err);
+    redirectUrl.searchParams.set("error", err.message || "An unexpected error occurred.");
+    return NextResponse.redirect(redirectUrl);
+  } finally {
+    const response = NextResponse.redirect(redirectUrl);
+    response.cookies.set("fb_oauth_nonce", "", { maxAge: 0 });
+  }
 }

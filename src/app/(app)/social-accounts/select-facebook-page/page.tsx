@@ -6,8 +6,8 @@ export default function SelectFacebookPagePage() {
   return (
     <Suspense
       fallback={
-        <section className="min-h-screen bg-[#050016] text-white p-6">
-          <p className="text-sm text-[#9CA3AF]">Carregando páginas...</p>
+        <section className="min-h-screen bg-[#050016] text-white p-6 flex items-center justify-center">
+          <p className="text-sm text-[#9CA3AF]">Carregando sessão...</p>
         </section>
       }
     >

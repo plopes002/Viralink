@@ -24,10 +24,12 @@ export default function SelectFacebookPageClient() {
   const [selectedPageId, setSelectedPageId] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadSession() {
       if (!sessionId) {
+        setError("ID da sessão não encontrado.");
         setLoading(false);
         return;
       }
@@ -51,8 +53,8 @@ export default function SelectFacebookPageClient() {
         if (data.session?.pages?.length) {
           setSelectedPageId(data.session.pages[0].id);
         }
-      } catch (error: any) {
-        alert(error?.message || "Erro ao carregar seleção.");
+      } catch (err: any) {
+        setError(err?.message || "Erro ao carregar seleção.");
       } finally {
         setLoading(false);
       }
@@ -74,6 +76,7 @@ export default function SelectFacebookPageClient() {
 
     try {
       setSubmitting(true);
+      setError(null);
 
       const res = await fetch("/api/auth/facebook/page-selection/confirm", {
         method: "POST",
@@ -92,9 +95,9 @@ export default function SelectFacebookPageClient() {
         throw new Error(data.error || "Erro ao confirmar página.");
       }
 
-      router.push(data.redirectTo);
-    } catch (error: any) {
-      alert(error?.message || "Erro ao confirmar página.");
+      router.push(data.redirectTo || "/social-accounts?status=success");
+    } catch (err: any) {
+      setError(err?.message || "Erro ao confirmar página.");
     } finally {
       setSubmitting(false);
     }
@@ -102,16 +105,38 @@ export default function SelectFacebookPageClient() {
 
   if (loading) {
     return (
-      <section className="min-h-screen bg-[#050016] text-white p-6">
+      <section className="min-h-screen bg-[#050016] text-white p-6 flex items-center justify-center">
         <p className="text-sm text-[#9CA3AF]">Carregando páginas...</p>
       </section>
     );
   }
 
-  if (!session) {
+  if (error) {
     return (
-      <section className="min-h-screen bg-[#050016] text-white p-6">
-        <p className="text-sm text-rose-400">Sessão de seleção inválida ou expirada.</p>
+      <section className="min-h-screen bg-[#050016] text-white p-6 flex items-center justify-center">
+          <div className="w-full max-w-lg rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 flex flex-col gap-4">
+            <h1 className="text-lg font-semibold text-rose-300">Erro</h1>
+            <p className="text-sm text-rose-300">{error}</p>
+            <button onClick={() => router.push('/social-accounts')} className="mt-4 rounded-xl border border-[#272046] text-sm text-white px-4 py-2 self-start">
+                Voltar
+            </button>
+          </div>
+      </section>
+    );
+  }
+
+  if (!session || !session.pages.length) {
+    return (
+      <section className="min-h-screen bg-[#050016] text-white p-6 flex items-center justify-center">
+        <div className="w-full max-w-lg rounded-2xl border border-[#272046] bg-[#0A0322] p-6 flex flex-col gap-4">
+          <h1 className="text-lg font-semibold text-white">Nenhuma página encontrada</h1>
+          <p className="text-sm text-[#9CA3AF] mt-1">
+            Não encontramos nenhuma página de Facebook ou conta de Instagram de negócios vinculada à sua conta do Facebook.
+          </p>
+           <button onClick={() => router.push('/social-accounts')} className="mt-4 rounded-xl border border-[#272046] text-sm text-white px-4 py-2 self-start">
+                Voltar
+            </button>
+        </div>
       </section>
     );
   }
@@ -124,11 +149,11 @@ export default function SelectFacebookPageClient() {
             Escolha a página do Facebook
           </h1>
           <p className="text-sm text-[#9CA3AF] mt-1">
-            Encontramos mais de uma página nesta conta. Selecione qual deseja conectar.
+            Encontramos mais de uma página. Selecione qual deseja conectar ao VIRALINK.
           </p>
         </div>
 
-        <div className="grid gap-3">
+        <div className="grid gap-3 max-h-96 overflow-y-auto pr-2">
           {session.pages.map((page) => {
             const active = page.id === selectedPageId;
 
@@ -144,7 +169,7 @@ export default function SelectFacebookPageClient() {
                 }`}
               >
                 <p className="text-sm font-medium text-white">{page.name}</p>
-                <p className="text-[11px] text-[#9CA3AF] mt-1">{page.id}</p>
+                <p className="text-[11px] text-[#9CA3AF] mt-1">ID: {page.id}</p>
               </button>
             );
           })}
@@ -159,7 +184,7 @@ export default function SelectFacebookPageClient() {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mt-2">
           <button
             type="button"
             onClick={handleConfirm}
