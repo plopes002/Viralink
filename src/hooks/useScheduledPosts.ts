@@ -22,7 +22,8 @@ interface UseScheduledPostsOptions {
   workspaceId?: string | null;
 }
 
-export function useScheduledPosts({ workspaceId }: UseScheduledPostsOptions) {
+export function useScheduledPosts(options?: UseScheduledPostsOptions | null) {
+  const workspaceId = options?.workspaceId;
   const { firestore } = useFirebase();
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);

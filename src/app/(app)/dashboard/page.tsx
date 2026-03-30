@@ -43,6 +43,7 @@ function formatNetwork(network?: string) {
   if (!network) return "Rede";
   if (network === "instagram") return "Instagram";
   if (network === "facebook") return "Facebook";
+  if (network === "whatsapp") return "WhatsApp";
   return network;
 }
 
@@ -98,7 +99,7 @@ export default function DashboardPage() {
   const {
     posts: scheduledPosts,
     loading: loadingScheduledPosts,
-  } = useScheduledPosts(workspaceId);
+  } = useScheduledPosts({ workspaceId });
 
   const { accounts, loading: loadingAccounts } = useSocialAccounts(workspaceId);
 
@@ -537,7 +538,7 @@ export default function DashboardPage() {
             scheduledPosts.map((post) => (
               <UpcomingPostItem
                 key={post.id}
-                rede={formatNetwork(post.networks?.[0])}
+                rede={formatNetwork((post.networks || [])[0])}
                 horario={formatScheduledDate(post.runAt)}
                 titulo={post.title || post.content?.text || "Post agendado"}
               />
