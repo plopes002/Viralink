@@ -46,7 +46,7 @@ export default function SocialAccountsPage() {
 
   const getStatusForNetwork = (network: SocialNetwork) => {
     const networkAccounts = accounts.filter((a) => a.network === network);
-
+  
     if (!networkAccounts.length) {
       return {
         status: "disconnected" as const,
@@ -55,13 +55,13 @@ export default function SocialAccountsPage() {
         accountName: null,
       };
     }
-
+  
     const acc =
       networkAccounts.find((a: any) => a.isPrimary && a.status === "connected") ||
       networkAccounts.find((a: any) => a.isPrimary) ||
       networkAccounts.find((a) => a.status === "connected") ||
       networkAccounts[0];
-
+  
     if (!acc) {
       return {
         status: "disconnected" as const,
@@ -70,32 +70,37 @@ export default function SocialAccountsPage() {
         accountName: null,
       };
     }
-
-    const accountName = acc.name || acc.username || (acc as any).facebookPageName || "Conta conectada";
-
+  
+    const displayName =
+      acc.name ||
+      acc.username ||
+      (acc as any).facebookPageName ||
+      acc.accountId ||
+      "Conta conectada";
+  
     if (acc.status === "expired") {
       return {
         status: "expired" as const,
         label: "Conexão expirada",
         badgeClass: "bg-yellow-500/15 text-yellow-400",
-        accountName,
+        accountName: displayName,
       };
     }
-
+  
     if (acc.status === "connected") {
       return {
         status: "connected" as const,
         label: acc.isPrimary ? "Principal conectada" : "Conectado",
         badgeClass: "bg-emerald-500/15 text-emerald-400",
-        accountName,
+        accountName: displayName,
       };
     }
-
+  
     return {
       status: "disconnected" as const,
       label: "Não conectado",
       badgeClass: "bg-rose-500/15 text-rose-400",
-      accountName,
+      accountName: displayName,
     };
   };
 
