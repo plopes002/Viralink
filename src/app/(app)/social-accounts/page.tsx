@@ -39,10 +39,10 @@ const NETWORKS: NetworkCardInfo[] = [
 
 export default function SocialAccountsPage() {
   const { currentWorkspace } = useWorkspace();
-const { user } = useUser();
+  const { user } = useUser();
 
-const workspaceId = currentWorkspace?.id;
-const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
+  const workspaceId = currentWorkspace?.id;
+  const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
 
   const getStatusForNetwork = (network: SocialNetwork) => {
     const networkAccounts = accounts.filter((a) => a.network === network);
@@ -71,12 +71,14 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
       };
     }
 
+    const accountName = acc.name || acc.username || (acc as any).facebookPageName || "Conta conectada";
+
     if (acc.status === "expired") {
       return {
         status: "expired" as const,
         label: "Conexão expirada",
         badgeClass: "bg-yellow-500/15 text-yellow-400",
-        accountName: acc.name,
+        accountName,
       };
     }
 
@@ -85,7 +87,7 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
         status: "connected" as const,
         label: acc.isPrimary ? "Principal conectada" : "Conectado",
         badgeClass: "bg-emerald-500/15 text-emerald-400",
-        accountName: acc.name,
+        accountName,
       };
     }
 
@@ -93,7 +95,7 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
       status: "disconnected" as const,
       label: "Não conectado",
       badgeClass: "bg-rose-500/15 text-rose-400",
-      accountName: acc.name,
+      accountName,
     };
   };
 
@@ -128,34 +130,21 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
   };
 
   const getInstagramConnectHref = () => {
-    if (!workspaceId) return "#";
-    if (!user?.uid) return "#";
+    if (!workspaceId || !user?.uid) return "#";
 
     return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
       workspaceId
     )}&ownerUserId=${encodeURIComponent(user.uid)}&network=instagram&mode=primary`;
   };
-
-  const getFacebookProfileConnectHref = () => {
-    if (!workspaceId) return "#";
-    if (!user?.uid) return "#";
-
-    return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
-      workspaceId
-    )}&ownerUserId=${encodeURIComponent(
-      user.uid
-    )}&network=facebook&mode=primary&accountType=profile&allowProfile=true&allowPages=false`;
-  };
-
-  const getFacebookPageConnectHref = () => {
-    if (!workspaceId) return "#";
-    if (!user?.uid) return "#";
+  
+  const getFacebookConnectHref = () => {
+    if (!workspaceId || !user?.uid) return "#";
 
     return `/api/auth/facebook/start?workspaceId=${encodeURIComponent(
       workspaceId
     )}&ownerUserId=${encodeURIComponent(
       user.uid
-    )}&network=facebook&mode=primary&accountType=page&allowProfile=false&allowPages=true`;
+    )}&network=facebook&mode=primary&allowPages=true`;
   };
 
   return (
@@ -210,13 +199,6 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
                       <span className="font-medium">{status.accountName}</span>
                     </p>
                   )}
-
-                  {isFacebook && (
-                    <p className="mt-2 text-[10px] text-[#A78BFA]">
-                      Escolha se deseja conectar um perfil pessoal ou uma página
-                      administrativa.
-                    </p>
-                  )}
                 </div>
 
                 <span
@@ -228,76 +210,46 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
 
               <div className="mt-auto flex flex-col gap-2">
                 {isInstagram ? (
-                  <>
-                    <a
-                      href={isConnected ? "#" : getInstagramConnectHref()}
+                  <a
+                    href={isConnected ? "#" : getInstagramConnectHref()}
+                    onClick={(e) => {
+                      if (isConnected) {
+                        e.preventDefault();
+                        handleManageClick("instagram");
+                        return;
+                      }
+                      ensureWorkspaceAndUserOrBlock(e);
+                    }}
+                    className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                  >
+                    {primaryLabel}
+                  </a>
+                ) : isFacebook ? (
+                   <a
+                      href={isConnected ? "#" : getFacebookConnectHref()}
                       onClick={(e) => {
                         if (isConnected) {
                           e.preventDefault();
-                          handleManageClick("instagram");
+                          handleManageClick("facebook");
                           return;
                         }
-
                         ensureWorkspaceAndUserOrBlock(e);
                       }}
                       className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
                     >
                       {primaryLabel}
                     </a>
-
-                    {isConnected && (
-                      <button
-                        type="button"
-                        onClick={() => handleManageClick(n.network)}
-                        className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
-                      >
-                        Ver detalhes da integração
-                      </button>
-                    )}
-                  </>
-                ) : isFacebook ? (
-                  <>
-                    <a
-                      href={getFacebookPageConnectHref()}
-                      onClick={(e) => {
-                        if (ensureWorkspaceAndUserOrBlock(e)) return;
-                      }}
-                      className="w-full text-center rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
-                    >
-                      Conectar página administrativa
-                    </a>
-
-                    <a
-                      href={getFacebookProfileConnectHref()}
-                      onClick={(e) => {
-                        if (ensureWorkspaceAndUserOrBlock(e)) return;
-                      }}
-                      className="w-full text-center rounded-xl border border-[#272046] bg-transparent text-[12px] font-medium text-[#E5E7EB] py-2 hover:bg-[#111827] transition"
-                    >
-                      Conectar perfil pessoal
-                    </a>
-
-                    {isConnected && (
-                      <button
-                        type="button"
-                        onClick={() => handleManageClick(n.network)}
-                        className="w-full rounded-xl border border-[#272046] text-[11px] text-[#E5E7EB]/80 py-1.5 hover:bg-[#111827] transition"
-                      >
-                        Ver detalhes da integração
-                      </button>
-                    )}
-                  </>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleOtherConnectClick(n.network)}
-                      className="w-full rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
-                    >
-                      {primaryLabel}
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOtherConnectClick(n.network)}
+                    className="w-full rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] text-[12px] font-medium text-white py-2 hover:opacity-90 transition"
+                  >
+                    {primaryLabel}
+                  </button>
+                )}
 
-                    {isConnected && (
+                 {isConnected && n.network !== 'whatsapp' && (
                       <button
                         type="button"
                         onClick={() => handleManageClick(n.network)}
@@ -306,8 +258,6 @@ const { accounts, loading } = useSocialAccounts(workspaceId, user?.uid);
                         Ver detalhes da integração
                       </button>
                     )}
-                  </>
-                )}
               </div>
             </div>
           );

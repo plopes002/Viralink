@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    
+    // Upsert Facebook Social Account
     const socialAccountQuery = await adminFirestore.collection("socialAccounts").where("workspaceId", "==", session.workspaceId).where("network", "==", "facebook").where("accountId", "==", selectedPage.id).limit(1).get();
 
     const socialPayload: any = {
@@ -71,12 +73,14 @@ export async function POST(req: NextRequest) {
       await docRef.update(socialPayload);
       socialAccountId = docRef.id;
     }
-
-    // Handle Instagram Account
+    
+    // Upsert Instagram Social Account
     if (selectedPage.instagram_business_account?.id) {
         const igId = selectedPage.instagram_business_account.id;
-        const igRes = await fetch(`https://graph.facebook.com/v20.0/${igId}?fields=id,username,name,followers_count&access_token=${selectedPage.access_token}`);
-        const igData = await igRes.json();
+        // The instagram data should already be in the session's page object
+        const igData = selectedPage.instagram_business_account;
+        const pageName = selectedPage.name || "";
+        const igUsername = igData.username || "";
 
         const igQuery = await adminFirestore.collection("socialAccounts").where("workspaceId", "==", session.workspaceId).where("network", "==", "instagram").where("accountId", "==", igId).limit(1).get();
         
@@ -85,13 +89,13 @@ export async function POST(req: NextRequest) {
           ownerUserId: session.ownerUserId,
           network: "instagram",
           accountId: igId,
-          username: igData.username,
-          name: igData.name,
-          followers: igData.followers_count,
+          username: igUsername,
+          name: igData.name || igUsername || pageName || "Instagram", // Fallback logic
+          followers: igData.followers_count || 0,
           accessToken: selectedPage.access_token,
           pageAccessToken: selectedPage.access_token,
           facebookPageId: selectedPage.id,
-          facebookPageName: selectedPage.name,
+          facebookPageName: pageName,
           status: "connected",
           updatedAt: now,
         };
@@ -103,15 +107,52 @@ export async function POST(req: NextRequest) {
             }
         }
         
+        let igSocialAccountId: string;
         if (igQuery.empty) {
             igPayload.createdAt = now;
-            await adminFirestore.collection("socialAccounts").add(igPayload);
+            const docRef = await adminFirestore.collection("socialAccounts").add(igPayload);
+            igSocialAccountId = docRef.id;
         } else {
-            await igQuery.docs[0].ref.update(igPayload);
+            const docRef = igQuery.docs[0].ref;
+            await docRef.update(igPayload);
+            igSocialAccountId = docRef.id;
+        }
+
+        // Upsert CampaignAccount for Instagram
+        const igCampaignQuery = await adminFirestore
+          .collection("campaignAccounts")
+          .where("workspaceId", "==", session.workspaceId)
+          .where("accountId", "==", igId)
+          .limit(1)
+          .get();
+          
+        const igCampaignPayload = {
+          workspaceId: session.workspaceId,
+          role: session.mode,
+          socialAccountId: igSocialAccountId,
+          name: igData.name || igUsername,
+          username: igUsername,
+          network: "instagram",
+          accountId: igId,
+          status: "connected",
+          ownerUserId: session.ownerUserId,
+          updatedAt: now,
+        };
+        
+        if (igCampaignQuery.empty) {
+          await adminFirestore.collection("campaignAccounts").add({ ...igCampaignPayload, createdAt: now });
+        } else {
+          await igCampaignQuery.docs[0].ref.update(igCampaignPayload);
         }
     }
 
-    // Link Campaign Account
+    // Link Facebook Campaign Account
+    const campaignQuery = await adminFirestore.collection("campaignAccounts")
+      .where("workspaceId", "==", session.workspaceId)
+      .where("accountId", "==", selectedPage.id)
+      .limit(1)
+      .get();
+      
     const campaignPayload = {
       workspaceId: session.workspaceId,
       role: session.mode,
@@ -123,12 +164,6 @@ export async function POST(req: NextRequest) {
       ownerUserId: session.ownerUserId,
       updatedAt: now,
     };
-    
-    const campaignQuery = await adminFirestore.collection("campaignAccounts")
-      .where("workspaceId", "==", session.workspaceId)
-      .where("accountId", "==", selectedPage.id)
-      .limit(1)
-      .get();
       
     if (campaignQuery.empty) {
       await adminFirestore.collection("campaignAccounts").add({...campaignPayload, createdAt: now});

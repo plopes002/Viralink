@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('token');
     const accountType = searchParams.get('accountType');
     const allowProfile = searchParams.get('allowProfile') === 'true';
-    const allowPages = searchParams.get('allowPages') === 'true';
+    const allowPages = searchParams.get('allowPages') !== 'false'; // Default to true if not specified
 
     if (!workspaceId || !ownerUserId) {
       return new NextResponse('workspaceId e ownerUserId são obrigatórios.', { status: 400 });
@@ -69,8 +69,7 @@ export async function GET(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 10,
-      priority: 'high',
+      maxAge: 60 * 10, // 10 minutes
     });
 
     return response;

@@ -131,7 +131,7 @@ export default function SelectFacebookPageClient() {
         <div className="w-full max-w-lg rounded-2xl border border-[#272046] bg-[#0A0322] p-6 flex flex-col gap-4">
           <h1 className="text-lg font-semibold text-white">Nenhuma página encontrada</h1>
           <p className="text-sm text-[#9CA3AF] mt-1">
-            Não encontramos nenhuma página de Facebook ou conta de Instagram de negócios vinculada à sua conta do Facebook.
+            Não encontramos nenhuma página de Facebook ou conta de Instagram de negócios vinculada à sua conta do Facebook. Verifique suas permissões no Facebook e tente novamente.
           </p>
            <button onClick={() => router.push('/social-accounts')} className="mt-4 rounded-xl border border-[#272046] text-sm text-white px-4 py-2 self-start">
                 Voltar
@@ -149,7 +149,7 @@ export default function SelectFacebookPageClient() {
             Escolha a página do Facebook
           </h1>
           <p className="text-sm text-[#9CA3AF] mt-1">
-            Encontramos mais de uma página. Selecione qual deseja conectar ao VIRALINK.
+            Encontramos mais de uma página. Selecione qual deseja conectar ao VIRALINK. Isso vinculará tanto a página do Facebook quanto a conta do Instagram associada a ela.
           </p>
         </div>
 
