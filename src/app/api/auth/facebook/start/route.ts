@@ -1,3 +1,4 @@
+
 // src/app/api/auth/facebook/start/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
@@ -9,7 +10,7 @@ const FACEBOOK_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
   "pages_manage_metadata",
-  "pages_manage_posts",
+  "pages_read_user_content",
   "pages_messaging",
   "instagram_basic",
   "instagram_manage_comments",

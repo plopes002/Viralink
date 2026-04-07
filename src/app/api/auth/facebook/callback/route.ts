@@ -1,3 +1,4 @@
+
 // src/app/api/auth/facebook/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebaseAdmin";
@@ -26,7 +27,15 @@ export async function GET(request: NextRequest) {
       Buffer.from(state, "base64").toString("utf8")
     );
 
-    const { workspaceId, ownerUserId, mode } = stateData;
+    const {
+      workspaceId,
+      ownerUserId,
+      mode,
+      network,
+      accountType,
+      allowProfile,
+      allowPages,
+    } = stateData;
 
     const tokenRes = await fetch(
       "https://graph.facebook.com/v20.0/oauth/access_token" +
@@ -65,43 +74,76 @@ export async function GET(request: NextRequest) {
 
     const pagesRes = await fetch(
       `https://graph.facebook.com/v20.0/me/accounts` +
-        `?fields=id,name,access_token,instagram_business_account` +
+        `?fields=id,name,access_token,instagram_business_account{id,username,name,followers_count}` +
         `&access_token=${encodeURIComponent(userAccessToken)}`,
       { cache: "no-store" }
     );
 
     const pagesData = await pagesRes.json();
 
-    if (!pagesRes.ok || !pagesData.data?.length) {
-      throw new Error(pagesData?.error?.message || "Erro ao buscar páginas");
+    if (!pagesRes.ok || !Array.isArray(pagesData.data)) {
+      throw new Error(
+        pagesData?.error?.message || "Erro ao buscar páginas"
+      );
     }
 
-    // Mantido como está no seu fluxo atual.
-    // Depois a gente pode evoluir para usar a página selecionada na session.
-    const page = pagesData.data[0];
+    const pages = pagesData.data;
 
-    const pageId = String(page.id || "");
-    const pageName = String(page.name || "Página do Facebook");
-    const pageAccessToken = String(page.access_token || "");
-
-    if (!pageId || !pageAccessToken) {
-      throw new Error("Página do Facebook inválida ou sem token.");
+    if (!pages.length) {
+      throw new Error("Nenhuma página encontrada nesta conta.");
     }
 
     const now = new Date().toISOString();
 
-    const primaryFbSnap = await adminFirestore
+    // Se houver mais de uma página, cria sessão de seleção
+    if (pages.length > 1) {
+      const sessionRef = await adminFirestore
+        .collection("facebookPageSelections")
+        .add({
+          workspaceId,
+          ownerUserId,
+          mode,
+          network: network || "instagram",
+          accountType: accountType || "page",
+          allowProfile: !!allowProfile,
+          allowPages: !!allowPages,
+          userAccessToken,
+          pages,
+          status: "pending",
+          createdAt: now,
+          updatedAt: now,
+          expiresAt: new Date(Date.now() + 1000 * 60 * 10).toISOString(),
+        });
+
+      const selectionUrl = new URL(
+        `/social-accounts/select-facebook-page?session=${encodeURIComponent(
+          sessionRef.id
+        )}`,
+        APP_URL
+      );
+
+      return NextResponse.redirect(selectionUrl);
+    }
+
+    // Fluxo direto se só existir uma página
+    const selectedPage = pages[0];
+    const pageId = String(selectedPage.id || "");
+    const pageName = String(selectedPage.name || "Página do Facebook");
+    const pageAccessToken = String(selectedPage.access_token || "");
+
+    if (!pageId || !pageAccessToken) {
+      throw new Error("Página inválida ou sem token.");
+    }
+
+    const socialAccountQuery = await adminFirestore
       .collection("socialAccounts")
       .where("workspaceId", "==", workspaceId)
       .where("network", "==", "facebook")
-      .where("isPrimary", "==", true)
+      .where("accountId", "==", pageId)
       .limit(1)
       .get();
 
-    const shouldSetFacebookPrimary =
-      mode === "primary" && primaryFbSnap.empty;
-
-    const socialRef = await adminFirestore.collection("socialAccounts").add({
+    const socialPayload: any = {
       workspaceId,
       ownerUserId,
       network: "facebook",
@@ -112,94 +154,166 @@ export async function GET(request: NextRequest) {
       name: pageName,
       username: "",
       status: "connected",
-      followers: 0,
-      isPrimary: shouldSetFacebookPrimary,
       accessToken: userAccessToken,
-      pageAccessToken: pageAccessToken,
-      createdAt: now,
+      pageAccessToken,
       updatedAt: now,
-    });
+    };
 
-    await adminFirestore.collection("campaignAccounts").add({
+    if (mode === "primary") {
+      const primaryFbQuery = await adminFirestore
+        .collection("socialAccounts")
+        .where("workspaceId", "==", workspaceId)
+        .where("isPrimary", "==", true)
+        .where("network", "==", "facebook")
+        .limit(1)
+        .get();
+
+      if (primaryFbQuery.empty) {
+        socialPayload.isPrimary = true;
+      }
+    }
+
+    let socialAccountId: string;
+
+    if (socialAccountQuery.empty) {
+      socialPayload.createdAt = now;
+      const docRef = await adminFirestore
+        .collection("socialAccounts")
+        .add(socialPayload);
+      socialAccountId = docRef.id;
+    } else {
+      const docRef = socialAccountQuery.docs[0].ref;
+      await docRef.update(socialPayload);
+      socialAccountId = docRef.id;
+    }
+
+    const campaignQuery = await adminFirestore
+      .collection("campaignAccounts")
+      .where("workspaceId", "==", workspaceId)
+      .where("accountId", "==", pageId)
+      .limit(1)
+      .get();
+
+    const campaignPayload = {
       workspaceId,
-      role: shouldSetFacebookPrimary ? "primary" : "supporter",
-      socialAccountId: socialRef.id,
+      role: mode,
+      socialAccountId,
       name: pageName,
       network: "facebook",
       accountType: "page",
       accountId: pageId,
       status: "connected",
       ownerUserId,
-      createdAt: now,
       updatedAt: now,
-    });
+    };
 
-    if (page.instagram_business_account?.id) {
-      const igId = String(page.instagram_business_account.id);
+    if (campaignQuery.empty) {
+      await adminFirestore
+        .collection("campaignAccounts")
+        .add({ ...campaignPayload, createdAt: now });
+    } else {
+      await campaignQuery.docs[0].ref.update(campaignPayload);
+    }
 
-      const igRes = await fetch(
-        `https://graph.facebook.com/v20.0/${igId}?fields=id,username,name,followers_count&access_token=${encodeURIComponent(pageAccessToken)}`,
-        { cache: "no-store" }
-      );
+    if (selectedPage.instagram_business_account?.id) {
+      const igData = selectedPage.instagram_business_account;
+      const igId = String(igData.id || "");
+      const igUsername = String(igData.username || "").trim();
 
-      const igData = await igRes.json();
-
-      if (!igRes.ok || igData?.error) {
-        throw new Error(
-          igData?.error?.message || "Erro ao buscar conta do Instagram"
-        );
-      }
-
-      const primaryIgSnap = await adminFirestore
+      const igQuery = await adminFirestore
         .collection("socialAccounts")
         .where("workspaceId", "==", workspaceId)
         .where("network", "==", "instagram")
-        .where("isPrimary", "==", true)
+        .where("accountId", "==", igId)
         .limit(1)
         .get();
 
-      const shouldSetInstagramPrimary =
-        mode === "primary" && primaryIgSnap.empty;
-
-      const instagramName =
-        String(igData.name || "").trim() ||
-        String(igData.username || "").trim() ||
-        pageName ||
-        "Instagram";
-
-      const instagramUsername = String(igData.username || "").trim();
-
-      await adminFirestore.collection("socialAccounts").add({
+      const igPayload: any = {
         workspaceId,
         ownerUserId,
         network: "instagram",
         accountId: igId,
-        username: instagramUsername,
-        name: instagramName,
+        username: igUsername,
+        name:
+          String(igData.name || "").trim() ||
+          igUsername ||
+          pageName ||
+          "Instagram",
         followers: Number(igData.followers_count || 0),
         accessToken: pageAccessToken,
         pageAccessToken: pageAccessToken,
         facebookPageId: pageId,
         facebookPageName: pageName,
         status: "connected",
-        isPrimary: shouldSetInstagramPrimary,
-        createdAt: now,
         updatedAt: now,
-      });
+      };
+
+      if (mode === "primary") {
+        const primaryIgQuery = await adminFirestore
+          .collection("socialAccounts")
+          .where("workspaceId", "==", workspaceId)
+          .where("network", "==", "instagram")
+          .where("isPrimary", "==", true)
+          .limit(1)
+          .get();
+
+        if (primaryIgQuery.empty) {
+          igPayload.isPrimary = true;
+        }
+      }
+
+      let igSocialAccountId: string;
+
+      if (igQuery.empty) {
+        igPayload.createdAt = now;
+        const docRef = await adminFirestore
+          .collection("socialAccounts")
+          .add(igPayload);
+        igSocialAccountId = docRef.id;
+      } else {
+        const docRef = igQuery.docs[0].ref;
+        await docRef.update(igPayload);
+        igSocialAccountId = docRef.id;
+      }
+
+      const igCampaignQuery = await adminFirestore
+        .collection("campaignAccounts")
+        .where("workspaceId", "==", workspaceId)
+        .where("accountId", "==", igId)
+        .limit(1)
+        .get();
+
+      const igCampaignPayload = {
+        workspaceId,
+        role: mode,
+        socialAccountId: igSocialAccountId,
+        name:
+          String(igData.name || "").trim() ||
+          igUsername ||
+          pageName ||
+          "Instagram",
+        username: igUsername,
+        network: "instagram",
+        accountId: igId,
+        status: "connected",
+        ownerUserId,
+        updatedAt: now,
+      };
+
+      if (igCampaignQuery.empty) {
+        await adminFirestore
+          .collection("campaignAccounts")
+          .add({ ...igCampaignPayload, createdAt: now });
+      } else {
+        await igCampaignQuery.docs[0].ref.update(igCampaignPayload);
+      }
     }
 
     redirectUrl.searchParams.set("status", "success");
+    return NextResponse.redirect(redirectUrl);
   } catch (error: any) {
-    console.error("Erro Facebook callback:", error);
+    console.error("[facebook callback] erro:", error);
     redirectUrl.searchParams.set("error", error?.message || "Erro interno");
+    return NextResponse.redirect(redirectUrl);
   }
-
-  const response = NextResponse.redirect(redirectUrl);
-
-  response.cookies.set("fb_oauth_nonce", "", {
-    maxAge: 0,
-    path: "/",
-  });
-
-  return response;
 }
