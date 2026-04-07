@@ -87,28 +87,48 @@ export default function ContatosPage() {
     });
   }, [contacts, search, temperatureFilter, statusFilter]);
 
-  async function openWhatsApp(contact: ContactItem) {
-    if (!contact.phone || !workspaceId || !firestore) return;
+  async function sendWhatsApp(contact: ContactItem) {
+    if (!contact.phone || !workspaceId || !firestore) {
+      alert("Contato sem telefone ou workspace inválido.");
+      return;
+    }
 
-    const digits = contact.phone.replace(/\D/g, "");
-    const text = encodeURIComponent(
-      `Olá ${contact.name.split(" ")[0]}! Tudo bem? Estou entrando em contato para continuarmos nossa conversa 😊`,
-    );
+    const message = `Olá ${contact.name.split(" ")[0]}! Tudo bem? Estou entrando em contato para continuarmos nossa conversa 😊`;
 
-    await createContactHistory(firestore, {
-      workspaceId,
-      contactId: contact.id,
-      type: "whatsapp_opened",
-      title: "WhatsApp aberto",
-      description: "Abertura manual de conversa pelo CRM.",
-      metadata: {
-        phone: contact.phone,
-      },
-      createdAt: new Date().toISOString(),
-    });
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone: contact.phone, message }),
+      });
 
-    window.open(`https://wa.me/${digits}?text=${text}`, "_blank");
+      const data = await res.json();
+
+      if (data.ok) {
+        alert("Mensagem enviada com sucesso (ambiente de teste).");
+        await createContactHistory(firestore, {
+          workspaceId,
+          contactId: contact.id,
+          type: "message_sent",
+          title: "Mensagem de WhatsApp enviada (simulado)",
+          description: message,
+          metadata: {
+            channel: "whatsapp",
+            simulated: true,
+          },
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        alert("Erro ao enviar mensagem.");
+      }
+    } catch (error) {
+        console.error("Erro ao enviar mensagem de WhatsApp:", error);
+        alert("Erro ao enviar mensagem.");
+    }
   }
+
 
   async function saveNotesAndStatus() {
     if (!selectedContact || !workspaceId || !firestore) return;
@@ -527,10 +547,10 @@ export default function ContatosPage() {
                 {selectedContact.phone && (
                   <button
                     type="button"
-                    onClick={() => openWhatsApp(selectedContact)}
+                    onClick={() => sendWhatsApp(selectedContact)}
                     className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-400"
                   >
-                    Abrir no WhatsApp
+                    Enviar WhatsApp (Simulado)
                   </button>
                 )}
 
