@@ -14,23 +14,14 @@ function normalizeText(text: string) {
     .trim();
 }
 
-
 function detectPoliticalSentiment(text: string) {
   const value = String(text || "").toLowerCase();
 
-  const isPolitical = politicalKeywords.some((w) =>
-    value.includes(w)
-  );
-
+  const isPolitical = politicalKeywords.some((w) => value.includes(w));
   if (!isPolitical) return null;
 
-  const pos = politicalPositiveWords.filter((w) =>
-    value.includes(w)
-  ).length;
-
-  const neg = politicalNegativeWords.filter((w) =>
-    value.includes(w)
-  ).length;
+  const pos = politicalPositiveWords.filter((w) => value.includes(w)).length;
+  const neg = politicalNegativeWords.filter((w) => value.includes(w)).length;
 
   if (pos > neg) return "political_positive";
   if (neg > pos) return "political_negative";
@@ -66,32 +57,34 @@ function detectLeadIntent(text: string) {
   return null;
 }
 
-
-async function sendPublicReply(params: {
-  socialAccountId: string;
-  commentId: string;
-  message: string;
-}) {
-  const { socialAccountId, commentId, message } = params;
-
+async function getSocialAccountOrThrow(socialAccountId: string) {
   const socialDoc = await adminFirestore
     .collection("socialAccounts")
     .doc(socialAccountId)
     .get();
 
   if (!socialDoc.exists) {
-    throw new Error("socialAccount não encontrada para resposta pública.");
+    throw new Error("socialAccount não encontrada.");
   }
 
-  const social = socialDoc.data() as any;
-  const accessToken = social.pageAccessToken || social.accessToken || "";
+  return socialDoc.data() as any;
+}
 
-  if (!accessToken) {
-    throw new Error("Token não encontrado para resposta pública.");
+async function sendFacebookPublicReply(params: {
+  socialAccountId: string;
+  commentId: string;
+  message: string;
+}) {
+  const { socialAccountId, commentId, message } = params;
+  const social = await getSocialAccountOrThrow(socialAccountId);
+
+  const pageAccessToken = social.pageAccessToken || "";
+  if (!pageAccessToken) {
+    throw new Error("pageAccessToken não encontrado para resposta pública.");
   }
 
   const response = await fetch(
-    `https://graph.facebook.com/v19.0/${encodeURIComponent(commentId)}/replies`,
+    `https://graph.facebook.com/v25.0/${encodeURIComponent(commentId)}/comments`,
     {
       method: "POST",
       headers: {
@@ -99,7 +92,7 @@ async function sendPublicReply(params: {
       },
       body: new URLSearchParams({
         message,
-        access_token: accessToken,
+        access_token: pageAccessToken,
       }).toString(),
       cache: "no-store",
     }
@@ -109,43 +102,34 @@ async function sendPublicReply(params: {
 
   if (!response.ok) {
     throw new Error(
-      data?.error?.message || "Erro ao responder comentário publicamente."
+      data?.error?.message || "Erro ao responder comentário publicamente no Facebook."
     );
   }
 
   return data;
 }
 
-async function sendPrivateReply(params: {
+async function sendFacebookPrivateReply(params: {
   socialAccountId: string;
   commentId: string;
   message: string;
 }) {
   const { socialAccountId, commentId, message } = params;
+  const social = await getSocialAccountOrThrow(socialAccountId);
 
-  const socialDoc = await adminFirestore
-    .collection("socialAccounts")
-    .doc(socialAccountId)
-    .get();
+  const pageAccessToken = social.pageAccessToken || "";
+  const pageId = social.facebookPageId || social.accountId || "";
 
-  if (!socialDoc.exists) {
-    throw new Error("socialAccount não encontrada para resposta privada.");
-  }
-
-  const social = socialDoc.data() as any;
-  const accessToken = social.pageAccessToken || social.accessToken || "";
-  const pageId = social.facebookPageId || "";
-
-  if (!accessToken) {
-    throw new Error("Token não encontrado para resposta privada.");
+  if (!pageAccessToken) {
+    throw new Error("pageAccessToken não encontrado para resposta privada.");
   }
 
   if (!pageId) {
-    throw new Error("facebookPageId não encontrado para resposta privada.");
+    throw new Error("facebookPageId/accountId não encontrado para resposta privada.");
   }
 
   const response = await fetch(
-    `https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/messages`,
+    `https://graph.facebook.com/v25.0/${encodeURIComponent(pageId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -158,7 +142,7 @@ async function sendPrivateReply(params: {
         message: {
           text: message,
         },
-        access_token: accessToken,
+        access_token: pageAccessToken,
       }),
       cache: "no-store",
     }
@@ -168,7 +152,7 @@ async function sendPrivateReply(params: {
 
   if (!response.ok) {
     throw new Error(
-      data?.error?.message || "Erro ao enviar resposta privada."
+      data?.error?.message || "Erro ao enviar resposta privada no Facebook."
     );
   }
 
@@ -214,7 +198,6 @@ export async function processInteractionAutomation(interactionId: string) {
     throw new Error("Interação não encontrada no engine");
   }
 
-  
   const interaction = interactionSnap.data() as any;
 
   if (!interaction.workspaceId) {
@@ -229,21 +212,25 @@ export async function processInteractionAutomation(interactionId: string) {
     throw new Error("interaction.commenterText undefined");
   }
 
+  const network = String(interaction.network || "").toLowerCase();
+  const isFacebook = network === "facebook";
+  const isInstagram = network === "instagram";
+
   const commentText = String(interaction.commenterText || "");
   const politicalSentiment = detectPoliticalSentiment(commentText);
   const intentLevel = detectLeadIntent(commentText);
 
-  let autoDM = null;
+  let autoDM: string | null = null;
 
-if (intentLevel === "high") {
-  autoDM =
-    "Oi! 😊 Vi seu comentário e posso te ajudar melhor por aqui. Me conta rapidinho o que você está buscando?";
-}
+  if (intentLevel === "high") {
+    autoDM =
+      "Oi! 😊 Vi seu comentário e posso te ajudar melhor por aqui. Me conta rapidinho o que você está buscando?";
+  }
 
-if (intentLevel === "medium") {
-  autoDM =
-    "Oi! Tudo bem? Vi que você comentou no post. Se quiser mais informações, posso te explicar melhor aqui no direct 😊";
-}
+  if (intentLevel === "medium") {
+    autoDM =
+      "Oi! Tudo bem? Vi que você comentou no post. Se quiser mais informações, posso te explicar melhor aqui no direct 😊";
+  }
 
   const rulesSnap = await adminFirestore
     .collection("interactionAutomationRules")
@@ -297,7 +284,6 @@ if (intentLevel === "medium") {
   }
 
   const sourceCampaignAccountId = interaction.sourceCampaignAccountId;
-
   if (!sourceCampaignAccountId) {
     throw new Error("interaction.sourceCampaignAccountId undefined");
   }
@@ -347,6 +333,7 @@ if (intentLevel === "medium") {
     }
 
     if (
+      isFacebook &&
       actions.publicReply &&
       publicReplyTemplate &&
       interaction.externalCommentId &&
@@ -357,25 +344,21 @@ if (intentLevel === "medium") {
       if (politicalSentiment === "political_positive") {
         finalMessage =
           "Muito obrigado pelo apoio! 🙌 Seguimos trabalhando firme por melhorias reais.";
-      }
-
-      if (politicalSentiment === "political_negative") {
+      } else if (politicalSentiment === "political_negative") {
         finalMessage =
           "Respeitamos sua opinião. Estamos sempre abertos ao diálogo.";
-      }
-
-      if (politicalSentiment === "political_neutral") {
+      } else if (politicalSentiment === "political_neutral") {
         finalMessage =
           "Obrigado pelo comentário! Se quiser conhecer melhor nosso trabalho, estamos à disposição.";
       }
 
-      await sendPublicReply({
+      await sendFacebookPublicReply({
         socialAccountId,
         commentId: interaction.externalCommentId,
         message: finalMessage,
       });
 
-      updates.publicReplyText = publicReplyTemplate;
+      updates.publicReplyText = finalMessage;
       updates.publicReplyMeta = {
         automated: true,
         sentAt: new Date().toISOString(),
@@ -386,25 +369,28 @@ if (intentLevel === "medium") {
     }
 
     if (
-      (actions.privateReply && privateReplyTemplate ) ||
-      (autoDM && interaction.externalCommentId)
+      isFacebook &&
+      interaction.externalCommentId &&
+      ((actions.privateReply && privateReplyTemplate) || autoDM)
     ) {
       const messageToSend = autoDM || privateReplyTemplate;
-    
-      await sendPrivateReply({
-        socialAccountId,
-        commentId: interaction.externalCommentId,
-        message: messageToSend,
-      });
 
-      updates.privateReplyText = messageToSend;
-      updates.privateReplyMeta = {
-        automated: true,
-        sentAt: new Date().toISOString(),
-        ruleId: matchedRule.id,
-      };
-      updates.status = "private_replied";
-      executed.push("privateReply");
+      if (messageToSend) {
+        await sendFacebookPrivateReply({
+          socialAccountId,
+          commentId: interaction.externalCommentId,
+          message: messageToSend,
+        });
+
+        updates.privateReplyText = messageToSend;
+        updates.privateReplyMeta = {
+          automated: true,
+          sentAt: new Date().toISOString(),
+          ruleId: matchedRule.id,
+        };
+        updates.status = "private_replied";
+        executed.push("privateReply");
+      }
     }
 
     if (actions.convertToLead || intentLevel === "high") {
@@ -420,7 +406,7 @@ if (intentLevel === "medium") {
           primaryAccountId: interaction.primaryAccountId,
           sourceCampaignAccountId: interaction.sourceCampaignAccountId || null,
           sourceInteractionId: interactionId,
-          leadName: interaction.commenterUsername || "Lead Instagram",
+          leadName: interaction.commenterUsername || (isFacebook ? "Lead Facebook" : "Lead Instagram"),
           instagramUsername: interaction.commenterUsername || "",
           note: interaction.commenterText || "",
           intentLevel: intentLevel || "auto",
