@@ -6,10 +6,7 @@ import {
   politicalPositiveWords,
   politicalNegativeWords,
 } from "@/lib/politicalKeywords";
-import {
-  replyToInstagramComment,
-  sendInstagramPrivateReply,
-} from "@/lib/supporterInteractionsMeta";
+import { replyToInstagramComment } from "@/lib/supporterInteractionsMeta";
 
 function normalizeText(text: string) {
   return String(text || "")
@@ -196,7 +193,15 @@ async function sendInstagramPrivateReplyFromSocialAccount(params: {
 }) {
   const { socialAccountId, commentId, message } = params;
   const social = await getSocialAccountOrThrow(socialAccountId);
-  const accessToken = social.accessToken || "";
+
+  const pageId = social.facebookPageId || "";
+  const accessToken = social.pageAccessToken || social.accessToken || "";
+
+  if (!pageId) {
+    throw new Error(
+      "facebookPageId não encontrado para resposta privada do Instagram."
+    );
+  }
 
   if (!accessToken) {
     throw new Error(
@@ -204,11 +209,35 @@ async function sendInstagramPrivateReplyFromSocialAccount(params: {
     );
   }
 
-  return sendInstagramPrivateReply({
-    commentId,
-    message,
-    accessToken,
-  });
+  const response = await fetch(
+    `https://graph.facebook.com/v25.0/${encodeURIComponent(pageId)}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: {
+          comment_id: commentId,
+        },
+        message: {
+          text: message,
+        },
+        access_token: accessToken,
+      }),
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error?.message || "Erro ao enviar resposta privada no Instagram."
+    );
+  }
+
+  return data;
 }
 
 function ruleMatchesComment(rule: any, commentText: string) {
@@ -552,3 +581,5 @@ export async function processInteractionAutomation(interactionId: string) {
     throw error;
   }
 }
+
+    
