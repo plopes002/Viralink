@@ -90,7 +90,8 @@ export async function POST(req: NextRequest) {
       onlyFirstMessage: !!rule.onlyFirstMessage,
       activeHoursOnly: !!rule.activeHoursOnly,
       templateKey: String(rule.templateKey || "").trim(),
-      templateCategory: String(rule.templateCategory || "geral").trim() || "geral",
+      templateCategory:
+        String(rule.templateCategory || "geral").trim() || "geral",
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
