@@ -40,7 +40,16 @@ async function dispatchInstagramDirectReply(params: {
   }
 
   try {
-    const endpoint = `https://graph.facebook.com/v23.0/${params.socialAccount.accountId}/messages`;
+    const pageId =
+      params.socialAccount.facebookPageId ||
+      params.socialAccount.pageId ||
+      params.socialAccount.accountId;
+
+    const endpoint = `https://graph.facebook.com/v23.0/${pageId}/messages`;
+
+    console.log("[IG SEND] endpoint:", endpoint);
+    console.log("[IG SEND] recipient:", recipientId);
+    console.log("[IG SEND] token:", accessToken?.slice(0, 10));
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -56,6 +65,7 @@ async function dispatchInstagramDirectReply(params: {
     });
 
     const data = await response.json();
+    console.log("[IG SEND] response:", data);
 
     if (!response.ok) {
       return {
