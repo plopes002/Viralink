@@ -1,4 +1,3 @@
-
 // src/app/(app)/inbox/page.tsx
 "use client";
 
@@ -55,6 +54,7 @@ type InboxAutomationRule = {
   id?: string;
   workspaceId?: string;
   socialAccountId?: string;
+  name?: string;
   enabled: boolean;
   trigger: "new_message";
   matchType: "any" | "contains";
@@ -68,6 +68,7 @@ type InboxAutomationRule = {
 };
 
 const DEFAULT_RULE: InboxAutomationRule = {
+  name: "",
   enabled: false,
   trigger: "new_message",
   matchType: "any",
@@ -183,14 +184,11 @@ function getThreadDisplayName(thread?: InboxThread | null) {
 }
 
 function getThreadSecondaryLabel(thread?: InboxThread | null) {
-  if (!thread) return "Contato recebido via Instagram Direct";
+  if (!thread) return "Instagram Direct";
   if (thread.customerUsername?.trim() && thread.customerName?.trim()) {
     return `@${thread.customerUsername.trim()}`;
   }
-  if (thread.customerId) {
-    return `ID ${thread.customerId}`;
-  }
-  return "Contato recebido via Instagram Direct";
+  return "Instagram Direct";
 }
 
 function getAvatarLabel(thread?: InboxThread | null) {
@@ -716,7 +714,7 @@ export default function InboxPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar nome, @username ou texto..."
-              className="mb-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+              className="mb-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
             />
 
             <div className="mb-2 grid grid-cols-2 gap-2">
@@ -725,7 +723,7 @@ export default function InboxPage() {
                 className={`rounded-2xl px-4 py-2.5 text-sm ${
                   viewFilter === "all"
                     ? "bg-slate-900 text-white"
-                    : "border border-slate-200 text-slate-700"
+                    : "border border-slate-300 bg-white text-slate-700"
                 }`}
               >
                 Todas
@@ -736,7 +734,7 @@ export default function InboxPage() {
                 className={`rounded-2xl px-4 py-2.5 text-sm ${
                   viewFilter === "unread"
                     ? "bg-rose-600 text-white"
-                    : "border border-slate-200 text-slate-700"
+                    : "border border-slate-300 bg-white text-slate-700"
                 }`}
               >
                 Não lidas
@@ -747,7 +745,7 @@ export default function InboxPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
               >
                 <option value="all">Todos os status</option>
                 <option value="open">Abertas</option>
@@ -758,7 +756,7 @@ export default function InboxPage() {
 
               <button
                 onClick={loadThreads}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700"
               >
                 Buscar
               </button>
@@ -805,7 +803,7 @@ export default function InboxPage() {
                           </div>
                         </div>
 
-                        <div className="truncate text-xs text-slate-400">
+                        <div className="truncate text-xs text-slate-500">
                           {getThreadSecondaryLabel(thread)}
                         </div>
 
@@ -820,7 +818,7 @@ export default function InboxPage() {
 
                           {!!thread.unreadCount && (
                             <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-medium text-rose-700">
-                              {thread.unreadCount} não lida(s)
+                              {thread.unreadCount} nova(s)
                             </span>
                           )}
 
@@ -1036,7 +1034,22 @@ export default function InboxPage() {
                       </span>
                     </label>
                   </div>
-
+                  <div className="mb-4">
+                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Nome da automação
+                    </label>
+                    <input
+                      value={rule.name || ""}
+                      onChange={(e) =>
+                        setRule((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="Ex.: Resposta inicial Direct"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
+                    />
+                  </div>
                   <div className="mb-4">
                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                       Tipo de negócio
@@ -1050,7 +1063,7 @@ export default function InboxPage() {
                           templateKey: "",
                         }))
                       }
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
                     >
                       {TEMPLATE_GROUPS.map((group) => (
                         <option key={group.category} value={group.category}>
@@ -1082,7 +1095,7 @@ export default function InboxPage() {
                             <div className="text-sm font-medium text-slate-900">
                               {template.label}
                             </div>
-                            <div className="mt-1 line-clamp-2 text-xs text-slate-500">
+                            <div className="mt-1 line-clamp-2 text-xs text-slate-600">
                               {template.text}
                             </div>
                           </button>
@@ -1227,15 +1240,14 @@ export default function InboxPage() {
                         <strong>Status:</strong> {selectedThread.status || "open"}
                       </div>
                       <div>
-                        <strong>Não lidas:</strong> {selectedThread.unreadCount || 0}
-                      </div>
-                      <div>
                         <strong>Automação na conversa:</strong>{" "}
                         {selectedThread.automationEnabled ? "ativa" : "pausada"}
                       </div>
                       <div>
-                        <strong>Última interação:</strong>{" "}
-                        {formatDateTime(selectedThread.lastMessageAt)}
+                        <strong>Conta:</strong> {selectedThread.socialAccountId}
+                      </div>
+                      <div>
+                        <strong>Nome da automação:</strong> {rule.name || "Sem nome"}
                       </div>
                     </div>
                   ) : (

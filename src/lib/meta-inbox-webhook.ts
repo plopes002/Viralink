@@ -1,6 +1,7 @@
 // src/lib/meta-inbox-webhook.ts
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import { upsertInboundInstagramMessage } from "@/lib/inbox-ingest";
+import { runInboxAutomationForIncomingMessage } from "@/lib/inbox-automation";
 
 type ResolvedSocialAccount = {
   id: string;
@@ -231,13 +232,28 @@ export async function ingestInstagramWebhookPayload(payload: any) {
       platformThreadId: threadKey,
       platformMessageId: event.platformMessageId,
       customerId: event.senderPlatformId,
-      customerUsername: "",
-      customerName: "",
+      customerUsername: event.senderPlatformId ? `user_${String(event.senderPlatformId).slice(-4)}` : "",
+      customerName: event.senderPlatformId ? `Contato ${String(event.senderPlatformId).slice(-4)}` : "",
       customerProfilePic: "",
       text: event.text,
       sentAtMs: event.sentAtMs,
       raw: event.raw,
     });
+    
+    let automationResult = {
+      ok: true,
+      executed: false,
+      reason: "duplicated_message",
+    };
+    
+    if (!result.duplicated) {
+      automationResult = await runInboxAutomationForIncomingMessage({
+        workspaceId: socialAccount.workspaceId,
+        socialAccountId: socialAccount.id,
+        threadId: result.threadId,
+        incomingText: event.text,
+      });
+    }
 
     results.push({
       ok: true,
@@ -246,6 +262,7 @@ export async function ingestInstagramWebhookPayload(payload: any) {
       threadId: result.threadId,
       messageId: result.messageId,
       duplicated: result.duplicated,
+      automation: automationResult,
     });
   }
 
