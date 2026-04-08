@@ -124,9 +124,15 @@ export async function POST(req: NextRequest) {
 
     const doc = existing.docs[0];
 
-    await adminFirestore.collection(COLLECTION).doc(doc.id).update(normalizedRule);
+    await adminFirestore
+      .collection(COLLECTION)
+      .doc(doc.id)
+      .update(normalizedRule);
 
-    const updatedSnap = await adminFirestore.collection(COLLECTION).doc(doc.id).get();
+    const updatedSnap = await adminFirestore
+      .collection(COLLECTION)
+      .doc(doc.id)
+      .get();
 
     return NextResponse.json({
       ok: true,
@@ -140,4 +146,8 @@ export async function POST(req: NextRequest) {
     console.error("[api/inbox/automation-rule][POST] error:", error);
 
     return NextResponse.json(
-      { ok: false, error: error?.message || "Erro ao salvar automação"
+      { ok: false, error: error?.message || "Erro ao salvar automação" },
+      { status: 500 }
+    );
+  }
+}
