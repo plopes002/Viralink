@@ -8,15 +8,35 @@ import {
   updateThreadAfterOutbound,
 } from "@/lib/inbox";
 
+type DispatchDebug = {
+  hasPageAccessToken?: boolean;
+  hasPageId?: boolean;
+  hasRecipientId?: boolean;
+};
+
+type DispatchResult =
+  | {
+      ok: true;
+      simulated: false;
+      platformMessageId: string | null;
+      raw: any;
+    }
+  | {
+      ok: false;
+      simulated: true;
+      error: string;
+      graphStatus?: number | null;
+      graphError?: any;
+      debug?: DispatchDebug | null;
+      raw?: any;
+    };
+
 async function dispatchInstagramDirectReply(params: {
   socialAccount: any;
   thread: any;
   text: string;
-}) {
-  const pageAccessToken =
-    params.socialAccount?.pageAccessToken ||
-    params.socialAccount?.accessToken ||
-    null;
+}): Promise<DispatchResult> {
+  const pageAccessToken = params.socialAccount?.pageAccessToken || null;
 
   const pageId =
     params.socialAccount?.facebookPageId ||
@@ -32,12 +52,13 @@ async function dispatchInstagramDirectReply(params: {
     return {
       ok: false,
       simulated: true,
-      error: "Conta conectada sem pageAccessToken/accessToken válido",
+      error: "Conta conectada sem pageAccessToken válido",
       debug: {
         hasPageAccessToken: false,
         hasPageId: !!pageId,
         hasRecipientId: !!recipientId,
       },
+      raw: null,
     };
   }
 
@@ -51,6 +72,7 @@ async function dispatchInstagramDirectReply(params: {
         hasPageId: false,
         hasRecipientId: !!recipientId,
       },
+      raw: null,
     };
   }
 
@@ -64,6 +86,7 @@ async function dispatchInstagramDirectReply(params: {
         hasPageId: true,
         hasRecipientId: false,
       },
+      raw: null,
     };
   }
 
@@ -89,16 +112,16 @@ async function dispatchInstagramDirectReply(params: {
 
     const data = await response.json();
 
-    console.log("[IG SEND] endpoint:", endpoint);
-    console.log("[IG SEND] pageId:", pageId);
-    console.log("[IG SEND] recipientId:", recipientId);
-    console.log(
+    console.error("[IG SEND] endpoint:", endpoint);
+    console.error("[IG SEND] pageId:", pageId);
+    console.error("[IG SEND] recipientId:", recipientId);
+    console.error(
       "[IG SEND] token prefix:",
       typeof pageAccessToken === "string" ? pageAccessToken.slice(0, 12) : null
     );
-    console.log("[IG SEND] payload:", JSON.stringify(payload));
-    console.log("[IG SEND] status:", response.status);
-    console.log("[IG SEND] response:", JSON.stringify(data));
+    console.error("[IG SEND] payload:", JSON.stringify(payload));
+    console.error("[IG SEND] status:", response.status);
+    console.error("[IG SEND] response:", JSON.stringify(data));
 
     if (!response.ok) {
       return {
@@ -190,13 +213,15 @@ export async function POST(req: NextRequest) {
 
     const deliveryStatus = dispatchResult.ok ? "sent" : "queued_manual_review";
 
-    const messageId = await createOutboundInboxMessage({
+    const createdMessageId = await createOutboundInboxMessage({
       workspaceId,
       threadId,
       socialAccountId: thread.socialAccountId,
       text,
       senderType: "agent",
-      platformMessageId: dispatchResult.ok ? dispatchResult.platformMessageId : null,
+      platformMessageId: dispatchResult.ok
+        ? dispatchResult.platformMessageId
+        : null,
       deliveryStatus,
       raw: dispatchResult,
     });
@@ -208,16 +233,24 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      messageId,
+      messageId: createdMessageId,
       deliveryStatus,
-      simulated: !!dispatchResult.simulated,
-      warning: dispatchResult.ok ? null : dispatchResult.error || "Envio externo não confirmado.",
-      graphStatus: dispatchResult.ok ? null : dispatchResult.graphStatus || null,
-      graphError: dispatchResult.ok ? null : dispatchResult.graphError || null,
+      simulated: dispatchResult.simulated,
+      warning: dispatchResult.ok
+        ? null
+        : dispatchResult.error || "Envio externo não confirmado.",
+      graphStatus: dispatchResult.ok
+        ? null
+        : dispatchResult.graphStatus || null,
+      graphError: dispatchResult.ok
+        ? null
+        : dispatchResult.graphError || null,
       debug: dispatchResult.ok ? null : dispatchResult.debug || null,
+      graphDebug: dispatchResult,
     });
   } catch (error: any) {
     console.error("[api/inbox/send] error:", error);
+
     return NextResponse.json(
       { ok: false, error: error?.message || "Erro ao enviar mensagem" },
       { status: 500 }
