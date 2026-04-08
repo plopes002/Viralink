@@ -43,6 +43,11 @@ async function findSocialAccountByRecipientId(
     "facebookPageId",
   ];
 
+  console.log(
+    "[meta-inbox-webhook] buscando socialAccount para recipientPlatformId:",
+    recipientPlatformId
+  );
+
   for (const field of candidateFields) {
     const snap = await adminFirestore
       .collection("socialAccounts")
@@ -51,13 +56,44 @@ async function findSocialAccountByRecipientId(
       .limit(1)
       .get();
 
+    console.log(
+      `[meta-inbox-webhook] campo ${field}, encontrados:`,
+      snap.size
+    );
+
     if (!snap.empty) {
-      return {
+      const found = {
         id: snap.docs[0].id,
         ...(snap.docs[0].data() as any),
       };
+
+      console.log(
+        "[meta-inbox-webhook] socialAccount encontrada:",
+        JSON.stringify(
+          {
+            id: found.id,
+            workspaceId: found.workspaceId,
+            accountId: found.accountId,
+            instagramId: found.instagramId,
+            instagramUserId: found.instagramUserId,
+            pageId: found.pageId,
+            facebookPageId: found.facebookPageId,
+            username: found.username,
+            name: found.name,
+          },
+          null,
+          2
+        )
+      );
+
+      return found;
     }
   }
+
+  console.log(
+    "[meta-inbox-webhook] nenhuma socialAccount encontrada para recipientPlatformId:",
+    recipientPlatformId
+  );
 
   return null;
 }
@@ -65,7 +101,7 @@ async function findSocialAccountByRecipientId(
 function parseMessagingArray(entry: any): ParsedInboundEvent[] {
   const messaging = Array.isArray(entry?.messaging) ? entry.messaging : [];
 
-  return messaging
+  const parsed = messaging
     .map((item: any) => {
       const senderId = getString(item?.sender?.id);
       const recipientId = getString(item?.recipient?.id);
@@ -88,16 +124,18 @@ function parseMessagingArray(entry: any): ParsedInboundEvent[] {
       };
     })
     .filter(Boolean) as ParsedInboundEvent[];
+
+  console.log("[meta-inbox-webhook] parseMessagingArray:", parsed.length);
+
+  return parsed;
 }
 
 function parseChangesArray(entry: any): ParsedInboundEvent[] {
   const changes = Array.isArray(entry?.changes) ? entry.changes : [];
-
   const parsed: ParsedInboundEvent[] = [];
 
   for (const change of changes) {
     const value = change?.value || {};
-
     const messages = Array.isArray(value?.messages) ? value.messages : [];
     const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
     const metadata = value?.metadata || {};
@@ -140,6 +178,8 @@ function parseChangesArray(entry: any): ParsedInboundEvent[] {
     }
   }
 
+  console.log("[meta-inbox-webhook] parseChangesArray:", parsed.length);
+
   return parsed;
 }
 
@@ -147,20 +187,28 @@ export function parseInstagramInboundWebhookEvents(payload: any) {
   const entries = Array.isArray(payload?.entry) ? payload.entry : [];
   const parsed: ParsedInboundEvent[] = [];
 
+  console.log("[meta-inbox-webhook] entries:", entries.length);
+
   for (const entry of entries) {
     parsed.push(...parseMessagingArray(entry));
     parsed.push(...parseChangesArray(entry));
   }
+
+  console.log("[meta-inbox-webhook] total parsed events:", parsed.length);
 
   return parsed;
 }
 
 export async function ingestInstagramWebhookPayload(payload: any) {
   const events = parseInstagramInboundWebhookEvents(payload);
-
   const results = [];
 
   for (const event of events) {
+    console.log(
+      "[meta-inbox-webhook] processando evento:",
+      JSON.stringify(event, null, 2)
+    );
+
     const socialAccount = await findSocialAccountByRecipientId(
       event.recipientPlatformId
     );

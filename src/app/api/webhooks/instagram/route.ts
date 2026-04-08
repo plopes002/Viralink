@@ -2,9 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ingestInstagramWebhookPayload } from "@/lib/meta-inbox-webhook";
 
-// Se você já tiver uma função de automação, descomente e ajuste o import.
-// import { runAutomationsForEvent } from "@/lib/automations";
-
 function getVerifyToken() {
   return (
     process.env.META_WEBHOOK_VERIFY_TOKEN ||
@@ -19,6 +16,9 @@ export async function GET(req: NextRequest) {
     const mode = req.nextUrl.searchParams.get("hub.mode");
     const token = req.nextUrl.searchParams.get("hub.verify_token");
     const challenge = req.nextUrl.searchParams.get("hub.challenge");
+
+    console.log("[webhooks/instagram][GET] mode:", mode);
+    console.log("[webhooks/instagram][GET] token ok:", token === getVerifyToken());
 
     if (mode === "subscribe" && token === getVerifyToken()) {
       return new NextResponse(challenge || "ok", { status: 200 });
@@ -35,11 +35,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Aceita tanto payload oficial do objeto instagram quanto variações
-    // que a Meta pode entregar via integração do Messenger.
+    console.log("[webhooks/instagram][POST] object:", body?.object);
+    console.log(
+      "[webhooks/instagram][POST] payload:",
+      JSON.stringify(body, null, 2)
+    );
+
     const acceptedObjects = ["instagram", "page", "whatsapp_business_account"];
 
     if (!acceptedObjects.includes(String(body?.object || ""))) {
+      console.log("[webhooks/instagram][POST] ignored unsupported object");
       return NextResponse.json({
         ok: true,
         ignored: true,
@@ -49,19 +54,10 @@ export async function POST(req: NextRequest) {
 
     const ingestion = await ingestInstagramWebhookPayload(body);
 
-    // Se você já tiver automações funcionando por evento, encaixe aqui.
-    // Exemplo:
-    //
-    // for (const result of ingestion.results) {
-    //   if (!result.ok) continue;
-    //   await runAutomationsForEvent({
-    //     type: "instagram_dm_received",
-    //     workspaceId: result.workspaceId,
-    //     socialAccountId: result.socialAccountId,
-    //     threadId: result.threadId,
-    //     messageId: result.messageId,
-    //   });
-    // }
+    console.log(
+      "[webhooks/instagram][POST] ingestion result:",
+      JSON.stringify(ingestion, null, 2)
+    );
 
     return NextResponse.json({
       ok: true,
