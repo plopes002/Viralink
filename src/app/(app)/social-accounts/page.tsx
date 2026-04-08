@@ -1,7 +1,7 @@
-
 // src/app/(app)/social-accounts/page.tsx
 "use client";
 
+import Link from "next/link";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSocialAccounts } from "@/hooks/useSocialAccounts";
 import type { SocialNetwork } from "@/types/socialAccount";
@@ -187,6 +187,7 @@ export default function SocialAccountsPage() {
 
           const isInstagram = n.network === "instagram";
           const isFacebook = n.network === "facebook";
+          const isWhatsapp = n.network === "whatsapp";
           const isConnected = status.status === "connected";
 
           return (
@@ -254,8 +255,17 @@ export default function SocialAccountsPage() {
                     {primaryLabel}
                   </button>
                 )}
+                
+                {isWhatsapp && (
+                  <Link
+                    href="/whatsapp"
+                    className="mt-1 text-center text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
+                  >
+                    Abrir central do WhatsApp
+                  </Link>
+                )}
 
-                 {isConnected && n.network !== 'whatsapp' && (
+                 {isConnected && !isWhatsapp && (
                       <button
                         type="button"
                         onClick={() => handleManageClick(n.network)}

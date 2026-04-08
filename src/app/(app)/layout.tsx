@@ -22,6 +22,7 @@ import {
   FiClipboard,
   FiShield,
   FiClock,
+  FiMessageCircle,
 } from "react-icons/fi";
 import { NotificationsBell } from "./components/NotificationsBell";
 import UserMenu from "./components/UserMenu";
@@ -44,6 +45,7 @@ const navItems = [
   //{ href: "/perfis", label: "Perfis Consolidados", icon: FiUserCheck },
   //{ href: "/contatos", label: "Contatos (CRM)", icon: FiClipboard },
   { href: "/campanhas", label: "Campanhas", icon: FiSend },
+  { href: "/whatsapp", label: "Central do WhatsApp", icon: FiMessageCircle },
   //{ href: "/revisao", label: "Revisão", icon: FiShield },
   { href: "/social-accounts", label: "Contas conectadas", icon: FiShare2 },
   { href: "/concorrentes", label: "Concorrentes", icon: FiUsers },
