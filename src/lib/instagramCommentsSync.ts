@@ -37,6 +37,25 @@ function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
   return obj;
 }
 
+async function fetchAllCommentsForMedia(mediaId: string, accessToken: string) {
+  let url =
+    `https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}/comments` +
+    `?fields=id,text,username,timestamp` +
+    `&limit=100` +
+    `&access_token=${encodeURIComponent(accessToken)}`;
+
+  const all: MetaComment[] = [];
+
+  while (url) {
+    const data = await fetchJson(url);
+    const batch: MetaComment[] = Array.isArray(data?.data) ? data.data : [];
+    all.push(...batch);
+    url = data?.paging?.next || "";
+  }
+
+  return all;
+}
+
 export async function syncInstagramCommentsForSocialAccount(params: {
   workspaceId: string;
   socialAccountId: string;
@@ -72,9 +91,9 @@ export async function syncInstagramCommentsForSocialAccount(params: {
   const primaryCampaignId = primaryCampaignSnap.docs[0].id;
 
   const mediaUrl =
-    `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}/media` +
-    `?fields=id,caption,media_type,permalink,timestamp` +
-    `&limit=10` +
+    `https://graph.facebook.com/v25.0/${encodeURIComponent(accountId)}/media` +
+    `?fields=id,caption,timestamp` +
+    `&limit=25` +
     `&access_token=${encodeURIComponent(accessToken)}`;
 
   const mediaData = await fetchJson(mediaUrl);
@@ -82,20 +101,22 @@ export async function syncInstagramCommentsForSocialAccount(params: {
     ? mediaData.data
     : [];
 
+  console.log("[instagramCommentsSync] accountId:", accountId);
+  console.log("[instagramCommentsSync] socialAccountId:", socialAccountId);
+  console.log("[instagramCommentsSync] media found:", mediaItems.length);
+
   let inserted = 0;
   let updated = 0;
 
   for (const media of mediaItems) {
-    const commentsUrl =
-      `https://graph.facebook.com/v20.0/${encodeURIComponent(media.id)}/comments` +
-      `?fields=id,text,username,timestamp` +
-      `&limit=50` +
-      `&access_token=${encodeURIComponent(accessToken)}`;
+    const comments = await fetchAllCommentsForMedia(media.id, accessToken);
 
-    const commentsData = await fetchJson(commentsUrl);
-    const comments: MetaComment[] = Array.isArray(commentsData?.data)
-      ? commentsData.data
-      : [];
+    console.log(
+      "[instagramCommentsSync] media:",
+      media.id,
+      "comments:",
+      comments.length
+    );
 
     for (const comment of comments) {
       const stableSourceId = sourceCampaignAccountId || accountId;
@@ -117,12 +138,16 @@ export async function syncInstagramCommentsForSocialAccount(params: {
         sourceUsername,
         network: "instagram",
         interactionType: "comment",
+        socialAccountId,
+
         externalCommentId: comment.id,
         externalMediaId: media.id,
         mediaCaption: media.caption || "",
+
         commenterId: comment.id,
         commenterUsername: comment.username || "",
         commenterText: comment.text || "",
+
         status: existingData?.status || "new",
         assignedToUserId: existingData?.assignedToUserId || null,
         publicReplyText: existingData?.publicReplyText || null,
@@ -130,7 +155,6 @@ export async function syncInstagramCommentsForSocialAccount(params: {
         publicReplyMeta: existingData?.publicReplyMeta || null,
         privateReplyMeta: existingData?.privateReplyMeta || null,
 
-        // 🔒 nunca undefined
         automationMatched:
           typeof existingData?.automationMatched === "boolean"
             ? existingData.automationMatched
@@ -187,6 +211,11 @@ export async function syncInstagramCommentsForSocialAccount(params: {
       }
     }
   }
+
+  console.log("[instagramCommentsSync] final result:", {
+    inserted,
+    updated,
+  });
 
   return {
     ok: true,

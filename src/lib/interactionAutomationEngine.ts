@@ -159,6 +159,56 @@ async function sendFacebookPrivateReply(params: {
   return data;
 }
 
+async function sendInstagramPublicReply(params: {
+  socialAccountId: string;
+  commentId: string;
+  message: string;
+}) {
+  const { socialAccountId, commentId, message } = params;
+
+  const socialDoc = await adminFirestore
+    .collection("socialAccounts")
+    .doc(socialAccountId)
+    .get();
+
+  if (!socialDoc.exists) {
+    throw new Error("socialAccount não encontrada para resposta pública do Instagram.");
+  }
+
+  const social = socialDoc.data() as any;
+  const accessToken = social.accessToken || "";
+
+  if (!accessToken) {
+    throw new Error("Token não encontrado para resposta pública do Instagram.");
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/v25.0/${encodeURIComponent(commentId)}/replies`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        message,
+        access_token: accessToken,
+      }).toString(),
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error?.message || "Erro ao responder comentário no Instagram."
+    );
+  }
+
+  return data;
+}
+
+
 function ruleMatchesComment(rule: any, commentText: string) {
   if (!rule?.active) return false;
 
@@ -367,6 +417,30 @@ export async function processInteractionAutomation(interactionId: string) {
       updates.status = "replied";
       executed.push("publicReply");
     }
+
+    if (
+      isInstagram &&
+      actions.publicReply &&
+      publicReplyTemplate &&
+      interaction.externalCommentId &&
+      !interaction.publicReplyMeta?.automated
+    ) {
+      await sendInstagramPublicReply({
+        socialAccountId,
+        commentId: interaction.externalCommentId,
+        message: publicReplyTemplate,
+      });
+    
+      updates.publicReplyText = publicReplyTemplate;
+      updates.publicReplyMeta = {
+        automated: true,
+        sentAt: new Date().toISOString(),
+        ruleId: matchedRule.id,
+      };
+      updates.status = "replied";
+      executed.push("publicReply");
+    }
+
 
     if (
       isFacebook &&
