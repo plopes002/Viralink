@@ -1,79 +1,82 @@
 // src/app/api/webhooks/instagram/route.ts
-import 'server-only';
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore } from "@/lib/firebaseAdmin";
-import { runAutomationsForEvent } from "@/lib/automationEngine";
-import type { InternalSocialEvent } from "@/types/internalSocialEvent";
+import { ingestInstagramWebhookPayload } from "@/lib/meta-inbox-webhook";
+
+// Se você já tiver uma função de automação, descomente e ajuste o import.
+// import { runAutomationsForEvent } from "@/lib/automations";
+
+function getVerifyToken() {
+  return (
+    process.env.META_WEBHOOK_VERIFY_TOKEN ||
+    process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ||
+    process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN ||
+    ""
+  );
+}
 
 export async function GET(req: NextRequest) {
-  // Handshake do Meta (hub.challenge)
-  const { searchParams } = new URL(req.url);
-  const mode = searchParams.get("hub.mode");
-  const token = searchParams.get("hub.verify_token");
-  const challenge = searchParams.get("hub.challenge");
+  try {
+    const mode = req.nextUrl.searchParams.get("hub.mode");
+    const token = req.nextUrl.searchParams.get("hub.verify_token");
+    const challenge = req.nextUrl.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
-    console.log("[instagram webhook] verificado.");
-    return new NextResponse(challenge ?? "", { status: 200 });
+    if (mode === "subscribe" && token === getVerifyToken()) {
+      return new NextResponse(challenge || "ok", { status: 200 });
+    }
+
+    return new NextResponse("Forbidden", { status: 403 });
+  } catch (error) {
+    console.error("[webhooks/instagram][GET] error:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
-
-  return new NextResponse("Forbidden", { status: 403 });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
-    console.log("[instagram webhook] payload bruto:", JSON.stringify(payload));
+    const body = await req.json();
 
-    // ⚠️ Adaptar para o formato REAL que o Meta entrega
-    const igAccountId = String(payload.ig_account_id || payload.account_id);
-    const followerId = String(payload.user_id);
-    const followerUsername = payload.username || "";
-    const followerName = payload.full_name || "";
+    // Aceita tanto payload oficial do objeto instagram quanto variações
+    // que a Meta pode entregar via integração do Messenger.
+    const acceptedObjects = ["instagram", "page", "whatsapp_business_account"];
 
-    const socialSnap = await adminFirestore
-      .collection("socialAccounts")
-      .where("network", "==", "instagram")
-      .where("accountId", "==", igAccountId)
-      .limit(1)
-      .get();
-
-    if (socialSnap.empty) {
-      console.warn(
-        "[instagram webhook] nenhuma socialAccount IG para accountId:",
-        igAccountId,
-      );
-      return NextResponse.json({ ok: true });
+    if (!acceptedObjects.includes(String(body?.object || ""))) {
+      return NextResponse.json({
+        ok: true,
+        ignored: true,
+        reason: "unsupported_object",
+      });
     }
 
-    const socialDoc = socialSnap.docs[0];
-    const socialData = socialDoc.data() as any;
+    const ingestion = await ingestInstagramWebhookPayload(body);
 
-    const event: InternalSocialEvent = {
-      workspaceId: socialData.workspaceId,
-      socialAccountId: socialDoc.id,
-      network: "instagram",
-      type: "new_follower",
-      text: "",
-      fromUser: {
-        externalId: followerId,
-        name: followerName,
-        username: followerUsername,
-      },
-      raw: payload,
-      receivedAt: new Date().toISOString(),
-    };
+    // Se você já tiver automações funcionando por evento, encaixe aqui.
+    // Exemplo:
+    //
+    // for (const result of ingestion.results) {
+    //   if (!result.ok) continue;
+    //   await runAutomationsForEvent({
+    //     type: "instagram_dm_received",
+    //     workspaceId: result.workspaceId,
+    //     socialAccountId: result.socialAccountId,
+    //     threadId: result.threadId,
+    //     messageId: result.messageId,
+    //   });
+    // }
 
-    await adminFirestore.collection("socialEvents").add(event);
+    return NextResponse.json({
+      ok: true,
+      processed: ingestion.processed,
+      results: ingestion.results,
+    });
+  } catch (error: any) {
+    console.error("[webhooks/instagram][POST] error:", error);
 
-    await runAutomationsForEvent(event);
-
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error("[instagram webhook] erro:", err);
     return NextResponse.json(
-      { error: "Erro interno" },
-      { status: 500 },
+      {
+        ok: false,
+        error: error?.message || "Erro ao processar webhook do Instagram",
+      },
+      { status: 500 }
     );
   }
 }
