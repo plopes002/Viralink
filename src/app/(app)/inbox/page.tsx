@@ -1,3 +1,4 @@
+
 // src/app/(app)/inbox/page.tsx
 "use client";
 
@@ -63,6 +64,7 @@ type InboxAutomationRule = {
   onlyFirstMessage: boolean;
   activeHoursOnly?: boolean;
   templateKey?: string;
+  templateCategory?: string;
 };
 
 const DEFAULT_RULE: InboxAutomationRule = {
@@ -75,28 +77,78 @@ const DEFAULT_RULE: InboxAutomationRule = {
   onlyFirstMessage: false,
   activeHoursOnly: false,
   templateKey: "",
+  templateCategory: "geral",
 };
 
-const AUTOMATION_TEMPLATES = [
+const TEMPLATE_GROUPS = [
   {
-    key: "welcome_fast",
-    label: "Boas-vindas rápida",
-    text: "Olá! Recebi sua mensagem 😊 Em instantes vou te passar os detalhes.",
+    category: "geral",
+    label: "Geral",
+    templates: [
+      {
+        key: "welcome_fast",
+        label: "Boas-vindas rápida",
+        text: "Olá! Recebi sua mensagem 😊 Em instantes vou te passar os detalhes.",
+      },
+      {
+        key: "lead_capture",
+        label: "Captura de lead",
+        text: "Olá! Obrigado pelo contato 😊 Para agilizar seu atendimento, me envie seu nome e o que você procura.",
+      },
+      {
+        key: "commercial_hours",
+        label: "Fora do horário",
+        text: "Olá! Recebemos sua mensagem 😊 Nosso horário de atendimento é de segunda a sexta, das 8h às 18h. Retornaremos assim que possível.",
+      },
+    ],
   },
   {
-    key: "budget",
-    label: "Pedido de orçamento",
-    text: "Olá! Obrigado pelo contato 😊 Me envie o que você precisa e eu preparo os detalhes para você.",
+    category: "clinica",
+    label: "Clínica / estética",
+    templates: [
+      {
+        key: "clinic_budget",
+        label: "Orçamento de procedimento",
+        text: "Olá! 😊 Recebi sua mensagem. Me conte qual procedimento você procura para eu te passar as informações certinhas.",
+      },
+      {
+        key: "clinic_schedule",
+        label: "Agendamento",
+        text: "Olá! 😊 Posso te ajudar com seu agendamento. Me envie o procedimento desejado e o melhor dia/horário para você.",
+      },
+    ],
   },
   {
-    key: "commercial_hours",
-    label: "Fora do horário comercial",
-    text: "Olá! Recebemos sua mensagem 😊 Nosso horário de atendimento é de segunda a sexta, das 8h às 18h. Retornaremos assim que possível.",
+    category: "agencia",
+    label: "Agência / serviços",
+    templates: [
+      {
+        key: "agency_budget",
+        label: "Pedido de orçamento",
+        text: "Olá! Obrigado pelo contato 😊 Me envie o que você precisa e eu preparo os detalhes para você.",
+      },
+      {
+        key: "agency_diagnosis",
+        label: "Diagnóstico inicial",
+        text: "Olá! 😊 Recebi sua mensagem. Me conte um pouco sobre seu objetivo para eu te orientar da melhor forma.",
+      },
+    ],
   },
   {
-    key: "lead_capture",
-    label: "Captura de lead",
-    text: "Olá! Obrigado pelo contato 😊 Para agilizar seu atendimento, me envie seu nome e o que você procura.",
+    category: "loja",
+    label: "Loja / e-commerce",
+    templates: [
+      {
+        key: "store_product",
+        label: "Informação de produto",
+        text: "Olá! 😊 Obrigado pelo contato. Me envie o nome do produto ou print para eu te passar os detalhes.",
+      },
+      {
+        key: "store_delivery",
+        label: "Entrega / frete",
+        text: "Olá! 😊 Posso te ajudar com entrega e frete. Me envie seu CEP para eu verificar certinho.",
+      },
+    ],
   },
 ];
 
@@ -122,19 +174,32 @@ function formatListTime(value?: string) {
   }
 }
 
-function getAvatarLabel(thread?: InboxThread | null) {
-  const base =
-    thread?.customerName?.trim() ||
-    thread?.customerUsername?.trim() ||
-    "?";
-  return base.slice(0, 1).toUpperCase();
+function getThreadDisplayName(thread?: InboxThread | null) {
+  if (!thread) return "Contato";
+  if (thread.customerName?.trim()) return thread.customerName.trim();
+  if (thread.customerUsername?.trim()) return `@${thread.customerUsername.trim()}`;
+  if (thread.customerId) return `Contato ${thread.customerId.slice(-4)}`;
+  return "Contato";
 }
 
-function getThreadDisplayName(thread?: InboxThread | null) {
-  return (
+function getThreadSecondaryLabel(thread?: InboxThread | null) {
+  if (!thread) return "Contato recebido via Instagram Direct";
+  if (thread.customerUsername?.trim() && thread.customerName?.trim()) {
+    return `@${thread.customerUsername.trim()}`;
+  }
+  if (thread.customerId) {
+    return `ID ${thread.customerId}`;
+  }
+  return "Contato recebido via Instagram Direct";
+}
+
+function getAvatarLabel(thread?: InboxThread | null) {
+  const name =
     thread?.customerName?.trim() ||
-    (thread?.customerUsername ? `@${thread.customerUsername}` : "Contato")
-  );
+    thread?.customerUsername?.trim() ||
+    thread?.customerId?.trim() ||
+    "?";
+  return name.slice(0, 1).toUpperCase();
 }
 
 function getMessageStatusLabel(message: InboxMessage) {
@@ -142,6 +207,11 @@ function getMessageStatusLabel(message: InboxMessage) {
   if (message.senderType === "agent") return "Você";
   if (message.senderType === "customer") return "Cliente";
   return "Sistema";
+}
+
+function getSelectedTemplates(category: string) {
+  const group = TEMPLATE_GROUPS.find((item) => item.category === category);
+  return group?.templates || TEMPLATE_GROUPS[0].templates;
 }
 
 export default function InboxPage() {
@@ -158,6 +228,7 @@ export default function InboxPage() {
   const [composerText, setComposerText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("open");
+  const [viewFilter, setViewFilter] = useState<"all" | "unread">("all");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rule, setRule] = useState<InboxAutomationRule>(DEFAULT_RULE);
@@ -215,6 +286,10 @@ export default function InboxPage() {
         return false;
       }
 
+      if (viewFilter === "unread" && !thread.unreadCount) {
+        return false;
+      }
+
       if (!term) return true;
 
       return (
@@ -223,7 +298,7 @@ export default function InboxPage() {
         lastMessage.includes(term)
       );
     });
-  }, [threads, search, statusFilter]);
+  }, [threads, search, statusFilter, viewFilter]);
 
   async function loadThreads() {
     if (!workspaceId || !selectedSocialAccountId) return;
@@ -553,7 +628,10 @@ export default function InboxPage() {
   }
 
   function applyTemplate(templateKey: string) {
-    const template = AUTOMATION_TEMPLATES.find((item) => item.key === templateKey);
+    const selectedTemplates = getSelectedTemplates(
+      rule.templateCategory || "geral"
+    );
+    const template = selectedTemplates.find((item) => item.key === templateKey);
 
     if (!template) return;
 
@@ -576,6 +654,8 @@ export default function InboxPage() {
       </div>
     );
   }
+
+  const selectedTemplates = getSelectedTemplates(rule.templateCategory || "geral");
 
   return (
     <div className="h-[calc(100vh-86px)] bg-[linear-gradient(180deg,#eef2ff_0%,#f8fafc_42%,#f6f7fb_100%)] p-4 md:p-5">
@@ -622,7 +702,7 @@ export default function InboxPage() {
         </div>
       ) : null}
 
-      <div className="grid h-[calc(100%-110px)] grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]">
+      <div className="grid h-[calc(100%-110px)] grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_400px]">
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_10px_35px_rgba(15,23,42,0.08)]">
           <div className="border-b border-slate-100 p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -638,6 +718,30 @@ export default function InboxPage() {
               placeholder="Buscar nome, @username ou texto..."
               className="mb-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
             />
+
+            <div className="mb-2 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setViewFilter("all")}
+                className={`rounded-2xl px-4 py-2.5 text-sm ${
+                  viewFilter === "all"
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-200 text-slate-700"
+                }`}
+              >
+                Todas
+              </button>
+
+              <button
+                onClick={() => setViewFilter("unread")}
+                className={`rounded-2xl px-4 py-2.5 text-sm ${
+                  viewFilter === "unread"
+                    ? "bg-rose-600 text-white"
+                    : "border border-slate-200 text-slate-700"
+                }`}
+              >
+                Não lidas
+              </button>
+            </div>
 
             <div className="flex gap-2">
               <select
@@ -679,9 +783,17 @@ export default function InboxPage() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-semibold text-white">
-                        {getAvatarLabel(thread)}
-                      </div>
+                      {thread.customerProfilePic ? (
+                        <img
+                          src={thread.customerProfilePic}
+                          alt={getThreadDisplayName(thread)}
+                          className="h-12 w-12 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-semibold text-white">
+                          {getAvatarLabel(thread)}
+                        </div>
+                      )}
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
@@ -691,6 +803,10 @@ export default function InboxPage() {
                           <div className="shrink-0 text-[11px] text-slate-400">
                             {formatListTime(thread.lastMessageAt)}
                           </div>
+                        </div>
+
+                        <div className="truncate text-xs text-slate-400">
+                          {getThreadSecondaryLabel(thread)}
                         </div>
 
                         <div className="mt-1 truncate text-sm text-slate-600">
@@ -704,7 +820,7 @@ export default function InboxPage() {
 
                           {!!thread.unreadCount && (
                             <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-medium text-rose-700">
-                              {thread.unreadCount} nova(s)
+                              {thread.unreadCount} não lida(s)
                             </span>
                           )}
 
@@ -734,18 +850,24 @@ export default function InboxPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-semibold text-white">
-                        {getAvatarLabel(selectedThread)}
-                      </div>
+                      {selectedThread.customerProfilePic ? (
+                        <img
+                          src={selectedThread.customerProfilePic}
+                          alt={getThreadDisplayName(selectedThread)}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-semibold text-white">
+                          {getAvatarLabel(selectedThread)}
+                        </div>
+                      )}
 
                       <div className="min-w-0">
                         <h2 className="truncate text-lg font-semibold text-slate-900">
                           {getThreadDisplayName(selectedThread)}
                         </h2>
                         <p className="truncate text-sm text-slate-500">
-                          {selectedThread.customerUsername
-                            ? `@${selectedThread.customerUsername}`
-                            : "Contato recebido via Instagram Direct"}
+                          {getThreadSecondaryLabel(selectedThread)}
                         </p>
                       </div>
                     </div>
@@ -785,6 +907,7 @@ export default function InboxPage() {
                     {messages.map((message) => {
                       const isOutbound = message.direction === "outbound";
                       const isSystemDeleted = !!message.isDeleted;
+                      const isAutomation = message.senderType === "automation";
 
                       return (
                         <div
@@ -799,13 +922,21 @@ export default function InboxPage() {
                             }`}
                           >
                             <div
-                              className={`mb-2 flex items-center gap-2 text-[11px] ${
+                              className={`mb-2 flex flex-wrap items-center gap-2 text-[11px] ${
                                 isOutbound ? "text-indigo-100" : "text-slate-400"
                               }`}
                             >
                               <span>{getMessageStatusLabel(message)}</span>
                               <span>•</span>
                               <span>{formatDateTime(message.sentAt)}</span>
+                              {isAutomation && (
+                                <>
+                                  <span>•</span>
+                                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+                                    resposta automática
+                                  </span>
+                                </>
+                              )}
                             </div>
 
                             <div className="whitespace-pre-wrap break-words text-sm">
@@ -874,7 +1005,7 @@ export default function InboxPage() {
           <div className="border-b border-slate-100 px-5 py-4">
             <div className="text-sm font-semibold text-slate-900">Automação de DM</div>
             <p className="mt-1 text-sm text-slate-500">
-              Configure respostas automáticas e aplique templates prontos.
+              Configure respostas automáticas e use modelos por tipo de negócio.
             </p>
           </div>
 
@@ -907,11 +1038,34 @@ export default function InboxPage() {
                   </div>
 
                   <div className="mb-4">
+                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Tipo de negócio
+                    </label>
+                    <select
+                      value={rule.templateCategory || "geral"}
+                      onChange={(e) =>
+                        setRule((prev) => ({
+                          ...prev,
+                          templateCategory: e.target.value,
+                          templateKey: "",
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                    >
+                      {TEMPLATE_GROUPS.map((group) => (
+                        <option key={group.category} value={group.category}>
+                          {group.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="mb-4">
                     <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">
                       Templates rápidos
                     </label>
                     <div className="grid grid-cols-1 gap-2">
-                      {AUTOMATION_TEMPLATES.map((template) => {
+                      {selectedTemplates.map((template) => {
                         const active = rule.templateKey === template.key;
 
                         return (
