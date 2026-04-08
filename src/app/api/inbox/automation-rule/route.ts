@@ -15,6 +15,7 @@ const DEFAULT_RULE = {
   onlyFirstMessage: false,
   activeHoursOnly: false,
   templateKey: "",
+  templateCategory: "geral",
 };
 
 export async function GET(req: NextRequest) {
@@ -44,16 +45,18 @@ export async function GET(req: NextRequest) {
     }
 
     const doc = snap.docs[0];
+
     return NextResponse.json({
       ok: true,
       rule: {
-        ...DEFAULT_RULE,
         id: doc.id,
+        ...DEFAULT_RULE,
         ...doc.data(),
       },
     });
   } catch (error: any) {
     console.error("[api/inbox/automation-rule][GET] error:", error);
+
     return NextResponse.json(
       { ok: false, error: error?.message || "Erro ao carregar automação" },
       { status: 500 }
@@ -64,8 +67,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const workspaceId = body?.workspaceId;
-    const socialAccountId = body?.socialAccountId;
+    const workspaceId = String(body?.workspaceId || "").trim();
+    const socialAccountId = String(body?.socialAccountId || "").trim();
     const rule = body?.rule || {};
 
     if (!workspaceId || !socialAccountId) {
@@ -87,6 +90,7 @@ export async function POST(req: NextRequest) {
       onlyFirstMessage: !!rule.onlyFirstMessage,
       activeHoursOnly: !!rule.activeHoursOnly,
       templateKey: String(rule.templateKey || "").trim(),
+      templateCategory: String(rule.templateCategory || "geral").trim() || "geral",
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -116,9 +120,16 @@ export async function POST(req: NextRequest) {
     }
 
     const doc = existing.docs[0];
-    await adminFirestore.collection(COLLECTION).doc(doc.id).update(normalizedRule);
 
-    const updatedSnap = await adminFirestore.collection(COLLECTION).doc(doc.id).get();
+    await adminFirestore
+      .collection(COLLECTION)
+      .doc(doc.id)
+      .update(normalizedRule);
+
+    const updatedSnap = await adminFirestore
+      .collection(COLLECTION)
+      .doc(doc.id)
+      .get();
 
     return NextResponse.json({
       ok: true,
@@ -130,6 +141,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("[api/inbox/automation-rule][POST] error:", error);
+
     return NextResponse.json(
       { ok: false, error: error?.message || "Erro ao salvar automação" },
       { status: 500 }
