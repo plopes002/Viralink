@@ -1,3 +1,4 @@
+
 // src/lib/supporterInteractionsMeta.ts
 import "server-only";
 
@@ -85,7 +86,9 @@ export async function sendInstagramPrivateReply({
   }
 
   const url = new URL(
-    `https://graph.facebook.com/v20.0/${encodeURIComponent(commentId)}/private_replies`
+    `https://graph.facebook.com/v20.0/${encodeURIComponent(
+      commentId
+    )}/private_replies`
   );
   url.searchParams.set("message", message.trim());
   url.searchParams.set("access_token", accessToken);

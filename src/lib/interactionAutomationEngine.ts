@@ -1,3 +1,4 @@
+
 // src/lib/interactionAutomationEngine.ts
 import { adminFirestore } from "@/lib/firebaseAdmin";
 import {
@@ -5,6 +6,10 @@ import {
   politicalPositiveWords,
   politicalNegativeWords,
 } from "@/lib/politicalKeywords";
+import {
+  replyToInstagramComment,
+  sendInstagramPrivateReply,
+} from "@/lib/supporterInteractionsMeta";
 
 function normalizeText(text: string) {
   return String(text || "")
@@ -102,7 +107,8 @@ async function sendFacebookPublicReply(params: {
 
   if (!response.ok) {
     throw new Error(
-      data?.error?.message || "Erro ao responder comentário publicamente no Facebook."
+      data?.error?.message ||
+        "Erro ao responder comentário publicamente no Facebook."
     );
   }
 
@@ -125,7 +131,9 @@ async function sendFacebookPrivateReply(params: {
   }
 
   if (!pageId) {
-    throw new Error("facebookPageId/accountId não encontrado para resposta privada.");
+    throw new Error(
+      "facebookPageId/accountId não encontrado para resposta privada."
+    );
   }
 
   const response = await fetch(
@@ -165,49 +173,43 @@ async function sendInstagramPublicReply(params: {
   message: string;
 }) {
   const { socialAccountId, commentId, message } = params;
-
-  const socialDoc = await adminFirestore
-    .collection("socialAccounts")
-    .doc(socialAccountId)
-    .get();
-
-  if (!socialDoc.exists) {
-    throw new Error("socialAccount não encontrada para resposta pública do Instagram.");
-  }
-
-  const social = socialDoc.data() as any;
+  const social = await getSocialAccountOrThrow(socialAccountId);
   const accessToken = social.accessToken || "";
 
   if (!accessToken) {
-    throw new Error("Token não encontrado para resposta pública do Instagram.");
-  }
-
-  const response = await fetch(
-    `https://graph.facebook.com/v25.0/${encodeURIComponent(commentId)}/replies`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        message,
-        access_token: accessToken,
-      }).toString(),
-      cache: "no-store",
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
     throw new Error(
-      data?.error?.message || "Erro ao responder comentário no Instagram."
+      "Token não encontrado para resposta pública do Instagram."
     );
   }
 
-  return data;
+  return replyToInstagramComment({
+    commentId,
+    message,
+    accessToken,
+  });
 }
 
+async function sendInstagramPrivateReplyFromSocialAccount(params: {
+  socialAccountId: string;
+  commentId: string;
+  message: string;
+}) {
+  const { socialAccountId, commentId, message } = params;
+  const social = await getSocialAccountOrThrow(socialAccountId);
+  const accessToken = social.accessToken || "";
+
+  if (!accessToken) {
+    throw new Error(
+      "Token não encontrado para resposta privada do Instagram."
+    );
+  }
+
+  return sendInstagramPrivateReply({
+    commentId,
+    message,
+    accessToken,
+  });
+}
 
 function ruleMatchesComment(rule: any, commentText: string) {
   if (!rule?.active) return false;
@@ -430,7 +432,7 @@ export async function processInteractionAutomation(interactionId: string) {
         commentId: interaction.externalCommentId,
         message: publicReplyTemplate,
       });
-    
+
       updates.publicReplyText = publicReplyTemplate;
       updates.publicReplyMeta = {
         automated: true,
@@ -441,16 +443,42 @@ export async function processInteractionAutomation(interactionId: string) {
       executed.push("publicReply");
     }
 
-
     if (
       isFacebook &&
       interaction.externalCommentId &&
-      ((actions.privateReply && privateReplyTemplate) || autoDM)
+      ((actions.privateReply && privateReplyTemplate) || autoDM) &&
+      !interaction.privateReplyMeta?.automated
     ) {
       const messageToSend = autoDM || privateReplyTemplate;
 
       if (messageToSend) {
         await sendFacebookPrivateReply({
+          socialAccountId,
+          commentId: interaction.externalCommentId,
+          message: messageToSend,
+        });
+
+        updates.privateReplyText = messageToSend;
+        updates.privateReplyMeta = {
+          automated: true,
+          sentAt: new Date().toISOString(),
+          ruleId: matchedRule.id,
+        };
+        updates.status = "private_replied";
+        executed.push("privateReply");
+      }
+    }
+
+    if (
+      isInstagram &&
+      interaction.externalCommentId &&
+      ((actions.privateReply && privateReplyTemplate) || autoDM) &&
+      !interaction.privateReplyMeta?.automated
+    ) {
+      const messageToSend = autoDM || privateReplyTemplate;
+
+      if (messageToSend) {
+        await sendInstagramPrivateReplyFromSocialAccount({
           socialAccountId,
           commentId: interaction.externalCommentId,
           message: messageToSend,
@@ -473,14 +501,16 @@ export async function processInteractionAutomation(interactionId: string) {
         .where("sourceInteractionId", "==", interactionId)
         .limit(1)
         .get();
-    
+
       if (existingLeadSnap.empty) {
         await adminFirestore.collection("supporterLeads").add({
           workspaceId: interaction.workspaceId,
           primaryAccountId: interaction.primaryAccountId,
           sourceCampaignAccountId: interaction.sourceCampaignAccountId || null,
           sourceInteractionId: interactionId,
-          leadName: interaction.commenterUsername || (isFacebook ? "Lead Facebook" : "Lead Instagram"),
+          leadName:
+            interaction.commenterUsername ||
+            (isFacebook ? "Lead Facebook" : "Lead Instagram"),
           instagramUsername: interaction.commenterUsername || "",
           note: interaction.commenterText || "",
           intentLevel: intentLevel || "auto",
@@ -489,7 +519,7 @@ export async function processInteractionAutomation(interactionId: string) {
           updatedAt: new Date().toISOString(),
         });
       }
-    
+
       updates.status = "lead";
       executed.push("convertToLead");
     }
