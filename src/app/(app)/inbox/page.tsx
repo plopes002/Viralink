@@ -664,6 +664,7 @@ export default function InboxPage() {
 
                     <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       Esta Inbox só permite responder conversas já iniciadas pelo usuário.
+                      O sistema não inicia DM sem interação prévia.
                     </div>
                   </div>
 
@@ -979,4 +980,3 @@ export default function InboxPage() {
     </div>
   );
 }
-```
