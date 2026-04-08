@@ -420,8 +420,8 @@ export default function InboxPage() {
       setSelectedThread((prev) =>
         prev && prev.id === threadId ? { ...prev, unreadCount: 0 } : prev
       );
-    } catch (error) {
-      console.error("[inbox/page] markThreadAsRead error:", error);
+    } catch (err) {
+      console.error("[inbox/page] markThreadAsRead error:", err);
     }
   }
 
@@ -669,7 +669,7 @@ export default function InboxPage() {
           <select
             value={selectedSocialAccountId}
             onChange={(e) => setSelectedSocialAccountId(e.target.value)}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm outline-none"
+            className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none"
           >
             <option value="">Selecione a conta</option>
             {accounts.map((account) => (
@@ -723,7 +723,7 @@ export default function InboxPage() {
                 className={`rounded-2xl px-4 py-2.5 text-sm ${
                   viewFilter === "all"
                     ? "bg-slate-900 text-white"
-                    : "border border-slate-300 bg-white text-slate-700"
+                    : "border border-slate-300 bg-white text-slate-800"
                 }`}
               >
                 Todas
@@ -734,7 +734,7 @@ export default function InboxPage() {
                 className={`rounded-2xl px-4 py-2.5 text-sm ${
                   viewFilter === "unread"
                     ? "bg-rose-600 text-white"
-                    : "border border-slate-300 bg-white text-slate-700"
+                    : "border border-slate-300 bg-white text-slate-800"
                 }`}
               >
                 Não lidas
@@ -756,7 +756,7 @@ export default function InboxPage() {
 
               <button
                 onClick={loadThreads}
-                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700"
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800"
               >
                 Buscar
               </button>
@@ -878,7 +878,7 @@ export default function InboxPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={handleToggleThreadAutomation}
-                      className="rounded-2xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
+                      className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800"
                     >
                       {selectedThread.automationEnabled
                         ? "Pausar automação"
@@ -887,7 +887,7 @@ export default function InboxPage() {
 
                     <button
                       onClick={handleArchiveThread}
-                      className="rounded-2xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
+                      className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800"
                     >
                       Arquivar
                     </button>
@@ -984,7 +984,7 @@ export default function InboxPage() {
                     }}
                     rows={3}
                     placeholder="Digite sua resposta manual..."
-                    className="min-h-[100px] flex-1 rounded-3xl border border-slate-200 bg-white px-4 py-4 text-sm outline-none"
+                    className="min-h-[100px] flex-1 rounded-3xl border border-slate-300 bg-white px-4 py-4 text-sm text-slate-800 outline-none"
                   />
                   <button
                     onClick={handleSendMessage}
@@ -1034,6 +1034,7 @@ export default function InboxPage() {
                       </span>
                     </label>
                   </div>
+
                   <div className="mb-4">
                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                       Nome da automação
@@ -1050,6 +1051,7 @@ export default function InboxPage() {
                       className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
                     />
                   </div>
+
                   <div className="mb-4">
                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                       Tipo de negócio
@@ -1117,7 +1119,7 @@ export default function InboxPage() {
                             matchType: e.target.value as "any" | "contains",
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
                       >
                         <option value="any">Qualquer nova mensagem</option>
                         <option value="contains">Mensagem contendo palavra</option>
@@ -1135,7 +1137,7 @@ export default function InboxPage() {
                             setRule((prev) => ({ ...prev, containsText: e.target.value }))
                           }
                           placeholder="Ex.: preço, orçamento, oi"
-                          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
                         />
                       </div>
                     )}
@@ -1155,7 +1157,7 @@ export default function InboxPage() {
                         }
                         rows={5}
                         placeholder="Ex.: Olá! Recebi sua mensagem e já vou te atender 😊"
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
                       />
                     </div>
 
@@ -1172,7 +1174,7 @@ export default function InboxPage() {
                               delaySeconds: Number(e.target.value || 0),
                             }))
                           }
-                          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none"
                         >
                           <option value="0">Sem atraso</option>
                           <option value="3">3 segundos</option>
@@ -1182,7 +1184,7 @@ export default function InboxPage() {
                       </div>
 
                       <div className="flex items-end">
-                        <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
+                        <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800">
                           <input
                             type="checkbox"
                             checked={rule.onlyFirstMessage}
@@ -1198,7 +1200,7 @@ export default function InboxPage() {
                       </div>
                     </div>
 
-                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <label className="inline-flex items-center gap-2 text-sm text-slate-800">
                       <input
                         type="checkbox"
                         checked={!!rule.activeHoursOnly}
@@ -1237,17 +1239,21 @@ export default function InboxPage() {
                   {selectedThread ? (
                     <div className="mt-3 space-y-2 text-sm text-slate-600">
                       <div>
+                        <strong>Nome da automação:</strong> {rule.name || "Sem nome"}
+                      </div>
+                      <div>
                         <strong>Status:</strong> {selectedThread.status || "open"}
+                      </div>
+                      <div>
+                        <strong>Não lidas:</strong> {selectedThread.unreadCount || 0}
                       </div>
                       <div>
                         <strong>Automação na conversa:</strong>{" "}
                         {selectedThread.automationEnabled ? "ativa" : "pausada"}
                       </div>
                       <div>
-                        <strong>Conta:</strong> {selectedThread.socialAccountId}
-                      </div>
-                      <div>
-                        <strong>Nome da automação:</strong> {rule.name || "Sem nome"}
+                        <strong>Última interação:</strong>{" "}
+                        {formatDateTime(selectedThread.lastMessageAt)}
                       </div>
                     </div>
                   ) : (

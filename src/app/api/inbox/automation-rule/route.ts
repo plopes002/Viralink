@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
     const workspaceId = String(body?.workspaceId || "").trim();
     const socialAccountId = String(body?.socialAccountId || "").trim();
     const rule = body?.rule || {};
@@ -124,10 +125,7 @@ export async function POST(req: NextRequest) {
 
     const doc = existing.docs[0];
 
-    await adminFirestore
-      .collection(COLLECTION)
-      .doc(doc.id)
-      .update(normalizedRule);
+    await adminFirestore.collection(COLLECTION).doc(doc.id).update(normalizedRule);
 
     const updatedSnap = await adminFirestore
       .collection(COLLECTION)
@@ -146,8 +144,4 @@ export async function POST(req: NextRequest) {
     console.error("[api/inbox/automation-rule][POST] error:", error);
 
     return NextResponse.json(
-      { ok: false, error: error?.message || "Erro ao salvar automação" },
-      { status: 500 }
-    );
-  }
-}
+      { ok: false, error: error?.message || "Erro ao salvar automação"

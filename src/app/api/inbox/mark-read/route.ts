@@ -16,26 +16,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const threadRef = adminFirestore.collection("inboxThreads").doc(threadId);
-    const threadSnap = await threadRef.get();
+    const ref = adminFirestore.collection("inboxThreads").doc(threadId);
+    const snap = await ref.get();
 
-    if (!threadSnap.exists) {
+    if (!snap.exists) {
       return NextResponse.json(
         { ok: false, error: "Thread não encontrada" },
         { status: 404 }
       );
     }
 
-    const thread = threadSnap.data();
+    const data = snap.data();
 
-    if (thread?.workspaceId !== workspaceId) {
+    if (data?.workspaceId !== workspaceId) {
       return NextResponse.json(
         { ok: false, error: "Acesso negado à thread" },
         { status: 403 }
       );
     }
 
-    await threadRef.update({
+    await ref.update({
       unreadCount: 0,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("[api/inbox/mark-read] error:", error);
+
     return NextResponse.json(
       { ok: false, error: error?.message || "Erro ao marcar como lida" },
-      {
+      { status: 500 }
