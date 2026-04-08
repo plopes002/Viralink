@@ -38,6 +38,7 @@ const navItems = [
   { href: "/dashboard", label: "Visão geral", icon: FiHome },
   { href: "/executivo", label: "Executivo", icon: FiBriefcase },
   //{ href: "/posts", label: "Posts & Agenda", icon: FiEdit3 },
+  { href: "/inbox", label: "Inbox", icon: Mail },
   { href: "/automations", label: "Automações", icon: FiZap },
   { href: "/engajamento", label: "Engajamento", icon: FiHeart },
   { href: "/supporters/interactions", label: "Comentários", icon: MailOpen },
