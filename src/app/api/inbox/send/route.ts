@@ -13,65 +13,100 @@ async function dispatchInstagramDirectReply(params: {
   thread: any;
   text: string;
 }) {
-  const accessToken =
+  const pageAccessToken =
     params.socialAccount?.pageAccessToken ||
     params.socialAccount?.accessToken ||
     null;
 
-  if (!accessToken) {
-    return {
-      ok: false,
-      simulated: true,
-      error: "Conta conectada sem token válido para envio",
-    };
-  }
+  const pageId =
+    params.socialAccount?.facebookPageId ||
+    params.socialAccount?.pageId ||
+    null;
 
   const recipientId =
     params.thread?.customerId ||
     params.thread?.instagramScopedUserId ||
     null;
 
+  if (!pageAccessToken) {
+    return {
+      ok: false,
+      simulated: true,
+      error: "Conta conectada sem pageAccessToken/accessToken válido",
+      debug: {
+        hasPageAccessToken: false,
+        hasPageId: !!pageId,
+        hasRecipientId: !!recipientId,
+      },
+    };
+  }
+
+  if (!pageId) {
+    return {
+      ok: false,
+      simulated: true,
+      error: "Conta conectada sem facebookPageId/pageId para envio",
+      debug: {
+        hasPageAccessToken: true,
+        hasPageId: false,
+        hasRecipientId: !!recipientId,
+      },
+    };
+  }
+
   if (!recipientId) {
     return {
       ok: false,
       simulated: true,
-      error: "Thread sem recipientId para envio",
+      error: "Thread sem customerId/instagramScopedUserId para envio",
+      debug: {
+        hasPageAccessToken: true,
+        hasPageId: true,
+        hasRecipientId: false,
+      },
     };
   }
 
+  const endpoint = `https://graph.facebook.com/v23.0/${pageId}/messages`;
+
+  const payload = {
+    recipient: { id: recipientId },
+    messaging_type: "RESPONSE",
+    message: { text: params.text },
+  };
+
   try {
-    const pageId =
-      params.socialAccount.facebookPageId ||
-      params.socialAccount.pageId ||
-      params.socialAccount.accountId;
-
-    const endpoint = `https://graph.facebook.com/v23.0/${pageId}/messages`;
-
-    console.log("[IG SEND] endpoint:", endpoint);
-    console.log("[IG SEND] recipient:", recipientId);
-    console.log("[IG SEND] token:", accessToken?.slice(0, 10));
-
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        recipient: { id: recipientId },
-        message: { text: params.text },
-        messaging_type: "RESPONSE",
-        access_token: accessToken,
+        ...payload,
+        access_token: pageAccessToken,
       }),
     });
 
     const data = await response.json();
-    console.log("[IG SEND] response:", data);
+
+    console.log("[IG SEND] endpoint:", endpoint);
+    console.log("[IG SEND] pageId:", pageId);
+    console.log("[IG SEND] recipientId:", recipientId);
+    console.log(
+      "[IG SEND] token prefix:",
+      typeof pageAccessToken === "string" ? pageAccessToken.slice(0, 12) : null
+    );
+    console.log("[IG SEND] payload:", JSON.stringify(payload));
+    console.log("[IG SEND] status:", response.status);
+    console.log("[IG SEND] response:", JSON.stringify(data));
 
     if (!response.ok) {
       return {
         ok: false,
         simulated: true,
         error: data?.error?.message || "Falha ao enviar pela Graph API",
+        graphStatus: response.status,
+        graphError: data?.error || null,
         raw: data,
       };
     }
@@ -83,10 +118,13 @@ async function dispatchInstagramDirectReply(params: {
       raw: data,
     };
   } catch (error: any) {
+    console.error("[IG SEND] unexpected error:", error);
+
     return {
       ok: false,
       simulated: true,
       error: error?.message || "Erro inesperado ao enviar pela Graph API",
+      raw: null,
     };
   }
 }
@@ -173,10 +211,10 @@ export async function POST(req: NextRequest) {
       messageId,
       deliveryStatus,
       simulated: !!dispatchResult.simulated,
-      warning: dispatchResult.ok
-        ? null
-        : dispatchResult.error ||
-          "Mensagem salva no sistema, mas o envio externo não foi confirmado.",
+      warning: dispatchResult.ok ? null : dispatchResult.error || "Envio externo não confirmado.",
+      graphStatus: dispatchResult.ok ? null : dispatchResult.graphStatus || null,
+      graphError: dispatchResult.ok ? null : dispatchResult.graphError || null,
+      debug: dispatchResult.ok ? null : dispatchResult.debug || null,
     });
   } catch (error: any) {
     console.error("[api/inbox/send] error:", error);
