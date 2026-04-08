@@ -62,6 +62,7 @@ type InboxAutomationRule = {
   delaySeconds: number;
   onlyFirstMessage: boolean;
   activeHoursOnly?: boolean;
+  templateKey?: string;
 };
 
 const DEFAULT_RULE: InboxAutomationRule = {
@@ -73,12 +74,49 @@ const DEFAULT_RULE: InboxAutomationRule = {
   delaySeconds: 0,
   onlyFirstMessage: false,
   activeHoursOnly: false,
+  templateKey: "",
 };
+
+const AUTOMATION_TEMPLATES = [
+  {
+    key: "welcome_fast",
+    label: "Boas-vindas rápida",
+    text: "Olá! Recebi sua mensagem 😊 Em instantes vou te passar os detalhes.",
+  },
+  {
+    key: "budget",
+    label: "Pedido de orçamento",
+    text: "Olá! Obrigado pelo contato 😊 Me envie o que você precisa e eu preparo os detalhes para você.",
+  },
+  {
+    key: "commercial_hours",
+    label: "Fora do horário comercial",
+    text: "Olá! Recebemos sua mensagem 😊 Nosso horário de atendimento é de segunda a sexta, das 8h às 18h. Retornaremos assim que possível.",
+  },
+  {
+    key: "lead_capture",
+    label: "Captura de lead",
+    text: "Olá! Obrigado pelo contato 😊 Para agilizar seu atendimento, me envie seu nome e o que você procura.",
+  },
+];
 
 function formatDateTime(value?: string) {
   if (!value) return "--";
   try {
     return new Date(value).toLocaleString("pt-BR");
+  } catch {
+    return "--";
+  }
+}
+
+function formatListTime(value?: string) {
+  if (!value) return "--";
+  try {
+    const date = new Date(value);
+    return date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } catch {
     return "--";
   }
@@ -97,6 +135,13 @@ function getThreadDisplayName(thread?: InboxThread | null) {
     thread?.customerName?.trim() ||
     (thread?.customerUsername ? `@${thread.customerUsername}` : "Contato")
   );
+}
+
+function getMessageStatusLabel(message: InboxMessage) {
+  if (message.senderType === "automation") return "Automação";
+  if (message.senderType === "agent") return "Você";
+  if (message.senderType === "customer") return "Cliente";
+  return "Sistema";
 }
 
 export default function InboxPage() {
@@ -278,6 +323,35 @@ export default function InboxPage() {
     }
   }
 
+  async function markThreadAsRead(threadId: string) {
+    if (!workspaceId || !threadId) return;
+
+    try {
+      await fetch("/api/inbox/mark-read", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workspaceId,
+          threadId,
+        }),
+      });
+
+      setThreads((prev) =>
+        prev.map((thread) =>
+          thread.id === threadId ? { ...thread, unreadCount: 0 } : thread
+        )
+      );
+
+      setSelectedThread((prev) =>
+        prev && prev.id === threadId ? { ...prev, unreadCount: 0 } : prev
+      );
+    } catch (error) {
+      console.error("[inbox/page] markThreadAsRead error:", error);
+    }
+  }
+
   useEffect(() => {
     if (!workspaceId || !selectedSocialAccountId) return;
     loadThreads();
@@ -290,7 +364,9 @@ export default function InboxPage() {
       setMessages([]);
       return;
     }
+
     loadMessages(selectedThread.id);
+    markThreadAsRead(selectedThread.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThread?.id]);
 
@@ -476,6 +552,18 @@ export default function InboxPage() {
     }
   }
 
+  function applyTemplate(templateKey: string) {
+    const template = AUTOMATION_TEMPLATES.find((item) => item.key === templateKey);
+
+    if (!template) return;
+
+    setRule((prev) => ({
+      ...prev,
+      templateKey: template.key,
+      responseText: template.text,
+    }));
+  }
+
   if (workspaceLoading) {
     return <div className="p-6 text-sm text-gray-500">Carregando workspace...</div>;
   }
@@ -490,12 +578,12 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-86px)] bg-[#f6f7fb] p-4 md:p-5">
-      <div className="mb-4 flex flex-col gap-3 rounded-3xl bg-white px-5 py-4 shadow-sm md:flex-row md:items-center md:justify-between">
+    <div className="h-[calc(100vh-86px)] bg-[linear-gradient(180deg,#eef2ff_0%,#f8fafc_42%,#f6f7fb_100%)] p-4 md:p-5">
+      <div className="mb-4 flex flex-col gap-3 rounded-[28px] bg-white/90 px-5 py-4 shadow-[0_10px_35px_rgba(15,23,42,0.08)] backdrop-blur md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Inbox / Direct</h1>
           <p className="text-sm text-slate-500">
-            Central de mensagens do Instagram com atendimento manual e automação de resposta.
+            Central de mensagens do Instagram com atendimento manual e automação configurável.
           </p>
         </div>
 
@@ -534,10 +622,15 @@ export default function InboxPage() {
         </div>
       ) : null}
 
-      <div className="grid h-[calc(100%-110px)] grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-sm">
+      <div className="grid h-[calc(100%-110px)] grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]">
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_10px_35px_rgba(15,23,42,0.08)]">
           <div className="border-b border-slate-100 p-4">
-            <div className="mb-3 text-sm font-semibold text-slate-900">Conversas</div>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-900">Conversas</div>
+              <div className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">
+                {filteredThreads.length} contato(s)
+              </div>
+            </div>
 
             <input
               value={search}
@@ -582,11 +675,11 @@ export default function InboxPage() {
                     key={thread.id}
                     onClick={() => setSelectedThread(thread)}
                     className={`w-full border-b border-slate-100 p-4 text-left transition ${
-                      active ? "bg-slate-50" : "hover:bg-slate-50"
+                      active ? "bg-indigo-50/50" : "hover:bg-slate-50"
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-semibold text-white">
                         {getAvatarLabel(thread)}
                       </div>
 
@@ -596,12 +689,7 @@ export default function InboxPage() {
                             {getThreadDisplayName(thread)}
                           </div>
                           <div className="shrink-0 text-[11px] text-slate-400">
-                            {thread.lastMessageAt
-                              ? new Date(thread.lastMessageAt).toLocaleTimeString("pt-BR", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "--"}
+                            {formatListTime(thread.lastMessageAt)}
                           </div>
                         </div>
 
@@ -615,8 +703,8 @@ export default function InboxPage() {
                           </span>
 
                           {!!thread.unreadCount && (
-                            <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] text-rose-700">
-                              {thread.unreadCount} não lida(s)
+                            <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-medium text-rose-700">
+                              {thread.unreadCount} nova(s)
                             </span>
                           )}
 
@@ -635,7 +723,7 @@ export default function InboxPage() {
           </div>
         </aside>
 
-        <main className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-sm">
+        <main className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_10px_35px_rgba(15,23,42,0.08)]">
           {!selectedThread ? (
             <div className="flex h-full items-center justify-center p-6 text-center text-sm text-slate-500">
               Selecione uma conversa para visualizar o histórico e responder.
@@ -646,7 +734,7 @@ export default function InboxPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-semibold text-white">
                         {getAvatarLabel(selectedThread)}
                       </div>
 
@@ -657,14 +745,13 @@ export default function InboxPage() {
                         <p className="truncate text-sm text-slate-500">
                           {selectedThread.customerUsername
                             ? `@${selectedThread.customerUsername}`
-                            : "Usuário identificado pelo Direct"}
+                            : "Contato recebido via Instagram Direct"}
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      Esta Inbox só permite responder conversas já iniciadas pelo usuário.
-                      O sistema não inicia DM sem interação prévia.
+                      Esta Inbox só permite responder conversas iniciadas pelo usuário. O sistema não cria DM sem interação prévia.
                     </div>
                   </div>
 
@@ -688,7 +775,7 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-5">
+              <div className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,#eef2ff_0%,#f8fafc_30%,#f8fafc_100%)] px-4 py-5">
                 {loadingMessages ? (
                   <div className="text-sm text-slate-500">Carregando mensagens...</div>
                 ) : messages.length === 0 ? (
@@ -705,9 +792,9 @@ export default function InboxPage() {
                           className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
                         >
                           <div
-                            className={`max-w-[80%] rounded-[22px] px-4 py-3 shadow-sm ${
+                            className={`max-w-[80%] rounded-[24px] px-4 py-3 shadow-sm ${
                               isOutbound
-                                ? "bg-indigo-600 text-white"
+                                ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white"
                                 : "border border-slate-200 bg-white text-slate-900"
                             }`}
                           >
@@ -716,15 +803,7 @@ export default function InboxPage() {
                                 isOutbound ? "text-indigo-100" : "text-slate-400"
                               }`}
                             >
-                              <span>
-                                {message.senderType === "automation"
-                                  ? "Automação"
-                                  : message.senderType === "agent"
-                                  ? "Você"
-                                  : message.senderType === "customer"
-                                  ? "Cliente"
-                                  : "Sistema"}
-                              </span>
+                              <span>{getMessageStatusLabel(message)}</span>
                               <span>•</span>
                               <span>{formatDateTime(message.sentAt)}</span>
                             </div>
@@ -791,11 +870,11 @@ export default function InboxPage() {
           )}
         </main>
 
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-sm">
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_10px_35px_rgba(15,23,42,0.08)]">
           <div className="border-b border-slate-100 px-5 py-4">
             <div className="text-sm font-semibold text-slate-900">Automação de DM</div>
             <p className="mt-1 text-sm text-slate-500">
-              Configure respostas automáticas para novas mensagens do Instagram Direct.
+              Configure respostas automáticas e aplique templates prontos.
             </p>
           </div>
 
@@ -809,7 +888,7 @@ export default function InboxPage() {
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Resposta automática</div>
                       <div className="text-xs text-slate-500">
-                        Só responde mensagens recebidas de forma legítima.
+                        Use apenas para interações legítimas recebidas.
                       </div>
                     </div>
 
@@ -825,6 +904,37 @@ export default function InboxPage() {
                         {rule.enabled ? "Ativa" : "Pausada"}
                       </span>
                     </label>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Templates rápidos
+                    </label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {AUTOMATION_TEMPLATES.map((template) => {
+                        const active = rule.templateKey === template.key;
+
+                        return (
+                          <button
+                            key={template.key}
+                            type="button"
+                            onClick={() => applyTemplate(template.key)}
+                            className={`rounded-2xl border px-3 py-3 text-left transition ${
+                              active
+                                ? "border-indigo-300 bg-indigo-50"
+                                : "border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="text-sm font-medium text-slate-900">
+                              {template.label}
+                            </div>
+                            <div className="mt-1 line-clamp-2 text-xs text-slate-500">
+                              {template.text}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -870,7 +980,11 @@ export default function InboxPage() {
                       <textarea
                         value={rule.responseText}
                         onChange={(e) =>
-                          setRule((prev) => ({ ...prev, responseText: e.target.value }))
+                          setRule((prev) => ({
+                            ...prev,
+                            responseText: e.target.value,
+                            templateKey: "",
+                          }))
                         }
                         rows={5}
                         placeholder="Ex.: Olá! Recebi sua mensagem e já vou te atender 😊"
@@ -934,7 +1048,7 @@ export default function InboxPage() {
                     <button
                       onClick={handleSaveAutomationRule}
                       disabled={savingRule}
-                      className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                      className="w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       {savingRule ? "Salvando..." : "Salvar automação"}
                     </button>
@@ -959,11 +1073,15 @@ export default function InboxPage() {
                         <strong>Status:</strong> {selectedThread.status || "open"}
                       </div>
                       <div>
+                        <strong>Não lidas:</strong> {selectedThread.unreadCount || 0}
+                      </div>
+                      <div>
                         <strong>Automação na conversa:</strong>{" "}
                         {selectedThread.automationEnabled ? "ativa" : "pausada"}
                       </div>
                       <div>
-                        <strong>Conta:</strong> {selectedThread.socialAccountId}
+                        <strong>Última interação:</strong>{" "}
+                        {formatDateTime(selectedThread.lastMessageAt)}
                       </div>
                     </div>
                   ) : (
