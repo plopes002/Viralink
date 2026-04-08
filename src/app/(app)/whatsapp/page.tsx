@@ -1,95 +1,171 @@
 // src/app/(app)/whatsapp/page.tsx
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 
 export default function WhatsAppPage() {
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+
+  async function handleSend() {
+    if (!phone || !message) {
+      alert("Preencha telefone e mensagem");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone, message }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        const newItem = {
+          phone,
+          message,
+          status: "enviado",
+          date: new Date().toLocaleString(),
+        };
+
+        setHistory((prev) => [newItem, ...prev]);
+
+        setMessage("");
+        alert("Mensagem enviada (ambiente de teste)");
+      } else {
+        alert("Erro ao enviar");
+      }
+    } catch (err) {
+      alert("Erro inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-white/10 bg-[#070014] p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Central do WhatsApp</h1>
-            <p className="mt-2 text-sm text-white/70">
-              Gerencie conexão, testes de envio, histórico e futuros fluxos do WhatsApp.
-            </p>
-          </div>
 
-          <span className="rounded-full bg-red-500/15 px-3 py-1 text-sm font-medium text-red-300">
-            Não conectado
-          </span>
+      {/* HEADER */}
+      <div className="rounded-2xl border border-white/10 bg-[#070014] p-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-white">
+            Central do WhatsApp
+          </h1>
+          <p className="text-white/60 mt-2">
+            Gerencie conexão, envios e histórico de mensagens.
+          </p>
         </div>
+
+        <span className="bg-red-500/20 text-red-300 px-3 py-1 rounded-full text-sm">
+          Não conectado
+        </span>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-white/10 bg-[#070014] p-6">
-          <h2 className="text-lg font-semibold text-white">Conexão</h2>
-          <p className="mt-2 text-sm text-white/70">
-            Configure o número e prepare a integração oficial com o WhatsApp Business.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-white/60">Número conectado</p>
-              <p className="mt-1 text-white">Nenhum número configurado</p>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-white/60">Ambiente</p>
-              <p className="mt-1 text-white">Modo de preparação</p>
-            </div>
-
-            <button className="w-full rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-3 font-semibold text-white">
-              Configurar WhatsApp
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-[#070014] p-6">
-          <h2 className="text-lg font-semibold text-white">Envio de teste</h2>
-          <p className="mt-2 text-sm text-white/70">
-            Use esta área para validar o fluxo visual antes da integração final.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            <input
-              className="w-full rounded-xl border border-white/10 bg-transparent px-4 py-3 text-white outline-none placeholder:text-white/35"
-              placeholder="Telefone com DDI"
-            />
-
-            <textarea
-              className="min-h-[140px] w-full rounded-xl border border-white/10 bg-transparent px-4 py-3 text-white outline-none placeholder:text-white/35"
-              placeholder="Digite uma mensagem de teste..."
-            />
-
-            <button className="w-full rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-3 font-semibold text-white">
-              Enviar teste
-            </button>
-          </div>
-        </section>
+      {/* MÉTRICAS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <MetricCard title="Mensagens enviadas" value={history.length} />
+        <MetricCard title="Taxa de sucesso" value="100%" />
+        <MetricCard title="Último envio" value={history[0]?.date || "-"} />
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-[#070014] p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Histórico</h2>
-            <p className="mt-2 text-sm text-white/70">
-              Aqui aparecerão envios, respostas e eventos do WhatsApp.
-            </p>
-          </div>
+      {/* CONEXÃO + ENVIO */}
+      <div className="grid lg:grid-cols-2 gap-6">
 
-          <Link
-            href="/engajamento"
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/80 transition hover:bg-white/5"
+        {/* CONEXÃO */}
+        <div className="rounded-2xl border border-white/10 bg-[#070014] p-6 space-y-4">
+          <h2 className="text-lg text-white font-semibold">Conexão</h2>
+
+          <Box label="Número conectado" value="Nenhum número configurado" />
+          <Box label="Ambiente" value="Modo de preparação" />
+
+          <button className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-semibold">
+            Configurar WhatsApp
+          </button>
+        </div>
+
+        {/* ENVIO */}
+        <div className="rounded-2xl border border-white/10 bg-[#070014] p-6 space-y-4">
+          <h2 className="text-lg text-white font-semibold">Envio de teste</h2>
+
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Telefone com DDI"
+            className="w-full p-3 rounded-xl bg-transparent border border-white/10 text-white"
+          />
+
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Digite a mensagem..."
+            className="w-full p-3 rounded-xl bg-transparent border border-white/10 text-white min-h-[120px]"
+          />
+
+          <button
+            onClick={handleSend}
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-semibold"
           >
-            Voltar para Engajamento
-          </Link>
+            {loading ? "Enviando..." : "Enviar teste"}
+          </button>
         </div>
+      </div>
 
-        <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-8 text-center text-white/50">
-          Nenhum evento encontrado ainda.
-        </div>
-      </section>
+      {/* HISTÓRICO */}
+      <div className="rounded-2xl border border-white/10 bg-[#070014] p-6">
+        <h2 className="text-lg text-white font-semibold mb-4">Histórico</h2>
+
+        {history.length === 0 ? (
+          <div className="text-center text-white/40 py-10">
+            Nenhum envio realizado ainda
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {history.map((item, i) => (
+              <div
+                key={i}
+                className="border border-white/10 rounded-xl p-4 flex justify-between items-center"
+              >
+                <div>
+                  <p className="text-white text-sm">{item.phone}</p>
+                  <p className="text-white/60 text-xs">{item.message}</p>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-green-400 text-sm">{item.status}</p>
+                  <p className="text-white/40 text-xs">{item.date}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ title, value }: any) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#070014] p-4">
+      <p className="text-white/60 text-sm">{title}</p>
+      <p className="text-white text-xl font-semibold mt-1">{value}</p>
+    </div>
+  );
+}
+
+function Box({ label, value }: any) {
+  return (
+    <div className="border border-white/10 rounded-xl p-4">
+      <p className="text-white/50 text-sm">{label}</p>
+      <p className="text-white mt-1">{value}</p>
     </div>
   );
 }
