@@ -352,7 +352,7 @@ export default function DashboardPage() {
     const count = insights?.competitors_count ?? 0;
     if (count === 0) return "Nenhum concorrente cadastrado";
     if (count === 1) return "1 concorrente monitorado";
-    return `${count} concorrentes ativos`;
+    return `${count} automações ativas`;
   }, [insights, loadingInsights]);
 
   const sourceLabel = useMemo(() => {
@@ -497,7 +497,7 @@ export default function DashboardPage() {
           tone={repliedRateTone}
         />
         <StatCard
-          label="Concorrentes monitorados"
+          label="Automações"
           value={competitorsCountValue}
           diff={competitorsStatusLabel}
           tone="neutral"
@@ -521,7 +521,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white">
-              Próximos posts agendados
+              Próximas automações agendadas
             </h2>
             <button className="text-[11px] text-[#0EA5E9] hover:underline">
               Ver agenda completa
@@ -532,7 +532,7 @@ export default function DashboardPage() {
             <p className="text-[11px] text-[#9CA3AF]">Carregando posts agendados...</p>
           ) : !scheduledPosts || scheduledPosts.length === 0 ? (
             <p className="text-[11px] text-[#9CA3AF]">
-              Nenhum post agendado encontrado.
+              Nenhuma automação agendada encontrada.
             </p>
           ) : (
             scheduledPosts.map((post) => (
@@ -797,7 +797,7 @@ function CompetitorsChart({ workspaceId }: { workspaceId: string | null }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-white">
-            Concorrentes – índice de engajamento
+           índice de engajamento
           </h2>
           <p className="text-[11px] text-[#9CA3AF]">
             Comparação do engajamento médio nas últimas semanas.
@@ -812,7 +812,7 @@ function CompetitorsChart({ workspaceId }: { workspaceId: string | null }) {
         <p className="text-[11px] text-[#9CA3AF]">Carregando concorrentes...</p>
       ) : chartRows.length <= 1 ? (
         <p className="text-[11px] text-[#9CA3AF]">
-          Cadastre concorrentes para visualizar a comparação real.
+         
         </p>
       ) : (
         <div className="space-y-2 mt-2">
@@ -842,8 +842,7 @@ function CompetitorsChart({ workspaceId }: { workspaceId: string | null }) {
       )}
 
       <p className="mt-2 text-[11px] text-[#9CA3AF]">
-        Use os relatórios detalhados para entender o que os concorrentes estão
-        fazendo e onde você pode abrir ainda mais vantagem.
+        
       </p>
     </motion.div>
   );

@@ -144,4 +144,8 @@ export async function POST(req: NextRequest) {
     console.error("[api/inbox/automation-rule][POST] error:", error);
 
     return NextResponse.json(
-      { ok: false, error: error?.message || "Erro ao salvar automação"
+      { ok: false, error: error?.message || "Erro ao salvar automação" },
+      { status: 500 }
+    );
+  }
+}

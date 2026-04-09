@@ -47,3 +47,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: error?.message || "Erro ao marcar como lida" },
       { status: 500 }
+    );
+  }
+}
